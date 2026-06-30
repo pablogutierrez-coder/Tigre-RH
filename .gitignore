@@ -1,0 +1,15 @@
+node_modules/
+build/
+dist/
+functions/lib/
+functions/node_modules/
+coverage/
+.DS_Store
+*.log
+.env*
+!.env.example
+*-service-account*.json
+serviceAccount*.json
+firebase-debug.log
+.firebase/
+.runtimeconfig.json

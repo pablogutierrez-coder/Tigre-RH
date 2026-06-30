@@ -1,0 +1,8 @@
+{
+  "name": "Remix: Remix: FDR Formación y Desarrollo",
+  "description": "Plataforma de control de asistencia, capacitación, deserciones y confirmación de altas en operación para Automatizate Negocios.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}

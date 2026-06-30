@@ -1,0 +1,132 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function userDoc() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid));
+    }
+
+    function role() {
+      return signedIn() && request.auth.token.role != null
+        ? request.auth.token.role
+        : signedIn() && exists(/databases/$(database)/documents/users/$(request.auth.uid))
+          ? userDoc().data.rol
+          : null;
+    }
+
+    function isAdmin() {
+      return signedIn() && role() == 'Administrador';
+    }
+
+    function hasAnyRole(roles) {
+      return signedIn() && role() in roles;
+    }
+
+    function isAssignedTrainer(sessionId) {
+      return signedIn()
+        && exists(/databases/$(database)/documents/sessions/$(sessionId))
+        && get(/databases/$(database)/documents/sessions/$(sessionId)).data.formador_id == request.auth.uid;
+    }
+
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    match /users/{userId} {
+      allow read: if isAdmin()
+        || hasAnyRole(['Analista', 'Coordinador', 'Sistemas'])
+        || request.auth.uid == userId;
+      allow create, update, delete: if isAdmin();
+    }
+
+    match /user_credentials/{userId} {
+      allow read, write: if false;
+    }
+
+    match /campaigns/{campaignId} {
+      allow read: if signedIn();
+      allow create, update: if isAdmin() || hasAnyRole(['Analista']);
+      allow delete: if isAdmin();
+    }
+
+    match /sessions/{sessionId} {
+      allow read: if isAdmin()
+        || hasAnyRole(['Analista', 'Coordinador', 'Sistemas'])
+        || resource.data.formador_id == request.auth.uid
+        || resource.data.reclutador_id == request.auth.uid;
+      allow create: if isAdmin() || hasAnyRole(['Analista', 'Reclutador']);
+      allow update: if isAdmin() || hasAnyRole(['Analista']);
+      allow delete: if isAdmin();
+    }
+
+    match /participants/{participantId} {
+      allow read: if signedIn();
+      allow create: if isAdmin() || hasAnyRole(['Analista', 'Reclutador']);
+      allow update: if isAdmin() || hasAnyRole(['Analista']);
+      allow delete: if isAdmin();
+    }
+
+    match /attendance/{attendanceId} {
+      allow read: if signedIn();
+      allow create, update: if isAdmin()
+        || hasAnyRole(['Analista'])
+        || (hasAnyRole(['Formador']) && isAssignedTrainer(request.resource.data.training_session_id));
+      allow delete: if isAdmin();
+    }
+
+    match /confirmations/{confirmationId} {
+      allow read: if signedIn();
+      allow create, update: if isAdmin()
+        || hasAnyRole(['Analista'])
+        || (hasAnyRole(['Formador']) && isAssignedTrainer(request.resource.data.training_session_id));
+      allow delete: if false;
+    }
+
+    match /reopens/{reopenId} {
+      allow read: if signedIn();
+      allow create: if isAdmin()
+        || (hasAnyRole(['Formador']) && isAssignedTrainer(request.resource.data.training_session_id));
+      allow update: if isAdmin();
+      allow delete: if false;
+    }
+
+    match /surveys/{surveyId} {
+      allow read: if signedIn();
+      allow create, update: if isAdmin() || hasAnyRole(['Analista']);
+      allow delete: if isAdmin();
+    }
+
+    match /responses/{responseId} {
+      allow read: if signedIn();
+      allow create: if signedIn();
+      allow update, delete: if isAdmin();
+    }
+
+    match /file_records/{fileId} {
+      allow read: if signedIn();
+      allow create, update: if isAdmin() || hasAnyRole(['Analista']);
+      allow delete: if isAdmin();
+    }
+
+    match /logs/{logId} {
+      allow read: if isAdmin() || hasAnyRole(['Coordinador', 'Sistemas']);
+      allow create: if signedIn();
+      allow update, delete: if false;
+    }
+
+    match /training_closures/{closureId} {
+      allow read: if signedIn();
+      allow create: if isAdmin() || hasAnyRole(['Analista']);
+      allow update, delete: if false;
+    }
+
+    match /app_settings/{settingId} {
+      allow read: if signedIn();
+      allow create, update, delete: if isAdmin();
+    }
+  }
+}
