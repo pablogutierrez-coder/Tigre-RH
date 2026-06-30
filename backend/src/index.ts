@@ -16,10 +16,13 @@ const allowedOrigins = new Set(
   ].filter(Boolean),
 );
 
+const isLocalDevelopmentOrigin = (origin: string) =>
+  /^https?:\/\/(localhost|127\.0\.0\.1):\d+$/.test(origin);
+
 app.use(
   cors({
     origin(origin, callback) {
-      if (!origin || allowedOrigins.has(origin)) {
+      if (!origin || allowedOrigins.has(origin) || isLocalDevelopmentOrigin(origin)) {
         callback(null, true);
         return;
       }
