@@ -1,7 +1,5 @@
-import { getFunctions, httpsCallable } from 'firebase/functions';
-import { app } from '../../lib/firebase';
+import { auth } from '../../lib/firebase';
 import type { User, UserRole } from '../../types';
-import { normalizeUsername } from './authUsernameHelper';
 
 export interface CreatePlatformUserData {
   nombre: string;
@@ -13,24 +11,51 @@ export interface CreatePlatformUserData {
 
 type PlatformUserProfile = Omit<User, 'password'>;
 
-const getRequiredFunctions = () => {
-  if (!app) throw new Error('Firebase is not configured. Check .env.local.');
-  return getFunctions(app);
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080';
+
+const getIdToken = async () => {
+  const token = await auth?.currentUser?.getIdToken();
+  if (!token) {
+    throw new Error('Sesion no disponible. Vuelve a iniciar sesion.');
+  }
+
+  return token;
+};
+
+const backendRequest = async <T>(
+  path: string,
+  options: RequestInit = {},
+): Promise<T> => {
+  const token = await getIdToken();
+  const response = await fetch(`${API_BASE_URL}${path}`, {
+    ...options,
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${token}`,
+      ...options.headers,
+    },
+  });
+
+  const payload = (await response.json().catch(() => null)) as
+    | (T & { message?: string })
+    | null;
+
+  if (!response.ok) {
+    throw new Error(payload?.message || 'No se pudo completar la operacion.');
+  }
+
+  return payload as T;
 };
 
 export const createPlatformUser = async (data: CreatePlatformUserData) => {
-  const createFn = httpsCallable<
-    CreatePlatformUserData,
-    { user: PlatformUserProfile }
-  >(getRequiredFunctions(), 'createPlatformUser');
-
-  const result = await createFn({
-    ...data,
-    usuario: normalizeUsername(data.usuario),
+  const result = await backendRequest<{ user: PlatformUserProfile }>('/api/users', {
+    method: 'POST',
+    body: JSON.stringify(data),
   });
+
   return {
-    ...result.data.user,
-    correo: result.data.user.correo || '',
+    ...result.user,
+    correo: result.user.correo || '',
   };
 };
 
@@ -38,25 +63,29 @@ export const updatePlatformUser = async (
   uid: string,
   data: Partial<Omit<User, 'id' | 'password' | 'fecha_creacion' | 'correo'>>,
 ) => {
-  const updateFn = httpsCallable(getRequiredFunctions(), 'updatePlatformUser');
-  await updateFn({
-    uid,
-    nombre: data.nombre,
-    usuario: data.usuario ? normalizeUsername(data.usuario) : undefined,
-    rol: data.rol,
-    estado: data.estado,
+  await backendRequest(`/api/users/${uid}`, {
+    method: 'PATCH',
+    body: JSON.stringify({
+      nombre: data.nombre,
+      usuario: data.usuario,
+      rol: data.rol,
+      estado: data.estado,
+    }),
   });
 };
 
 export const deactivatePlatformUser = async (uid: string) => {
-  const deactivateFn = httpsCallable(getRequiredFunctions(), 'deactivatePlatformUser');
-  await deactivateFn({ uid });
+  await backendRequest(`/api/users/${uid}/deactivate`, {
+    method: 'PATCH',
+  });
 };
 
 export const changeUserPasswordByAdmin = async (
   uid: string,
   newPassword: string,
 ) => {
-  const changeFn = httpsCallable(getRequiredFunctions(), 'changeUserPasswordByAdmin');
-  await changeFn({ uid, newPassword });
+  await backendRequest(`/api/users/${uid}/password`, {
+    method: 'POST',
+    body: JSON.stringify({ newPassword }),
+  });
 };

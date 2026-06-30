@@ -12,9 +12,12 @@
     "seed:firebase": "tsx scripts/seedFirebase.ts",
     "create:admin": "tsx scripts/createInitialAdminCredential.ts",
     "migrate:username-auth": "tsx scripts/migrateUsersToUsernameAuth.ts",
+    "backend:dev": "cd backend && npm run dev",
+    "backend:build": "cd backend && npm run build",
+    "backend:start": "cd backend && npm run start",
+    "backend:create:admin": "cd backend && npm run create:admin --",
     "start": "serve -s dist -l tcp://0.0.0.0:$PORT",
-    "deploy:rules": "npx firebase-tools deploy --only firestore:rules,storage",
-    "deploy:functions": "npm --prefix functions run deploy"
+    "deploy:rules": "npx firebase-tools deploy --only firestore:rules,storage"
   },
   "dependencies": {
     "@google/genai": "^2.4.0",

@@ -5,11 +5,9 @@ import {
   type User as FirebaseUser,
 } from 'firebase/auth';
 import { doc, getDoc } from 'firebase/firestore';
-import { getFunctions, httpsCallable } from 'firebase/functions';
 import { FDR_COLLECTIONS } from '../../constants/firebaseCollections';
-import { app, auth, db } from '../../lib/firebase';
+import { auth, db } from '../../lib/firebase';
 import type { User } from '../../types';
-import { normalizeUsername } from './authUsernameHelper';
 
 type UserProfile = Omit<User, 'password'>;
 
@@ -19,10 +17,13 @@ interface LoginWithUsernameResponse {
     id: string;
     nombre: string;
     usuario: string;
+    usuario_normalizado: string;
     rol: User['rol'];
     estado: User['estado'];
   };
 }
+
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080';
 
 const getRequiredAuth = () => {
   if (!auth) throw new Error('Firebase Auth is not configured. Check .env.local.');
@@ -32,11 +33,6 @@ const getRequiredAuth = () => {
 const getRequiredDb = () => {
   if (!db) throw new Error('Firebase Firestore is not configured. Check .env.local.');
   return db;
-};
-
-const getRequiredFunctions = () => {
-  if (!app) throw new Error('Firebase is not configured. Check .env.local.');
-  return getFunctions(app);
 };
 
 const mapUserProfile = (id: string, data: unknown): UserProfile => {
@@ -55,19 +51,28 @@ export const getCurrentUserProfile = async (uid: string) => {
 };
 
 export const loginWithUsername = async (username: string, password: string) => {
-  const normalizedUsername = normalizeUsername(username);
-  const loginFn = httpsCallable<
-    { username: string; password: string },
-    LoginWithUsernameResponse
-  >(getRequiredFunctions(), 'loginWithUsername');
+  const response = await fetch(`${API_BASE_URL}/api/auth/login`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ username, password }),
+  });
 
-  const result = await loginFn({ username: normalizedUsername, password });
-  await signInWithCustomToken(getRequiredAuth(), result.data.customToken);
+  const payload = (await response.json().catch(() => null)) as
+    | (LoginWithUsernameResponse & { message?: string })
+    | null;
 
-  const profile = await getCurrentUserProfile(result.data.user.id);
+  if (!response.ok || !payload?.customToken) {
+    throw new Error(payload?.message || 'No se pudo iniciar sesion.');
+  }
+
+  const credential = await signInWithCustomToken(getRequiredAuth(), payload.customToken);
+  const profile = await getCurrentUserProfile(credential.user.uid);
+
   if (!profile) {
     await signOut(getRequiredAuth());
-    throw new Error('La sesión fue creada, pero no se encontró el perfil del usuario.');
+    throw new Error('La sesion fue creada, pero no se encontro el perfil del usuario.');
   }
 
   return profile;

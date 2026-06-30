@@ -38,9 +38,9 @@ service cloud.firestore {
 
     match /users/{userId} {
       allow read: if isAdmin()
-        || hasAnyRole(['Analista', 'Coordinador', 'Sistemas'])
+        || hasAnyRole(['Analista'])
         || request.auth.uid == userId;
-      allow create, update, delete: if isAdmin();
+      allow create, update, delete: if false;
     }
 
     match /user_credentials/{userId} {

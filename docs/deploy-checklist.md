@@ -6,7 +6,7 @@
 - Confirmar que no existen service accounts en el repo.
 - Ejecutar `npm run lint`.
 - Ejecutar `npm run build`.
-- Ejecutar `cd functions && npm run build`.
+- Ejecutar `cd backend && npm install && npm run build`.
 - Revisar que `user_credentials` no sea accesible desde cliente.
 
 ## Firebase
@@ -18,19 +18,14 @@
 npm run deploy:rules
 ```
 
-3. Desplegar Functions:
+3. Crear admin inicial desde el backend:
 
 ```bash
-npm run deploy:functions
-```
-
-4. Crear admin inicial:
-
-```bash
+cd backend
 npm run create:admin -- --username admin --password 123456
 ```
 
-5. Probar login local con usuario y contrasena.
+4. Probar login local con usuario y contrasena.
 
 ## GitHub
 
@@ -45,10 +40,11 @@ Crear repositorio en GitHub y seguir las instrucciones para agregar `origin` y h
 ## Railway
 
 1. Crear proyecto desde el repositorio de GitHub.
-2. Configurar variables `VITE_FIREBASE_*`.
-3. Confirmar que Railway use `railway.json`.
-4. Deploy.
-5. Probar login productivo.
+2. Crear servicio frontend y configurar variables `VITE_FIREBASE_*` y `VITE_API_BASE_URL`.
+3. Crear servicio backend con Root Directory `backend`.
+4. Configurar variables privadas del backend.
+5. Deploy.
+6. Probar login productivo.
 
 ## Pendientes Recomendados
 

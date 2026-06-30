@@ -7,7 +7,7 @@ Plataforma React/Vite para control de capacitaciones, asistencia, altas, reapert
 - React + Vite + TypeScript
 - Firebase Auth con Custom Tokens
 - Firestore
-- Firebase Cloud Functions
+- Backend Express en Railway
 - Firebase Storage preparado
 - Railway para hosting del frontend
 
@@ -23,13 +23,15 @@ npm run dev
 ```bash
 npm run lint
 npm run build
-cd functions
+cd backend
 npm run build
 ```
 
 ## Variables De Entorno
 
-El frontend usa variables `VITE_FIREBASE_*` en `.env.local`.
+El frontend usa variables `VITE_FIREBASE_*` y `VITE_API_BASE_URL` en `.env.local`.
+
+El backend Railway usa variables privadas sin prefijo `VITE_*`.
 
 No subir `.env.local` al repositorio.
 
@@ -38,27 +40,32 @@ No subir `.env.local` al repositorio.
 La plataforma no usa correo para login. El flujo usa:
 
 1. Usuario + contrasena.
-2. Cloud Function `loginWithUsername`.
+2. Backend Railway `POST /api/auth/login`.
 3. Bcrypt contra `user_credentials`.
 4. Firebase Custom Token.
 5. Sesion con Firebase Auth.
 
-Ver `docs/user-auth-flow.md`.
+Ver `docs/railway-backend.md`.
 
 ## Scripts Importantes
 
 ```bash
-npm run create:admin -- --username admin --password 123456
+npm run backend:create:admin -- --username admin --password 123456
 npm run migrate:username-auth
 npm run deploy:rules
-npm run deploy:functions
 ```
 
 ## Railway
 
-Railway usa:
+Frontend:
 
 - Build: `npm ci && npm run build`
 - Start: `npm run start`
 
 Config en `railway.json`.
+
+Backend:
+
+- Root Directory: `backend`
+- Build: `npm run build`
+- Start: `npm run start`
