@@ -1,4 +1,5 @@
 import { auth } from '../../lib/firebase';
+import { getRuntimeEnv } from '../../lib/runtimeConfig';
 import type { User, UserRole } from '../../types';
 
 export interface CreatePlatformUserData {
@@ -12,7 +13,7 @@ export interface CreatePlatformUserData {
 type PlatformUserProfile = Omit<User, 'password'>;
 
 const API_BASE_URL =
-  import.meta.env.VITE_API_BASE_URL || (import.meta.env.PROD ? '' : 'http://localhost:8080');
+  getRuntimeEnv('VITE_API_BASE_URL') || (import.meta.env.PROD ? '' : 'http://localhost:8080');
 
 const getIdToken = async () => {
   const token = await auth?.currentUser?.getIdToken();

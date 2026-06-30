@@ -49,6 +49,24 @@ app.get('/health', (_req, res) => {
   res.json({ ok: true, frontend: Boolean(frontendDistPath) });
 });
 
+app.get('/config.js', (_req, res) => {
+  const publicConfig = {
+    VITE_FIREBASE_API_KEY: process.env.VITE_FIREBASE_API_KEY || '',
+    VITE_FIREBASE_AUTH_DOMAIN: process.env.VITE_FIREBASE_AUTH_DOMAIN || '',
+    VITE_FIREBASE_PROJECT_ID: process.env.VITE_FIREBASE_PROJECT_ID || '',
+    VITE_FIREBASE_STORAGE_BUCKET: process.env.VITE_FIREBASE_STORAGE_BUCKET || '',
+    VITE_FIREBASE_MESSAGING_SENDER_ID:
+      process.env.VITE_FIREBASE_MESSAGING_SENDER_ID || '',
+    VITE_FIREBASE_APP_ID: process.env.VITE_FIREBASE_APP_ID || '',
+    VITE_API_BASE_URL: process.env.VITE_API_BASE_URL || '',
+  };
+
+  res
+    .type('application/javascript')
+    .set('Cache-Control', 'no-store')
+    .send(`window.__FDR_CONFIG__ = ${JSON.stringify(publicConfig)};`);
+});
+
 app.use('/api/auth', authRoutes);
 app.use('/api/users', userRoutes);
 

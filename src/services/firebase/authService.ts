@@ -7,6 +7,7 @@ import {
 import { doc, getDoc } from 'firebase/firestore';
 import { FDR_COLLECTIONS } from '../../constants/firebaseCollections';
 import { auth, db } from '../../lib/firebase';
+import { getRuntimeEnv } from '../../lib/runtimeConfig';
 import type { User } from '../../types';
 
 type UserProfile = Omit<User, 'password'>;
@@ -24,7 +25,7 @@ interface LoginWithUsernameResponse {
 }
 
 const API_BASE_URL =
-  import.meta.env.VITE_API_BASE_URL || (import.meta.env.PROD ? '' : 'http://localhost:8080');
+  getRuntimeEnv('VITE_API_BASE_URL') || (import.meta.env.PROD ? '' : 'http://localhost:8080');
 
 const getRequiredAuth = () => {
   if (!auth) throw new Error('Firebase Auth is not configured. Check .env.local.');
