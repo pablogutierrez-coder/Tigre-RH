@@ -46,7 +46,7 @@ app.use(
 app.use(express.json());
 
 app.get('/health', (_req, res) => {
-  res.json({ ok: true });
+  res.json({ ok: true, frontend: Boolean(frontendDistPath) });
 });
 
 app.use('/api/auth', authRoutes);
@@ -61,4 +61,9 @@ if (frontendDistPath) {
 
 app.listen(port, '0.0.0.0', () => {
   console.log(`FDR backend listening on port ${port}`);
+  console.log(
+    frontendDistPath
+      ? `Serving frontend from ${frontendDistPath}`
+      : `Frontend build not found. Checked: ${frontendDistCandidates.join(', ')}`,
+  );
 });
