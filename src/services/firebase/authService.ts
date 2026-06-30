@@ -23,7 +23,8 @@ interface LoginWithUsernameResponse {
   };
 }
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080';
+const API_BASE_URL =
+  import.meta.env.VITE_API_BASE_URL || (import.meta.env.PROD ? '' : 'http://localhost:8080');
 
 const getRequiredAuth = () => {
   if (!auth) throw new Error('Firebase Auth is not configured. Check .env.local.');
