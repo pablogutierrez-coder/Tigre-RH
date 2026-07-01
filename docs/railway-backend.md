@@ -51,6 +51,30 @@ Configurar estas variables privadas en el servicio backend:
 - `BCRYPT_ROUNDS`
 - `PORT`
 
+Para enviar encuestas por correo desde Railway tambien se debe configurar un proveedor SMTP:
+
+- `SMTP_HOST`
+- `SMTP_PORT`
+- `SMTP_SECURE`
+- `SMTP_USER`
+- `SMTP_PASS`
+- `SMTP_FROM`
+- `SMTP_REPLY_TO` opcional
+
+Ejemplo generico:
+
+```env
+SMTP_HOST=smtp.tuproveedor.com
+SMTP_PORT=587
+SMTP_SECURE=false
+SMTP_USER=usuario-smtp
+SMTP_PASS=password-o-api-key-smtp
+SMTP_FROM="FDR Automatizate <no-reply@tudominio.com>"
+SMTP_REPLY_TO=soporte@tudominio.com
+```
+
+Usar `SMTP_SECURE=true` normalmente cuando el puerto es `465`; usar `false` para `587`.
+
 `FIREBASE_PRIVATE_KEY` puede pegarse con saltos `\n` escapados. El backend los convierte internamente con `replace(/\\n/g, "\n")`.
 
 ## Service Account
@@ -66,15 +90,15 @@ No subir el JSON de service account al repositorio.
 
 ## Configuracion de Railway
 
-Crear un servicio desde GitHub para el backend:
+Crear un servicio desde GitHub usando el `Dockerfile` de la raiz del repositorio. Ese contenedor compila el frontend, copia `dist` dentro de `backend/public` y arranca el backend Express.
 
-- Root Directory: `backend`
-- Build command: `npm run build`
-- Start command: `npm run start`
+- Builder: Dockerfile
+- Dockerfile path: `Dockerfile`
+- Healthcheck path: `/health`
 
 Configurar las variables privadas listadas arriba.
 
-El frontend debe tener `VITE_API_BASE_URL` apuntando al dominio publico del backend Railway.
+El frontend debe tener `VITE_API_BASE_URL` apuntando al dominio publico de Railway o quedar vacio cuando frontend y backend viven en el mismo dominio.
 
 ## Probar local
 
@@ -107,6 +131,4 @@ Usa una contrasena temporal fuerte en produccion y cambiala despues del primer a
 ## Pendiente
 
 - Endurecer reglas definitivas por modulo.
-- Publicar frontend.
-- Configurar `VITE_API_BASE_URL` con el dominio Railway del backend.
 - Revisar rotacion de contrasenas y cambio obligatorio en la siguiente fase.

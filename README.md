@@ -10,6 +10,7 @@ Plataforma React/Vite para control de capacitaciones, asistencia, altas, reapert
 - Backend Express en Railway
 - Firebase Storage preparado
 - Railway para hosting del frontend
+- Nodemailer/SMTP para envio de encuestas por correo
 
 ## Desarrollo Local
 
@@ -35,6 +36,18 @@ El backend Railway usa variables privadas sin prefijo `VITE_*`.
 
 No subir `.env.local` al repositorio.
 
+Para enviar encuestas por correo, Railway tambien necesita variables SMTP privadas:
+
+```env
+SMTP_HOST=
+SMTP_PORT=
+SMTP_SECURE=
+SMTP_USER=
+SMTP_PASS=
+SMTP_FROM=
+SMTP_REPLY_TO=
+```
+
 ## Auth Por Usuario
 
 La plataforma no usa correo para login. El flujo usa:
@@ -59,13 +72,11 @@ npm run deploy:rules
 
 Frontend:
 
-- Build: `npm ci && npm run build`
-- Start: `npm run start`
+- Se compila dentro del `Dockerfile`.
 
 Config en `railway.json`.
 
 Backend:
 
-- Root Directory: `backend`
-- Build: `npm run build`
-- Start: `npm run start`
+- Se ejecuta desde el mismo contenedor Railway.
+- Start interno: `node backend/dist/index.js`

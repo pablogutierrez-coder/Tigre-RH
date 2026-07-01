@@ -28,7 +28,9 @@ import {
   Calendar,
   FileText,
   CheckCircle2,
-  UserCheck
+  UserCheck,
+  Mail,
+  Send
 } from 'lucide-react';
 import {
   BarChart,
@@ -47,6 +49,7 @@ import {
   Cell
 } from 'recharts';
 import * as XLSX from 'xlsx';
+import { sendSurveyInvitations } from '../services/surveyEmailService';
 
 interface EncuestasProps {
   surveys: TrainingSurvey[];
@@ -108,6 +111,8 @@ export default function Encuestas({
   // Copy Feedback state
   const [copiedSurveyId, setCopiedSurveyId] = useState<string | null>(null);
   const [copiedDniId, setCopiedDniId] = useState<string | null>(null);
+  const [sendingEmailId, setSendingEmailId] = useState<string | null>(null);
+  const [emailFeedback, setEmailFeedback] = useState('');
 
   const handleCopyLink = (token: string, surveyId: string) => {
     const origin = window.location.origin + window.location.pathname;
@@ -678,6 +683,97 @@ export default function Encuestas({
       'Encuestas de Satisfacción',
       `Se copió el enlace de encuesta personalizado para el DNI "${dniVal}" (Token: ${token})`
     );
+  };
+
+  const buildPersonalSurveyUrl = (token: string, dniVal: string) => {
+    const origin = window.location.origin + window.location.pathname;
+    return `${origin}?view=survey&token=${token}&dni=${dniVal}`;
+  };
+
+  const buildSurveyEmailInfo = (survey: TrainingSurvey) => ({
+    id: survey.id,
+    campana: survey.campaña,
+    codigo_generacion: survey.codigo_generacion,
+    formador_nombre: survey.formador_nombre,
+  });
+
+  const buildRecipient = (survey: TrainingSurvey, participant: Participant) => ({
+    participant_id: participant.id,
+    nombre: `${participant.nombres} ${participant.apellidos}`.trim(),
+    dni: participant.dni,
+    correo: participant.correo,
+    url: buildPersonalSurveyUrl(survey.token, participant.dni),
+  });
+
+  const handleSendPersonalEmail = async (survey: TrainingSurvey, participant: Participant) => {
+    if (!participant.correo) {
+      setEmailFeedback('El participante no tiene correo registrado.');
+      return;
+    }
+
+    setSendingEmailId(participant.id);
+    setEmailFeedback('');
+
+    try {
+      await sendSurveyInvitations({
+        survey: buildSurveyEmailInfo(survey),
+        recipients: [buildRecipient(survey, participant)],
+      });
+
+      setEmailFeedback(`Correo enviado a ${participant.correo}.`);
+      onAuditLog(
+        'Encuesta enviada por correo',
+        'Encuestas de Satisfacción',
+        `Se envió la encuesta por correo al DNI "${participant.dni}" (${participant.correo}).`,
+        survey.campaña,
+        survey.codigo_generacion,
+        participant.id,
+        `${participant.nombres} ${participant.apellidos}`,
+      );
+    } catch (error) {
+      setEmailFeedback(error instanceof Error ? error.message : 'No se pudo enviar el correo.');
+    } finally {
+      setSendingEmailId(null);
+      setTimeout(() => setEmailFeedback(''), 5000);
+    }
+  };
+
+  const handleSendPendingEmails = async () => {
+    if (!currentMonitoreoSurvey || !monitoreoData) return;
+
+    const pendingRecipients = monitoreoData.list
+      .filter((item) => !item.hasResponded && item.participant.correo)
+      .map((item) => buildRecipient(currentMonitoreoSurvey, item.participant));
+
+    if (pendingRecipients.length === 0) {
+      setEmailFeedback('No hay participantes pendientes con correo registrado.');
+      setTimeout(() => setEmailFeedback(''), 5000);
+      return;
+    }
+
+    setSendingEmailId(`survey-${currentMonitoreoSurvey.id}`);
+    setEmailFeedback('');
+
+    try {
+      await sendSurveyInvitations({
+        survey: buildSurveyEmailInfo(currentMonitoreoSurvey),
+        recipients: pendingRecipients,
+      });
+
+      setEmailFeedback(`Se enviaron ${pendingRecipients.length} correos de encuesta.`);
+      onAuditLog(
+        'Encuestas enviadas por correo',
+        'Encuestas de Satisfacción',
+        `Se enviaron ${pendingRecipients.length} invitaciones por correo para la generación "${currentMonitoreoSurvey.codigo_generacion}".`,
+        currentMonitoreoSurvey.campaña,
+        currentMonitoreoSurvey.codigo_generacion,
+      );
+    } catch (error) {
+      setEmailFeedback(error instanceof Error ? error.message : 'No se pudieron enviar los correos.');
+    } finally {
+      setSendingEmailId(null);
+      setTimeout(() => setEmailFeedback(''), 6000);
+    }
   };
 
   // --- EXPORT LOGIC FOR EXCEL & CSV ---
@@ -1411,17 +1507,33 @@ export default function Encuestas({
                     </span>
                     <h4 className="font-extrabold text-sm mt-1">{currentMonitoreoSurvey.campaña} - {currentMonitoreoSurvey.codigo_generacion}</h4>
                     <p className="text-xs text-slate-400">Formador asignado: <strong className="text-white">{getTrainerDisplayName(currentMonitoreoSurvey.formador_id, currentMonitoreoSurvey.formador_nombre)}</strong></p>
+                    {emailFeedback && (
+                      <p className="text-[11px] text-emerald-300 font-bold mt-2">{emailFeedback}</p>
+                    )}
                   </div>
 
-                  <div className="flex items-center gap-4 shrink-0 bg-white/5 px-4 py-2.5 rounded-xl border border-white/5">
-                    <div className="text-center">
-                      <span className="text-[10px] text-slate-400 block font-bold uppercase">Respondieron</span>
-                      <span className="text-lg font-black font-mono text-fuchsia-400">{monitoreoData.respondedCount} <span className="text-xs text-white">de {monitoreoData.totalCount}</span></span>
-                    </div>
-                    <div className="w-[1px] bg-white/10 h-8"></div>
-                    <div className="text-center">
-                      <span className="text-[10px] text-slate-400 block font-bold uppercase">Progreso</span>
-                      <span className="text-lg font-black font-mono text-emerald-400">{monitoreoData.percentage}%</span>
+                  <div className="flex flex-col sm:flex-row sm:items-center gap-3 shrink-0">
+                    {currentMonitoreoSurvey.estado === 'Habilitada' && (
+                      <button
+                        onClick={handleSendPendingEmails}
+                        disabled={sendingEmailId === `survey-${currentMonitoreoSurvey.id}`}
+                        className="bg-indigo-600 hover:bg-indigo-500 disabled:opacity-60 text-white px-3 py-2 rounded-xl font-bold text-[10px] uppercase flex items-center justify-center gap-1.5 transition-all cursor-pointer"
+                        title="Enviar encuesta por correo a todos los pendientes con correo registrado"
+                      >
+                        <Send className="w-3.5 h-3.5" />
+                        {sendingEmailId === `survey-${currentMonitoreoSurvey.id}` ? 'Enviando...' : 'Enviar pendientes'}
+                      </button>
+                    )}
+                    <div className="flex items-center gap-4 bg-white/5 px-4 py-2.5 rounded-xl border border-white/5">
+                      <div className="text-center">
+                        <span className="text-[10px] text-slate-400 block font-bold uppercase">Respondieron</span>
+                        <span className="text-lg font-black font-mono text-fuchsia-400">{monitoreoData.respondedCount} <span className="text-xs text-white">de {monitoreoData.totalCount}</span></span>
+                      </div>
+                      <div className="w-[1px] bg-white/10 h-8"></div>
+                      <div className="text-center">
+                        <span className="text-[10px] text-slate-400 block font-bold uppercase">Progreso</span>
+                        <span className="text-lg font-black font-mono text-emerald-400">{monitoreoData.percentage}%</span>
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -1448,7 +1560,7 @@ export default function Encuestas({
                               <span className="text-xs font-bold text-slate-800 block">
                                 {item.participant.nombres} {item.participant.apellidos}
                               </span>
-                              <span className="text-[10px] text-slate-400 font-mono font-medium block mt-0.5">DNI: {item.participant.dni} | Correo: {item.participant.email || 'S/C'}</span>
+                              <span className="text-[10px] text-slate-400 font-mono font-medium block mt-0.5">DNI: {item.participant.dni} | Correo: {item.participant.correo || 'S/C'}</span>
                             </div>
 
                             <div className="flex items-center gap-2 self-start sm:self-center shrink-0">
@@ -1467,14 +1579,25 @@ export default function Encuestas({
                                     Pendiente
                                   </span>
                                   {currentMonitoreoSurvey.estado === 'Habilitada' && (
-                                    <button
-                                      onClick={() => handleCopyPersonalLink(currentMonitoreoSurvey.token, item.participant.dni, item.participant.id)}
-                                      className="text-[10px] font-extrabold text-indigo-600 hover:text-indigo-800 hover:bg-indigo-50 border border-indigo-150 px-2.5 py-1 rounded-lg transition-colors flex items-center gap-1 cursor-pointer"
-                                      title="Copia link con el DNI pre-rellenado para el ejecutivo"
-                                    >
-                                      {customLinkCopied ? <Check className="w-3 h-3 text-emerald-600" /> : <Copy className="w-3 h-3" />}
-                                      {customLinkCopied ? 'Copiado!' : 'Copiar Link'}
-                                    </button>
+                                    <>
+                                      <button
+                                        onClick={() => handleCopyPersonalLink(currentMonitoreoSurvey.token, item.participant.dni, item.participant.id)}
+                                        className="text-[10px] font-extrabold text-indigo-600 hover:text-indigo-800 hover:bg-indigo-50 border border-indigo-150 px-2.5 py-1 rounded-lg transition-colors flex items-center gap-1 cursor-pointer"
+                                        title="Copia link con el DNI pre-rellenado para el ejecutivo"
+                                      >
+                                        {customLinkCopied ? <Check className="w-3 h-3 text-emerald-600" /> : <Copy className="w-3 h-3" />}
+                                        {customLinkCopied ? 'Copiado!' : 'Copiar Link'}
+                                      </button>
+                                      <button
+                                        onClick={() => handleSendPersonalEmail(currentMonitoreoSurvey, item.participant)}
+                                        disabled={!item.participant.correo || sendingEmailId === item.participant.id}
+                                        className="text-[10px] font-extrabold text-emerald-700 hover:text-emerald-800 hover:bg-emerald-50 border border-emerald-150 px-2.5 py-1 rounded-lg transition-colors flex items-center gap-1 cursor-pointer disabled:opacity-50"
+                                        title="Enviar enlace personalizado por correo"
+                                      >
+                                        <Mail className="w-3 h-3" />
+                                        {sendingEmailId === item.participant.id ? 'Enviando...' : 'Enviar correo'}
+                                      </button>
+                                    </>
                                   )}
                                 </div>
                               )}

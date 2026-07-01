@@ -5,6 +5,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { authRoutes } from './routes/authRoutes.js';
+import { surveyEmailRoutes } from './routes/surveyEmailRoutes.js';
 import { userRoutes } from './routes/userRoutes.js';
 
 const app = express();
@@ -68,6 +69,7 @@ app.get('/config.js', (_req, res) => {
 });
 
 app.use('/api/auth', authRoutes);
+app.use('/api/survey-emails', surveyEmailRoutes);
 app.use('/api/users', userRoutes);
 
 if (frontendDistPath) {
