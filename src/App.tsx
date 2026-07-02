@@ -56,7 +56,7 @@ import {
 } from 'lucide-react';
 
 // Subcomponents
-import TigreIcon from './components/TigreIcon';
+import BrandLogo from './components/BrandLogo';
 import Dashboard from './components/Dashboard';
 import Capacitaciones from './components/Capacitaciones';
 import AttendanceControl from './components/AttendanceControl';
@@ -1228,11 +1228,11 @@ export default function App() {
   return (
     <div className="min-h-screen bg-transparent flex flex-col font-sans relative" id="root-app">
       
-      {/* Floating Glass BG Glows */}
+      {/* Soft brand background */}
       <div className="fixed inset-0 -z-10 overflow-hidden pointer-events-none">
-        <div className="absolute top-[-10%] left-[-10%] w-[50%] h-[50%] rounded-full bg-linear-to-br from-indigo-500/12 to-purple-500/12 blur-3xl animate-pulse"></div>
-        <div className="absolute bottom-[-10%] right-[-10%] w-[60%] h-[60%] rounded-full bg-linear-to-tl from-pink-500/12 to-blue-500/12 blur-3xl animate-pulse" style={{ animationDuration: '8s' }}></div>
-        <div className="absolute top-[30%] left-[50%] w-[40%] h-[40%] rounded-full bg-cyan-500/8 blur-3xl animate-pulse" style={{ animationDuration: '12s' }}></div>
+        <div className="absolute inset-0 bg-[linear-gradient(180deg,#ffffff_0%,#f8fafc_52%,#eef2ff_100%)]"></div>
+        <div className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-fuchsia-500 via-violet-600 to-blue-600"></div>
+        <div className="absolute inset-x-10 top-24 h-px bg-gradient-to-r from-transparent via-violet-300/40 to-transparent"></div>
       </div>
       
       {/* 1. AUTHENTICATED OR NOT ROUTING */}
@@ -1240,15 +1240,17 @@ export default function App() {
         /* LOGIN PANEL GRID */
         <div className="min-h-screen grid grid-cols-1 lg:grid-cols-12 relative" id="login-layout">
           {/* Decorative Brand Showcase Panel */}
-          <div className="hidden lg:flex lg:col-span-7 bg-slate-950/40 backdrop-blur-xl border-r border-white/10 text-white p-12 flex-col justify-between relative overflow-hidden">
-            <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-fuchsia-600/15 rounded-full blur-3xl translate-x-1/3 -translate-y-1/3"></div>
-            <div className="absolute bottom-0 left-0 w-[400px] h-[400px] bg-blue-600/15 rounded-full blur-3xl -translate-x-1/4 translate-y-1/4"></div>
+          <div className="hidden lg:flex lg:col-span-7 bg-white/76 backdrop-blur-xl border-r border-slate-200 text-slate-900 p-12 flex-col justify-between relative overflow-hidden">
+            <div className="absolute inset-0 bg-[linear-gradient(135deg,rgba(255,255,255,0.96),rgba(248,250,252,0.88))]"></div>
+            <div className="absolute top-0 right-0 h-64 w-2/3 bg-gradient-to-l from-fuchsia-500/10 to-transparent blur-3xl"></div>
+            <div className="absolute bottom-0 left-0 h-64 w-2/3 bg-gradient-to-r from-blue-600/10 to-transparent blur-3xl"></div>
+            <div className="absolute inset-x-12 bottom-36 h-px bg-gradient-to-r from-fuchsia-500/0 via-fuchsia-500/30 to-blue-600/0"></div>
 
             <div className="flex items-center gap-3 relative z-10">
-              <TigreIcon className="text-fuchsia-400" size={54} />
+              <BrandLogo size={58} />
               <div>
-                <h1 className="font-extrabold text-xl tracking-tight leading-none text-white">Automatizate</h1>
-                <span className="text-[10px] text-fuchsia-400 font-bold uppercase tracking-widest block">Negocios</span>
+                <h1 className="font-extrabold text-xl tracking-tight leading-none text-slate-950">Automatizate</h1>
+                <span className="text-[10px] text-fuchsia-600 font-bold uppercase tracking-widest block">Negocios</span>
               </div>
             </div>
 
@@ -1256,10 +1258,10 @@ export default function App() {
               <span className="text-xs bg-linear-to-r from-fuchsia-500 to-indigo-500 text-white px-3 py-1 rounded-full font-bold uppercase tracking-wider shadow-sm">
                 Área FDR • Formación y Desarrollo
               </span>
-              <h2 className="text-4xl font-extrabold tracking-tight leading-tight text-transparent bg-clip-text bg-gradient-to-r from-white via-slate-100 to-slate-300">
+              <h2 className="text-4xl font-extrabold tracking-tight leading-tight text-slate-950">
                 Plataforma de Control de Asistencias y Altas
               </h2>
-              <p className="text-slate-300 text-sm leading-relaxed">
+              <p className="text-slate-600 text-sm leading-relaxed">
                 Registra la asistencia diaria por campaña, deserciones por motivo y coordina con operaciones el alta en el primer día laboral. Toda la información consolidada en un solo lugar.
               </p>
             </div>
@@ -1270,12 +1272,12 @@ export default function App() {
           </div>
 
           {/* Right Login Panel */}
-          <div className="lg:col-span-5 flex items-center justify-center p-6 sm:p-12 bg-white/40 backdrop-blur-md border-l border-white/20 relative">
-            <div className="w-full max-w-sm space-y-8 bg-white/70 backdrop-blur-lg border border-white/50 p-8 rounded-3xl shadow-xl">
+          <div className="lg:col-span-5 flex items-center justify-center px-4 py-6 sm:p-12 bg-white/70 backdrop-blur-md border-l border-slate-100 relative">
+            <div className="login-card w-full space-y-8 bg-white/90 backdrop-blur-lg border border-slate-200 p-6 sm:p-8 rounded-3xl shadow-xl shadow-slate-200/70">
               {/* Logo Small for Mobile */}
               <div className="text-center lg:text-left space-y-3">
                 <div className="flex items-center justify-center lg:justify-start gap-2.5">
-                  <TigreIcon className="text-fuchsia-600" size={48} />
+                  <BrandLogo size={50} />
                   <div>
                     <h3 className="font-black text-lg text-slate-800 leading-none">Automatizate</h3>
                     <span className="text-[10px] text-indigo-600 font-extrabold uppercase tracking-wider block">FDR</span>
@@ -1335,29 +1337,29 @@ export default function App() {
         <div className="min-h-screen flex flex-col lg:flex-row" id="app-layout">
           
           {/* Sidebar */}
-          <aside className="w-full lg:w-72 bg-slate-950/80 backdrop-blur-xl border-r border-white/10 text-slate-300 flex flex-col shrink-0">
+          <aside className="w-full lg:w-72 bg-white/94 backdrop-blur-xl border-r border-slate-200 text-slate-700 flex flex-col shrink-0 shadow-xl shadow-slate-200/60">
             {/* Sidebar Brand Header */}
-            <div className="p-6 border-b border-white/10 flex justify-between items-center">
+            <div className="p-6 border-b border-slate-200 flex justify-between items-center">
               <div className="flex items-center gap-2.5">
-                <TigreIcon className="text-fuchsia-400" size={40} />
+                <BrandLogo size={42} />
                 <div>
-                  <h1 className="font-extrabold text-base tracking-tight leading-none text-white">Automatizate</h1>
-                  <span className="text-[9px] text-fuchsia-400 font-bold uppercase tracking-widest block">FDR Portal</span>
+                  <h1 className="font-extrabold text-base tracking-tight leading-none text-slate-950">Automatizate</h1>
+                  <span className="text-[9px] text-fuchsia-600 font-bold uppercase tracking-widest block">FDR Portal</span>
                 </div>
               </div>
-              <span className="bg-white/10 text-[10px] text-slate-300 px-2 py-0.5 rounded font-mono font-bold border border-white/10">
+              <span className="bg-slate-50 text-[10px] text-slate-500 px-2 py-0.5 rounded font-mono font-bold border border-slate-200">
                 v1.1
               </span>
             </div>
 
             {/* Sidebar User profile Info */}
-            <div className="p-6 border-b border-white/10 bg-white/5 flex items-center gap-3">
+            <div className="p-6 border-b border-slate-200 bg-slate-50/80 flex items-center gap-3">
               <div className="bg-gradient-to-r from-fuchsia-600 to-indigo-600 w-10 h-10 rounded-xl flex items-center justify-center font-bold text-white text-sm shadow-md shadow-fuchsia-900/20">
                 {activeUser.nombre.substring(0, 2).toUpperCase()}
               </div>
               <div className="truncate text-xs">
-                <p className="font-bold text-white truncate">{activeUser.nombre}</p>
-                <p className="text-[10px] text-slate-400 truncate mt-0.5">{activeUser.rol}</p>
+                <p className="font-bold text-slate-900 truncate">{activeUser.nombre}</p>
+                <p className="text-[10px] text-slate-500 truncate mt-0.5">{activeUser.rol}</p>
               </div>
             </div>
 
@@ -1371,7 +1373,7 @@ export default function App() {
                   <button
                     onClick={() => { setCurrentView('dashboard'); setSelectedSessionId(null); }}
                     className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-semibold transition-all ${
-                      currentView === 'dashboard' ? 'bg-fuchsia-600 text-white font-bold' : 'hover:bg-slate-800 text-slate-400 hover:text-white'
+                      currentView === 'dashboard' ? 'bg-gradient-to-r from-fuchsia-600 to-indigo-600 text-white font-bold shadow-sm' : 'text-slate-600 hover:bg-slate-50 hover:text-slate-950'
                     }`}
                   >
                     <LayoutDashboard className="w-4 h-4 shrink-0" />
@@ -1382,7 +1384,7 @@ export default function App() {
                   <button
                     onClick={() => { setCurrentView('capacitaciones'); setSelectedSessionId(null); }}
                     className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-semibold transition-all ${
-                      currentView === 'capacitaciones' && !selectedSessionId ? 'bg-fuchsia-600 text-white font-bold' : 'hover:bg-slate-800 text-slate-400 hover:text-white'
+                      currentView === 'capacitaciones' && !selectedSessionId ? 'bg-gradient-to-r from-fuchsia-600 to-indigo-600 text-white font-bold shadow-sm' : 'text-slate-600 hover:bg-slate-50 hover:text-slate-950'
                     }`}
                   >
                     <BookOpen className="w-4 h-4 shrink-0" />
@@ -1395,7 +1397,7 @@ export default function App() {
                       setCurrentView('asistencia');
                     }}
                     className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-semibold transition-all ${
-                      currentView === 'asistencia' ? 'bg-fuchsia-600 text-white font-bold' : 'hover:bg-slate-800 text-slate-400 hover:text-white'
+                      currentView === 'asistencia' ? 'bg-gradient-to-r from-fuchsia-600 to-indigo-600 text-white font-bold shadow-sm' : 'text-slate-600 hover:bg-slate-50 hover:text-slate-950'
                     }`}
                   >
                     <CalendarCheck className="w-4 h-4 shrink-0" />
@@ -1405,7 +1407,7 @@ export default function App() {
                   <button
                     onClick={() => { setCurrentView('altas'); setSelectedSessionId(null); }}
                     className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-semibold transition-all ${
-                      currentView === 'altas' ? 'bg-fuchsia-600 text-white font-bold' : 'hover:bg-slate-800 text-slate-400 hover:text-white'
+                      currentView === 'altas' ? 'bg-gradient-to-r from-fuchsia-600 to-indigo-600 text-white font-bold shadow-sm' : 'text-slate-600 hover:bg-slate-50 hover:text-slate-950'
                     }`}
                   >
                     <Award className="w-4 h-4 shrink-0" />
@@ -1415,7 +1417,7 @@ export default function App() {
                   <button
                     onClick={() => { setCurrentView('reaperturas'); setSelectedSessionId(null); }}
                     className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-semibold transition-all ${
-                      currentView === 'reaperturas' ? 'bg-fuchsia-600 text-white font-bold' : 'hover:bg-slate-800 text-slate-400 hover:text-white'
+                      currentView === 'reaperturas' ? 'bg-gradient-to-r from-fuchsia-600 to-indigo-600 text-white font-bold shadow-sm' : 'text-slate-600 hover:bg-slate-50 hover:text-slate-950'
                     }`}
                   >
                     <div className="flex items-center gap-3">
@@ -1433,7 +1435,7 @@ export default function App() {
                   <button
                     onClick={() => { setCurrentView('usuarios'); setSelectedSessionId(null); }}
                     className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-semibold transition-all ${
-                      currentView === 'usuarios' ? 'bg-fuchsia-600 text-white font-bold' : 'hover:bg-slate-800 text-slate-400 hover:text-white'
+                      currentView === 'usuarios' ? 'bg-gradient-to-r from-fuchsia-600 to-indigo-600 text-white font-bold shadow-sm' : 'text-slate-600 hover:bg-slate-50 hover:text-slate-950'
                     }`}
                   >
                     <Users className="w-4 h-4 shrink-0" />
@@ -1443,7 +1445,7 @@ export default function App() {
                   <button
                     onClick={() => { setCurrentView('reportes'); setSelectedSessionId(null); }}
                     className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-semibold transition-all ${
-                      currentView === 'reportes' ? 'bg-fuchsia-600 text-white font-bold' : 'hover:bg-slate-800 text-slate-400 hover:text-white'
+                      currentView === 'reportes' ? 'bg-gradient-to-r from-fuchsia-600 to-indigo-600 text-white font-bold shadow-sm' : 'text-slate-600 hover:bg-slate-50 hover:text-slate-950'
                     }`}
                   >
                     <FileSpreadsheet className="w-4 h-4 shrink-0" />
@@ -1453,7 +1455,7 @@ export default function App() {
                   <button
                     onClick={() => { setCurrentView('auditoria'); setSelectedSessionId(null); }}
                     className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-semibold transition-all ${
-                      currentView === 'auditoria' ? 'bg-fuchsia-600 text-white font-bold' : 'hover:bg-slate-800 text-slate-400 hover:text-white'
+                      currentView === 'auditoria' ? 'bg-gradient-to-r from-fuchsia-600 to-indigo-600 text-white font-bold shadow-sm' : 'text-slate-600 hover:bg-slate-50 hover:text-slate-950'
                     }`}
                   >
                     <FileText className="w-4 h-4 shrink-0" />
@@ -1463,7 +1465,7 @@ export default function App() {
                   <button
                     onClick={() => { setCurrentView('encuestas'); setSelectedSessionId(null); }}
                     className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-semibold transition-all ${
-                      currentView === 'encuestas' ? 'bg-fuchsia-600 text-white font-bold' : 'hover:bg-slate-800 text-slate-400 hover:text-white'
+                      currentView === 'encuestas' ? 'bg-gradient-to-r from-fuchsia-600 to-indigo-600 text-white font-bold shadow-sm' : 'text-slate-600 hover:bg-slate-50 hover:text-slate-950'
                     }`}
                   >
                     <ClipboardCheck className="w-4 h-4 shrink-0" />
@@ -1479,7 +1481,7 @@ export default function App() {
                   <button
                     onClick={() => { setCurrentView('capacitaciones'); setSelectedSessionId(null); }}
                     className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-semibold transition-all ${
-                      currentView === 'capacitaciones' ? 'bg-fuchsia-600 text-white font-bold' : 'hover:bg-slate-800 text-slate-400 hover:text-white'
+                      currentView === 'capacitaciones' ? 'bg-gradient-to-r from-fuchsia-600 to-indigo-600 text-white font-bold shadow-sm' : 'text-slate-600 hover:bg-slate-50 hover:text-slate-950'
                     }`}
                   >
                     <BookOpen className="w-4 h-4 shrink-0" />
@@ -1489,7 +1491,7 @@ export default function App() {
                   <button
                     onClick={() => { setCurrentView('altas'); setSelectedSessionId(null); }}
                     className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-semibold transition-all ${
-                      currentView === 'altas' ? 'bg-fuchsia-600 text-white font-bold' : 'hover:bg-slate-800 text-slate-400 hover:text-white'
+                      currentView === 'altas' ? 'bg-gradient-to-r from-fuchsia-600 to-indigo-600 text-white font-bold shadow-sm' : 'text-slate-600 hover:bg-slate-50 hover:text-slate-950'
                     }`}
                   >
                     <Award className="w-4 h-4 shrink-0" />
@@ -1499,7 +1501,7 @@ export default function App() {
                   <button
                     onClick={() => { setCurrentView('reportes'); setSelectedSessionId(null); }}
                     className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-semibold transition-all ${
-                      currentView === 'reportes' ? 'bg-fuchsia-600 text-white font-bold' : 'hover:bg-slate-800 text-slate-400 hover:text-white'
+                      currentView === 'reportes' ? 'bg-gradient-to-r from-fuchsia-600 to-indigo-600 text-white font-bold shadow-sm' : 'text-slate-600 hover:bg-slate-50 hover:text-slate-950'
                     }`}
                   >
                     <FileSpreadsheet className="w-4 h-4 shrink-0" />
@@ -1509,7 +1511,7 @@ export default function App() {
                   <button
                     onClick={() => { setCurrentView('encuestas'); setSelectedSessionId(null); }}
                     className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-semibold transition-all ${
-                      currentView === 'encuestas' ? 'bg-fuchsia-600 text-white font-bold' : 'hover:bg-slate-800 text-slate-400 hover:text-white'
+                      currentView === 'encuestas' ? 'bg-gradient-to-r from-fuchsia-600 to-indigo-600 text-white font-bold shadow-sm' : 'text-slate-600 hover:bg-slate-50 hover:text-slate-950'
                     }`}
                   >
                     <ClipboardCheck className="w-4 h-4 shrink-0" />
@@ -1527,7 +1529,7 @@ export default function App() {
                   <button
                     onClick={() => { setCurrentView('dashboard'); setSelectedSessionId(null); }}
                     className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-semibold transition-all ${
-                      currentView === 'dashboard' ? 'bg-fuchsia-600 text-white font-bold' : 'hover:bg-slate-800 text-slate-400 hover:text-white'
+                      currentView === 'dashboard' ? 'bg-gradient-to-r from-fuchsia-600 to-indigo-600 text-white font-bold shadow-sm' : 'text-slate-600 hover:bg-slate-50 hover:text-slate-950'
                     }`}
                   >
                     <LayoutDashboard className="w-4 h-4 shrink-0" />
@@ -1537,7 +1539,7 @@ export default function App() {
                   <button
                     onClick={() => { setCurrentView('capacitaciones'); setSelectedSessionId(null); }}
                     className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-semibold transition-all ${
-                      currentView === 'capacitaciones' && !selectedSessionId ? 'bg-fuchsia-600 text-white font-bold' : 'hover:bg-slate-800 text-slate-400 hover:text-white'
+                      currentView === 'capacitaciones' && !selectedSessionId ? 'bg-gradient-to-r from-fuchsia-600 to-indigo-600 text-white font-bold shadow-sm' : 'text-slate-600 hover:bg-slate-50 hover:text-slate-950'
                     }`}
                   >
                     <BookOpen className="w-4 h-4 shrink-0" />
@@ -1549,7 +1551,7 @@ export default function App() {
                       setCurrentView('asistencia');
                     }}
                     className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-semibold transition-all ${
-                      currentView === 'asistencia' ? 'bg-fuchsia-600 text-white font-bold' : 'hover:bg-slate-800 text-slate-400 hover:text-white'
+                      currentView === 'asistencia' ? 'bg-gradient-to-r from-fuchsia-600 to-indigo-600 text-white font-bold shadow-sm' : 'text-slate-600 hover:bg-slate-50 hover:text-slate-950'
                     }`}
                   >
                     <CalendarCheck className="w-4 h-4 shrink-0" />
@@ -1559,7 +1561,7 @@ export default function App() {
                   <button
                     onClick={() => { setCurrentView('altas'); setSelectedSessionId(null); }}
                     className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-semibold transition-all ${
-                      currentView === 'altas' ? 'bg-fuchsia-600 text-white font-bold' : 'hover:bg-slate-800 text-slate-400 hover:text-white'
+                      currentView === 'altas' ? 'bg-gradient-to-r from-fuchsia-600 to-indigo-600 text-white font-bold shadow-sm' : 'text-slate-600 hover:bg-slate-50 hover:text-slate-950'
                     }`}
                   >
                     <Award className="w-4 h-4 shrink-0" />
@@ -1569,7 +1571,7 @@ export default function App() {
                   <button
                     onClick={() => { setCurrentView('reportes'); setSelectedSessionId(null); }}
                     className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-semibold transition-all ${
-                      currentView === 'reportes' ? 'bg-fuchsia-600 text-white font-bold' : 'hover:bg-slate-800 text-slate-400 hover:text-white'
+                      currentView === 'reportes' ? 'bg-gradient-to-r from-fuchsia-600 to-indigo-600 text-white font-bold shadow-sm' : 'text-slate-600 hover:bg-slate-50 hover:text-slate-950'
                     }`}
                   >
                     <FileSpreadsheet className="w-4 h-4 shrink-0" />
@@ -1579,7 +1581,7 @@ export default function App() {
                   <button
                     onClick={() => { setCurrentView('encuestas'); setSelectedSessionId(null); }}
                     className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-semibold transition-all ${
-                      currentView === 'encuestas' ? 'bg-fuchsia-600 text-white font-bold' : 'hover:bg-slate-800 text-slate-400 hover:text-white'
+                      currentView === 'encuestas' ? 'bg-gradient-to-r from-fuchsia-600 to-indigo-600 text-white font-bold shadow-sm' : 'text-slate-600 hover:bg-slate-50 hover:text-slate-950'
                     }`}
                   >
                     <ClipboardCheck className="w-4 h-4 shrink-0" />
@@ -1595,7 +1597,7 @@ export default function App() {
                   <button
                     onClick={() => { setCurrentView('capacitaciones'); setSelectedSessionId(null); }}
                     className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-semibold transition-all ${
-                      currentView === 'capacitaciones' && !selectedSessionId ? 'bg-fuchsia-600 text-white font-bold' : 'hover:bg-slate-800 text-slate-400 hover:text-white'
+                      currentView === 'capacitaciones' && !selectedSessionId ? 'bg-gradient-to-r from-fuchsia-600 to-indigo-600 text-white font-bold shadow-sm' : 'text-slate-600 hover:bg-slate-50 hover:text-slate-950'
                     }`}
                   >
                     <BookOpen className="w-4 h-4 shrink-0" />
@@ -1608,7 +1610,7 @@ export default function App() {
                       setCurrentView('asistencia');
                     }}
                     className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-semibold transition-all ${
-                      currentView === 'asistencia' ? 'bg-fuchsia-600 text-white font-bold' : 'hover:bg-slate-800 text-slate-400 hover:text-white'
+                      currentView === 'asistencia' ? 'bg-gradient-to-r from-fuchsia-600 to-indigo-600 text-white font-bold shadow-sm' : 'text-slate-600 hover:bg-slate-50 hover:text-slate-950'
                     }`}
                   >
                     <CalendarCheck className="w-4 h-4 shrink-0" />
@@ -1618,7 +1620,7 @@ export default function App() {
                   <button
                     onClick={() => { setCurrentView('altas'); setSelectedSessionId(null); }}
                     className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-semibold transition-all ${
-                      currentView === 'altas' ? 'bg-fuchsia-600 text-white font-bold' : 'hover:bg-slate-800 text-slate-400 hover:text-white'
+                      currentView === 'altas' ? 'bg-gradient-to-r from-fuchsia-600 to-indigo-600 text-white font-bold shadow-sm' : 'text-slate-600 hover:bg-slate-50 hover:text-slate-950'
                     }`}
                   >
                     <Award className="w-4 h-4 shrink-0" />
@@ -1628,7 +1630,7 @@ export default function App() {
                   <button
                     onClick={() => { setCurrentView('reaperturas'); setSelectedSessionId(null); }}
                     className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-semibold transition-all ${
-                      currentView === 'reaperturas' ? 'bg-fuchsia-600 text-white font-bold' : 'hover:bg-slate-800 text-slate-400 hover:text-white'
+                      currentView === 'reaperturas' ? 'bg-gradient-to-r from-fuchsia-600 to-indigo-600 text-white font-bold shadow-sm' : 'text-slate-600 hover:bg-slate-50 hover:text-slate-950'
                     }`}
                   >
                     <Clock className="w-4 h-4 shrink-0" />
@@ -1638,7 +1640,7 @@ export default function App() {
                   <button
                     onClick={() => { setCurrentView('encuestas'); setSelectedSessionId(null); }}
                     className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-semibold transition-all ${
-                      currentView === 'encuestas' ? 'bg-fuchsia-600 text-white font-bold' : 'hover:bg-slate-800 text-slate-400 hover:text-white'
+                      currentView === 'encuestas' ? 'bg-gradient-to-r from-fuchsia-600 to-indigo-600 text-white font-bold shadow-sm' : 'text-slate-600 hover:bg-slate-50 hover:text-slate-950'
                     }`}
                   >
                     <ClipboardCheck className="w-4 h-4 shrink-0" />
@@ -1649,10 +1651,10 @@ export default function App() {
             </nav>
 
             {/* Logout button */}
-            <div className="p-4 border-t border-white/10 space-y-2">
+            <div className="p-4 border-t border-slate-200 space-y-2">
               <button
                 onClick={restoreInitialData}
-                className="w-full flex items-center gap-3 px-3.5 py-2 text-slate-500 hover:text-rose-400 rounded-xl text-[11px] transition-colors font-semibold"
+                className="w-full flex items-center gap-3 px-3.5 py-2 text-slate-500 hover:text-rose-600 hover:bg-rose-50 rounded-xl text-[11px] transition-colors font-semibold"
                 title="Restablece datos iniciales en localStorage"
               >
                 <Undo className="w-3.5 h-3.5" />
@@ -1661,7 +1663,7 @@ export default function App() {
 
               <button
                 onClick={handleLogout}
-                className="w-full bg-white/10 hover:bg-rose-950/40 hover:text-rose-300 text-slate-100 font-bold px-3.5 py-2.5 rounded-xl text-xs flex items-center justify-center gap-2 border border-white/5 hover:border-rose-900/30 transition-all cursor-pointer"
+                className="w-full bg-slate-50 hover:bg-rose-50 hover:text-rose-700 text-slate-700 font-bold px-3.5 py-2.5 rounded-xl text-xs flex items-center justify-center gap-2 border border-slate-200 hover:border-rose-200 transition-all cursor-pointer"
               >
                 <LogOut className="w-4 h-4 shrink-0" />
                 Cerrar Sesión

@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { TrainingSurvey, SurveyResponse, Participant, TrainingSession, AuditLog, User } from '../types';
 import { AlertTriangle, CheckCircle2, ShieldCheck, Clipboard, Send, Star, HelpCircle } from 'lucide-react';
-import TigreIcon from './TigreIcon';
+import BrandLogo from './BrandLogo';
 import { formatPeruDate } from '../utils/time';
 
 interface PublicSurveyFormProps {
@@ -355,18 +355,18 @@ export default function PublicSurveyForm({
   };
 
   return (
-    <div className="min-h-screen bg-linear-to-b from-indigo-50/50 via-slate-50 to-purple-50/30 flex items-center justify-center p-4" id="public-survey-container">
+    <div className="min-h-screen bg-white flex items-center justify-center p-4" id="public-survey-container">
       {/* Background designs */}
       <div className="fixed inset-0 -z-10 overflow-hidden pointer-events-none">
-        <div className="absolute top-[-10%] right-[-10%] w-[50%] h-[50%] rounded-full bg-linear-to-br from-fuchsia-500/10 to-indigo-500/10 blur-3xl"></div>
-        <div className="absolute bottom-[-10%] left-[-10%] w-[50%] h-[50%] rounded-full bg-linear-to-tl from-cyan-500/10 to-purple-500/10 blur-3xl"></div>
+        <div className="absolute inset-0 bg-[linear-gradient(180deg,#ffffff_0%,#f8fafc_62%,#eef2ff_100%)]"></div>
+        <div className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-fuchsia-500 via-violet-600 to-blue-600"></div>
       </div>
 
-      <div className="w-full max-w-2xl bg-white/80 backdrop-blur-xl border border-white/60 p-6 sm:p-8 rounded-3xl shadow-xl space-y-6">
+      <div className="w-full max-w-2xl bg-white/95 backdrop-blur-xl border border-slate-200 p-6 sm:p-8 rounded-3xl shadow-xl shadow-slate-200/70 space-y-6">
         {/* Header Branding */}
         <div className="flex items-center justify-between border-b border-slate-100 pb-4">
           <div className="flex items-center gap-3">
-            <TigreIcon className="text-fuchsia-600" size={44} />
+            <BrandLogo size={46} />
             <div>
               <h1 className="font-extrabold text-base tracking-tight leading-none text-slate-800">Automatizate</h1>
               <span className="text-[9px] text-fuchsia-600 font-bold uppercase tracking-widest block">Negocios</span>
@@ -512,27 +512,27 @@ export default function PublicSurveyForm({
         {step === 'form' && activeParticipant && activeSurvey && (
           <form onSubmit={handleSubmitSurvey} className="space-y-6" id="step-form">
             {/* Context Info card */}
-            <div className="bg-slate-900 text-white p-5 rounded-2xl border border-slate-800 shadow-md space-y-2">
+            <div className="bg-white text-slate-900 p-5 rounded-2xl border border-slate-200 shadow-sm space-y-2">
               <div className="flex items-center justify-between">
                 <span className="text-[10px] bg-fuchsia-600 text-white px-2 py-0.5 rounded-md font-mono font-bold uppercase tracking-wider">
                   EJECUTIVO VALIDADO
                 </span>
-                <span className="text-[10px] font-mono text-slate-400">DNI: {activeParticipant.dni}</span>
+                <span className="text-[10px] font-mono text-slate-500">DNI: {activeParticipant.dni}</span>
               </div>
               <h3 className="font-extrabold text-sm leading-snug">{activeParticipant.nombres} {activeParticipant.apellidos}</h3>
               
-              <div className="grid grid-cols-2 gap-4 text-xs pt-3 border-t border-white/10 text-slate-300">
+              <div className="grid grid-cols-2 gap-4 text-xs pt-3 border-t border-slate-200 text-slate-500">
                 <div>
                   <span className="block text-[9px] text-slate-500 font-bold uppercase tracking-wide">Campaña</span>
-                  <span className="font-bold text-white">{activeSurvey.campaña}</span>
+                  <span className="font-bold text-slate-900">{activeSurvey.campaña}</span>
                 </div>
                 <div>
                   <span className="block text-[9px] text-slate-500 font-bold uppercase tracking-wide">Generación</span>
-                  <span className="font-bold text-white">{activeSurvey.codigo_generacion}</span>
+                  <span className="font-bold text-slate-900">{activeSurvey.codigo_generacion}</span>
                 </div>
                 <div className="col-span-2">
                   <span className="block text-[9px] text-slate-500 font-bold uppercase tracking-wide">Formador</span>
-                  <span className="font-bold text-white">{activeSurvey.formador_nombre}</span>
+                  <span className="font-bold text-slate-900">{activeSurvey.formador_nombre}</span>
                 </div>
               </div>
             </div>
