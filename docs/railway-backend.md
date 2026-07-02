@@ -51,29 +51,23 @@ Configurar estas variables privadas en el servicio backend:
 - `BCRYPT_ROUNDS`
 - `PORT`
 
-Para enviar encuestas por correo desde Railway tambien se debe configurar un proveedor SMTP:
+Para enviar encuestas por correo desde Railway se usa Resend por API HTTPS:
 
-- `SMTP_HOST`
-- `SMTP_PORT`
-- `SMTP_SECURE`
-- `SMTP_USER`
-- `SMTP_PASS`
-- `SMTP_FROM`
-- `SMTP_REPLY_TO` opcional
+- `RESEND_API_KEY`
+- `EMAIL_FROM`
+- `EMAIL_REPLY_TO` opcional
+- `EMAIL_TRACE_COLLECTION` opcional
 
-Ejemplo generico:
+Ejemplo:
 
 ```env
-SMTP_HOST=smtp.tuproveedor.com
-SMTP_PORT=587
-SMTP_SECURE=false
-SMTP_USER=usuario-smtp
-SMTP_PASS=password-o-api-key-smtp
-SMTP_FROM="FDR Automatizate <no-reply@tudominio.com>"
-SMTP_REPLY_TO=soporte@tudominio.com
+RESEND_API_KEY=re_xxxxxxxxx
+EMAIL_FROM="FDR Automatizate <encuestas@tudominio.com>"
+EMAIL_REPLY_TO=encuestas@tudominio.com
+EMAIL_TRACE_COLLECTION=correos_enviados
 ```
 
-Usar `SMTP_SECURE=true` normalmente cuando el puerto es `465`; usar `false` para `587`.
+`EMAIL_FROM` debe usar un dominio verificado en Resend. No guardar `RESEND_API_KEY` en `.env.local` ni exponerla en React.
 
 `FIREBASE_PRIVATE_KEY` puede pegarse con saltos `\n` escapados. El backend los convierte internamente con `replace(/\\n/g, "\n")`.
 

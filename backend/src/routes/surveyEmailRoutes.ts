@@ -57,7 +57,7 @@ router.post(
     } catch (error) {
       console.error('Survey email send error:', error);
       const message = error instanceof Error ? error.message : 'Error interno.';
-      res.status(message.startsWith('Faltan variables SMTP') ? 500 : 502).json({
+      res.status(message.startsWith('Faltan variables') ? 500 : 502).json({
         message,
       });
     }

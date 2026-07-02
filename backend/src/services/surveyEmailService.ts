@@ -1,4 +1,4 @@
-import nodemailer from 'nodemailer';
+import { adminDb } from '../firebaseAdmin.js';
 
 interface SurveyEmailRecipient {
   participant_id: string;
@@ -24,23 +24,23 @@ interface SendSurveyInvitationsInput {
   };
 }
 
-const requiredSmtpVars = ['SMTP_HOST', 'SMTP_PORT', 'SMTP_USER', 'SMTP_PASS', 'SMTP_FROM'];
+interface ResendEmailResponse {
+  id?: string;
+  message?: string;
+  name?: string;
+}
 
-const getTransporter = () => {
-  const missing = requiredSmtpVars.filter((key) => !process.env[key]);
+const requiredResendVars = ['RESEND_API_KEY'];
+
+const getEmailFrom = () => process.env.EMAIL_FROM || process.env.FROM_EMAIL || '';
+const getEmailReplyTo = () => process.env.EMAIL_REPLY_TO || process.env.FROM_EMAIL || getEmailFrom();
+
+const validateResendConfig = () => {
+  const missing = requiredResendVars.filter((key) => !process.env[key]);
+  if (!getEmailFrom()) missing.push('EMAIL_FROM');
   if (missing.length > 0) {
-    throw new Error(`Faltan variables SMTP: ${missing.join(', ')}`);
+    throw new Error(`Faltan variables Resend: ${missing.join(', ')}`);
   }
-
-  return nodemailer.createTransport({
-    host: process.env.SMTP_HOST,
-    port: Number(process.env.SMTP_PORT),
-    secure: process.env.SMTP_SECURE === 'true',
-    auth: {
-      user: process.env.SMTP_USER,
-      pass: process.env.SMTP_PASS,
-    },
-  });
 };
 
 const escapeHtml = (value: string) =>
@@ -94,29 +94,86 @@ const buildSurveyEmail = (survey: SurveyEmailInfo, recipient: SurveyEmailRecipie
 export const sendSurveyInvitations = async ({
   survey,
   recipients,
+  requestedBy,
 }: SendSurveyInvitationsInput) => {
-  const transporter = getTransporter();
-  const from = process.env.SMTP_FROM!;
-  const replyTo = process.env.SMTP_REPLY_TO || from;
+  validateResendConfig();
 
   const results = [];
   for (const recipient of recipients) {
     const content = buildSurveyEmail(survey, recipient);
-    const info = await transporter.sendMail({
-      from,
-      to: recipient.correo,
-      replyTo,
-      subject: content.subject,
-      text: content.text,
-      html: content.html,
-    });
-
-    results.push({
+    const traceBase = {
+      survey_id: survey.id,
+      codigo_generacion: survey.codigo_generacion,
       participant_id: recipient.participant_id,
-      correo: recipient.correo,
-      messageId: info.messageId,
-    });
+      destinatario: recipient.correo,
+      tipo_correo: 'survey_invitation',
+      provider: 'resend',
+      requested_by_uid: requestedBy.uid,
+      requested_by_nombre: requestedBy.nombre,
+      fecha_envio: new Date().toISOString(),
+    };
+
+    try {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 20000);
+      const response = await fetch('https://api.resend.com/emails', {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${process.env.RESEND_API_KEY}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          from: getEmailFrom(),
+          to: [recipient.correo],
+          reply_to: getEmailReplyTo(),
+          subject: content.subject,
+          text: content.text,
+          html: content.html,
+        }),
+        signal: controller.signal,
+      }).finally(() => clearTimeout(timeout));
+
+      const data = (await response.json().catch(() => null)) as ResendEmailResponse | null;
+      if (!response.ok) {
+        const message = data?.message || data?.name || 'Resend no pudo enviar el correo.';
+        throw new Error(message);
+      }
+
+      await saveEmailTrace({
+        ...traceBase,
+        estado_envio: 'enviado',
+        message_id: data?.id || '',
+      });
+
+      results.push({
+        participant_id: recipient.participant_id,
+        correo: recipient.correo,
+        messageId: data?.id || '',
+      });
+    } catch (error) {
+      const message =
+        error instanceof Error && error.name === 'AbortError'
+          ? 'Timeout conectando con Resend.'
+          : error instanceof Error
+            ? error.message
+            : 'No se pudo enviar el correo.';
+
+      await saveEmailTrace({
+        ...traceBase,
+        estado_envio: 'error',
+        error: message,
+      });
+      throw new Error(message);
+    }
   }
 
   return results;
+};
+
+const saveEmailTrace = async (data: Record<string, unknown>) => {
+  try {
+    await adminDb.collection(process.env.EMAIL_TRACE_COLLECTION || 'correos_enviados').add(data);
+  } catch (error) {
+    console.error('Email trace save error:', error);
+  }
 };
