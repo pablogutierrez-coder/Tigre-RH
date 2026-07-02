@@ -16,6 +16,7 @@
     "backend:build": "cd backend && npm run build",
     "backend:start": "cd backend && npm run start",
     "backend:create:admin": "cd backend && npm run create:admin --",
+    "backend:repair:user-access": "cd backend && npm run repair:user-access",
     "start": "serve -s dist -l tcp://0.0.0.0:$PORT",
     "deploy:rules": "npx firebase-tools deploy --only firestore:rules,storage"
   },

@@ -29,6 +29,8 @@ const getBcryptRounds = () => {
   return Number.isFinite(rounds) && rounds >= 8 ? rounds : 10;
 };
 
+const getAuthErrorCode = (error: unknown) => (error as { code?: string })?.code;
+
 const userForClient = (uid: string, data: DocumentData) => ({
   id: uid,
   nombre: data.nombre,
@@ -46,14 +48,33 @@ const assertUsernameAvailable = async (
   usuarioNormalizado: string,
   currentUid?: string,
 ) => {
-  const snapshot = await adminDb
+  const credentialSnapshot = await adminDb
     .collection('user_credentials')
     .where('usuario_normalizado', '==', usuarioNormalizado)
     .limit(1)
     .get();
 
-  if (!snapshot.empty && snapshot.docs[0].id !== currentUid) {
+  if (!credentialSnapshot.empty && credentialSnapshot.docs[0].id !== currentUid) {
     throw new Error('El usuario ya existe.');
+  }
+
+  const usersSnapshot = await adminDb.collection('users').get();
+  for (const userDoc of usersSnapshot.docs) {
+    if (userDoc.id === currentUid) continue;
+    const profile = userDoc.data();
+    const profileUsername = String(profile.usuario_normalizado || profile.usuario || '');
+    if (!profileUsername || normalizeUsername(profileUsername) !== usuarioNormalizado) {
+      continue;
+    }
+
+    const duplicatedCredential = await adminDb
+      .collection('user_credentials')
+      .doc(userDoc.id)
+      .get();
+
+    if (duplicatedCredential.exists || profile.estado === 'Activo') {
+      throw new Error('El usuario ya existe.');
+    }
   }
 };
 
@@ -65,8 +86,7 @@ const ensureAuthUser = async (uid: string, nombre: string, disabled: boolean) =>
       disabled,
     });
   } catch (error) {
-    const authError = error as { code?: string };
-    if (authError.code === 'auth/uid-already-exists') {
+    if (getAuthErrorCode(error) === 'auth/uid-already-exists') {
       await adminAuth.updateUser(uid, {
         displayName: nombre,
         disabled,
@@ -137,6 +157,7 @@ export const updatePlatformUser = async (
     throw new Error('Usuario no encontrado.');
   }
 
+  const currentData = current.data() || {};
   const updateData: Record<string, unknown> = {};
 
   if (data.nombre !== undefined) updateData.nombre = data.nombre;
@@ -160,12 +181,11 @@ export const updatePlatformUser = async (
 
   await userRef.set(updateData, { merge: true });
 
-  if (data.nombre !== undefined || data.estado !== undefined) {
-    const authUpdate: { displayName?: string; disabled?: boolean } = {};
-    if (data.nombre !== undefined) authUpdate.displayName = data.nombre;
-    if (data.estado !== undefined) authUpdate.disabled = data.estado === 'Inactivo';
-    await adminAuth.updateUser(uid, authUpdate);
-  }
+  await ensureAuthUser(
+    uid,
+    String(data.nombre ?? currentData.nombre ?? ''),
+    (data.estado ?? currentData.estado) !== 'Activo',
+  );
 
   await createAuditLog({
     modulo: 'Usuarios',
@@ -183,12 +203,35 @@ export const changeUserPasswordByAdmin = async (
   newPassword: string,
   changedBy: Actor,
 ) => {
+  const userDoc = await adminDb.collection('users').doc(uid).get();
+  if (!userDoc.exists) {
+    throw new Error('Usuario no encontrado.');
+  }
+
+  const profile = userDoc.data() || {};
+  const usuario = String(profile.usuario || '').trim();
+  if (!usuario) {
+    throw new Error('El usuario no tiene un nombre de acceso configurado.');
+  }
+
+  const usuarioNormalizado = normalizeUsername(
+    String(profile.usuario_normalizado || usuario),
+  );
+  await assertUsernameAvailable(usuarioNormalizado, uid);
+
   const passwordHash = await bcrypt.hash(newPassword, getBcryptRounds());
   const now = new Date().toISOString();
+
+  await ensureAuthUser(
+    uid,
+    String(profile.nombre || usuario),
+    profile.estado !== 'Activo',
+  );
 
   await adminDb.collection('user_credentials').doc(uid).set(
     {
       uid,
+      usuario_normalizado: usuarioNormalizado,
       password_hash: passwordHash,
       updated_at: now,
     },
@@ -197,6 +240,7 @@ export const changeUserPasswordByAdmin = async (
 
   await adminDb.collection('users').doc(uid).set(
     {
+      usuario_normalizado: usuarioNormalizado,
       requiere_cambio_password: true,
     },
     { merge: true },
@@ -214,13 +258,19 @@ export const changeUserPasswordByAdmin = async (
 };
 
 export const deactivatePlatformUser = async (uid: string, changedBy: Actor) => {
+  const userDoc = await adminDb.collection('users').doc(uid).get();
+  if (!userDoc.exists) {
+    throw new Error('Usuario no encontrado.');
+  }
+
+  const profile = userDoc.data() || {};
   await adminDb.collection('users').doc(uid).set(
     {
       estado: 'Inactivo',
     },
     { merge: true },
   );
-  await adminAuth.updateUser(uid, { disabled: true });
+  await ensureAuthUser(uid, String(profile.nombre || profile.usuario || uid), true);
 
   await createAuditLog({
     modulo: 'Usuarios',

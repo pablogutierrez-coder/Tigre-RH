@@ -10,7 +10,8 @@
     "dev": "tsx watch src/index.ts",
     "build": "tsc",
     "start": "node dist/index.js",
-    "create:admin": "tsx src/scripts/createInitialAdmin.ts"
+    "create:admin": "tsx src/scripts/createInitialAdmin.ts",
+    "repair:user-access": "tsx src/scripts/repairUserAccess.ts"
   },
   "dependencies": {
     "bcryptjs": "^3.0.3",

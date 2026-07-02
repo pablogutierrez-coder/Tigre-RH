@@ -146,9 +146,16 @@ export default function Usuarios({ users, currentUser, onAddUser, onUpdateUser, 
     if (passwordUserId) {
       const user = users.find(u => u.id === passwordUserId);
       if (!user) return;
-      await onResetPassword(user, newPassword.trim());
-      setShowPasswordModal(false);
-      setPasswordUserId(null);
+      try {
+        setIsSaving(true);
+        await onResetPassword(user, newPassword.trim());
+        setShowPasswordModal(false);
+        setPasswordUserId(null);
+      } catch (error) {
+        console.error('Error resetting password:', error);
+      } finally {
+        setIsSaving(false);
+      }
     }
   };
 
@@ -577,9 +584,10 @@ export default function Usuarios({ users, currentUser, onAddUser, onUpdateUser, 
               </button>
               <button
                 type="submit"
+                disabled={isSaving}
                 className="bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs px-4 py-2.5 rounded-xl shadow-xs cursor-pointer transition-colors"
               >
-                Actualizar Clave
+                {isSaving ? 'Actualizando...' : 'Actualizar Clave'}
               </button>
             </div>
           </form>

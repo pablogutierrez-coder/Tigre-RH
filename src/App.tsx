@@ -1131,6 +1131,13 @@ export default function App() {
   const handleResetUserPassword = async (user: User, newPassword: string) => {
     try {
       await changeUserPasswordByAdmin(user.id, newPassword);
+      setUsers(prev =>
+        prev.map(item =>
+          item.id === user.id
+            ? { ...item, requiere_cambio_password: true }
+            : item,
+        ),
+      );
       alert(`Se actualizo la contrasena temporal de ${user.usuario}.`);
       addAuditLog(
         'Cambio de contrasena temporal',
@@ -1138,7 +1145,9 @@ export default function App() {
         `Se actualizo la contrasena temporal para "${user.nombre}".`
       );
     } catch (error) {
-      alert(error instanceof Error ? error.message : 'No se pudo cambiar la contrasena temporal.');
+      const message = error instanceof Error ? error.message : 'No se pudo cambiar la contrasena temporal.';
+      alert(message);
+      throw new Error(message);
     }
   };
 

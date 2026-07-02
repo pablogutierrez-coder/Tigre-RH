@@ -99,7 +99,8 @@ router.post('/:uid/password', canManageUsers, async (req: AuthenticatedRequest, 
     res.json({ ok: true });
   } catch (error) {
     console.error('Password change error:', error);
-    res.status(500).json({ message: 'Error interno.' });
+    const message = error instanceof Error ? error.message : 'Error interno.';
+    res.status(message === 'Usuario no encontrado.' ? 404 : 500).json({ message });
   }
 });
 

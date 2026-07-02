@@ -23,21 +23,70 @@ interface UserProfile {
 const genericCredentialsError = () =>
   new AuthError('Usuario o contrasena incorrectos.', 401);
 
-export const loginWithUsername = async (username: string, password: string) => {
-  const usuarioNormalizado = normalizeUsername(username);
-
+const findCredentialByUsername = async (usuarioNormalizado: string) => {
   const credentialSnapshot = await adminDb
     .collection('user_credentials')
     .where('usuario_normalizado', '==', usuarioNormalizado)
     .limit(1)
     .get();
 
-  if (credentialSnapshot.empty) {
+  if (!credentialSnapshot.empty) {
+    return credentialSnapshot.docs[0];
+  }
+
+  const usersSnapshot = await adminDb.collection('users').get();
+  const profileDoc = usersSnapshot.docs.find((userDoc) => {
+    const profile = userDoc.data();
+    const profileUsername = String(profile.usuario_normalizado || profile.usuario || '');
+    if (!profileUsername) return false;
+    return normalizeUsername(profileUsername) === usuarioNormalizado;
+  });
+
+  if (!profileDoc) {
+    return null;
+  }
+
+  const credentialDoc = await adminDb
+    .collection('user_credentials')
+    .doc(profileDoc.id)
+    .get();
+
+  if (!credentialDoc.exists) {
+    return null;
+  }
+
+  if (!credentialDoc.data()?.usuario_normalizado) {
+    await credentialDoc.ref.set(
+      {
+        uid: profileDoc.id,
+        usuario_normalizado: usuarioNormalizado,
+        updated_at: new Date().toISOString(),
+      },
+      { merge: true },
+    );
+  }
+
+  if (!profileDoc.data().usuario_normalizado) {
+    await profileDoc.ref.set(
+      {
+        usuario_normalizado: usuarioNormalizado,
+      },
+      { merge: true },
+    );
+  }
+
+  return credentialDoc;
+};
+
+export const loginWithUsername = async (username: string, password: string) => {
+  const usuarioNormalizado = normalizeUsername(username);
+
+  const credentialDoc = await findCredentialByUsername(usuarioNormalizado);
+  if (!credentialDoc) {
     throw genericCredentialsError();
   }
 
-  const credentialDoc = credentialSnapshot.docs[0];
-  const credential = credentialDoc.data();
+  const credential = credentialDoc.data() || {};
   const uid = String(credential.uid || credentialDoc.id);
   const passwordHash = credential.password_hash;
 
@@ -53,6 +102,15 @@ export const loginWithUsername = async (username: string, password: string) => {
   const profile = userDoc.data() as UserProfile;
   if (profile.estado !== 'Activo') {
     throw new AuthError('Usuario inactivo.', 403);
+  }
+
+  if (!profile.usuario_normalizado) {
+    await userDoc.ref.set(
+      {
+        usuario_normalizado: usuarioNormalizado,
+      },
+      { merge: true },
+    );
   }
 
   const passwordOk = await bcrypt.compare(password, passwordHash);
