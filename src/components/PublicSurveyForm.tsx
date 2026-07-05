@@ -366,12 +366,8 @@ export default function PublicSurveyForm({
       <div className="w-full max-w-2xl bg-white/95 backdrop-blur-xl border border-slate-200 p-6 sm:p-8 rounded-3xl shadow-xl shadow-slate-200/70 space-y-6">
         {/* Header Branding */}
         <div className="flex items-center justify-between border-b border-slate-100 pb-4">
-          <div className="flex items-center gap-3">
-            <BrandLogo size={46} />
-            <div>
-              <h1 className="font-extrabold text-base tracking-tight leading-none text-slate-800">{APP_NAME}</h1>
-              <span className="text-[9px] text-fuchsia-600 font-bold uppercase tracking-widest block">FDR</span>
-            </div>
+          <div className="flex items-center min-w-0">
+            <BrandLogo width={165} height={55} className="max-w-full" />
           </div>
           <div className="text-right">
             <span className="text-[10px] bg-indigo-50 text-indigo-700 px-2.5 py-1 rounded-full font-bold uppercase tracking-wider shadow-xs">

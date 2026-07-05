@@ -1321,6 +1321,10 @@ export default function App() {
           {/* Login Panel */}
           <div className="lg:col-span-5 flex items-center justify-center px-4 py-6 sm:p-12 relative z-10">
             <div className="login-card w-full space-y-8 bg-white/90 backdrop-blur-xl border border-white/70 p-6 sm:p-8 rounded-3xl shadow-xl shadow-slate-900/15">
+              <div className="flex justify-center lg:justify-start">
+                <BrandLogo width={190} height={64} className="max-w-full" />
+              </div>
+
               <div className="text-center lg:text-left">
                 <h2 className="text-slate-800 text-2xl font-black tracking-tight">Iniciar Sesión</h2>
               </div>
@@ -1376,12 +1380,8 @@ export default function App() {
           <aside className="w-full lg:w-72 bg-white/94 backdrop-blur-xl border-r border-slate-200 text-slate-700 flex flex-col shrink-0 shadow-xl shadow-slate-200/60">
             {/* Sidebar Brand Header */}
             <div className="p-6 border-b border-slate-200 flex justify-between items-center">
-              <div className="flex items-center gap-2.5">
-                <BrandLogo size={42} />
-                <div>
-                  <h1 className="font-extrabold text-base tracking-tight leading-none text-slate-950">{APP_NAME}</h1>
-	                  <span className="text-[9px] text-fuchsia-600 font-bold uppercase tracking-widest block">FDR</span>
-                </div>
+              <div className="flex items-center min-w-0">
+                <BrandLogo width={150} height={50} className="max-w-full" />
               </div>
               <span className="bg-slate-50 text-[10px] text-slate-500 px-2 py-0.5 rounded font-mono font-bold border border-slate-200">
                 v1.1

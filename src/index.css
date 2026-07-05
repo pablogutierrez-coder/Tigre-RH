@@ -64,7 +64,7 @@ body {
 }
 
 .login-card {
-  max-width: min(21rem, calc(100vw - 2rem));
+  max-width: min(18rem, calc(100vw - 2rem));
 }
 
 .login-bg-video {
