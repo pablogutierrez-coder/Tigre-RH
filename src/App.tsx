@@ -1315,7 +1315,7 @@ export default function App() {
           {/* Login Panel */}
           <div className="lg:col-span-5 flex items-center justify-center px-4 py-6 sm:p-12 relative z-10">
             <div className="login-card w-full space-y-8 bg-white/90 backdrop-blur-xl border border-white/70 p-6 sm:p-8 rounded-3xl shadow-xl shadow-slate-900/15">
-              <div className="flex justify-center lg:justify-start">
+              <div className="flex justify-center">
                 <BrandLogo width={190} height={64} className="max-w-full" />
               </div>
 
