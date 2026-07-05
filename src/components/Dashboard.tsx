@@ -291,13 +291,77 @@ export default function Dashboard({
     })).sort((a, b) => b.value - a.value);
   }, [filteredAttendance]);
 
-  // 5. Evolución Mensual / Semanal (Trend)
-  const evolutionData = [
-    { name: 'Semana 1', Cargados: 5, Dia1: 5, Dia5: 4, Altas: 3 },
-    { name: 'Semana 2', Cargados: 8, Dia1: 8, Dia5: 6, Altas: 5 },
-    { name: 'Semana 3', Cargados: 12, Dia1: 11, Dia5: 9, Altas: 8 },
-    { name: 'Semana 4', Cargados: 15, Dia1: 14, Dia5: 11, Altas: 10 }
-  ];
+  // 5. Evolucion mensual / semanal calculada con datos reales.
+  const evolutionData = useMemo(() => {
+    const weekBuckets = new Map<string, {
+      name: string;
+      sortKey: number;
+      Cargados: number;
+      Altas: number;
+    }>();
+
+    const getWeekKey = (dateValue?: string) => {
+      if (!dateValue) return null;
+
+      const date = new Date(`${dateValue.slice(0, 10)}T00:00:00`);
+      if (Number.isNaN(date.getTime())) return null;
+
+      const weekOfMonth = Math.ceil(date.getDate() / 7);
+      const monthName = date.toLocaleDateString('es-PE', { month: 'short' }).replace('.', '');
+      const name = `Sem ${weekOfMonth} ${monthName}`;
+      const sortKey = date.getFullYear() * 10000 + (date.getMonth() + 1) * 100 + weekOfMonth;
+
+      return { name, sortKey };
+    };
+
+    filteredSessions.forEach((session) => {
+      const week = getWeekKey(session.fecha_inicio || session.fecha_creacion);
+      if (!week) return;
+
+      if (!weekBuckets.has(week.name)) {
+        weekBuckets.set(week.name, {
+          name: week.name,
+          sortKey: week.sortKey,
+          Cargados: 0,
+          Altas: 0,
+        });
+      }
+
+      const bucket = weekBuckets.get(week.name);
+      if (!bucket) return;
+
+      bucket.Cargados += participants.filter(
+        (participant) => participant.training_session_id === session.id,
+      ).length;
+    });
+
+    filteredConfirmations.forEach((confirmation) => {
+      if (confirmation.estado_alta !== 'Alta confirmada') return;
+
+      const participant = participants.find((item) => item.id === confirmation.participant_id);
+      const session = participant
+        ? filteredSessions.find((item) => item.id === participant.training_session_id)
+        : null;
+      const week = getWeekKey(confirmation.fecha_alta || session?.fecha_inicio || session?.fecha_creacion);
+      if (!week) return;
+
+      if (!weekBuckets.has(week.name)) {
+        weekBuckets.set(week.name, {
+          name: week.name,
+          sortKey: week.sortKey,
+          Cargados: 0,
+          Altas: 0,
+        });
+      }
+
+      const bucket = weekBuckets.get(week.name);
+      if (bucket) bucket.Altas += 1;
+    });
+
+    return Array.from(weekBuckets.values())
+      .sort((a, b) => a.sortKey - b.sortKey)
+      .map(({ sortKey: _sortKey, ...bucket }) => bucket);
+  }, [filteredSessions, participants, filteredConfirmations]);
 
   return (
     <div className="space-y-6" id="dashboard-container">
@@ -765,27 +829,35 @@ export default function Dashboard({
           <span className="text-slate-400 text-xs font-mono">Tendencias</span>
         </div>
         <div className="min-h-[220px]">
-          <ResponsiveContainer width="100%" height={220}>
-            <AreaChart data={evolutionData} margin={{ top: 10, right: 20, left: -20, bottom: 0 }}>
-              <defs>
-                <linearGradient id="colorCargados" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor="#6366f1" stopOpacity={0.2}/>
-                  <stop offset="95%" stopColor="#6366f1" stopOpacity={0}/>
-                </linearGradient>
-                <linearGradient id="colorAltas" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor="#ec4899" stopOpacity={0.2}/>
-                  <stop offset="95%" stopColor="#ec4899" stopOpacity={0}/>
-                </linearGradient>
-              </defs>
-              <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
-              <XAxis dataKey="name" stroke="#94a3b8" fontSize={11} />
-              <YAxis stroke="#94a3b8" fontSize={11} />
-              <Tooltip contentStyle={{ backgroundColor: '#fff', border: '1px solid #e2e8f0', borderRadius: '8px' }} />
-              <Legend iconSize={10} wrapperStyle={{ fontSize: 11 }} />
-              <Area type="monotone" dataKey="Cargados" stroke="#6366f1" strokeWidth={2} fillOpacity={1} fill="url(#colorCargados)" />
-              <Area type="monotone" dataKey="Altas" stroke="#ec4899" strokeWidth={2} fillOpacity={1} fill="url(#colorAltas)" />
-            </AreaChart>
-          </ResponsiveContainer>
+          {evolutionData.length === 0 ? (
+            <div className="h-[220px] flex flex-col items-center justify-center text-center text-slate-400">
+              <Layers className="w-8 h-8 mb-2 text-slate-300" />
+              <p className="text-sm font-medium">Sin datos de evolución todavía</p>
+              <p className="text-[11px] mt-1">Las tendencias aparecerán cuando existan capacitaciones y altas registradas.</p>
+            </div>
+          ) : (
+            <ResponsiveContainer width="100%" height={220}>
+              <AreaChart data={evolutionData} margin={{ top: 10, right: 20, left: -20, bottom: 0 }}>
+                <defs>
+                  <linearGradient id="colorCargados" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#6366f1" stopOpacity={0.2}/>
+                    <stop offset="95%" stopColor="#6366f1" stopOpacity={0}/>
+                  </linearGradient>
+                  <linearGradient id="colorAltas" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#ec4899" stopOpacity={0.2}/>
+                    <stop offset="95%" stopColor="#ec4899" stopOpacity={0}/>
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
+                <XAxis dataKey="name" stroke="#94a3b8" fontSize={11} />
+                <YAxis stroke="#94a3b8" fontSize={11} />
+                <Tooltip contentStyle={{ backgroundColor: '#fff', border: '1px solid #e2e8f0', borderRadius: '8px' }} />
+                <Legend iconSize={10} wrapperStyle={{ fontSize: 11 }} />
+                <Area type="monotone" dataKey="Cargados" stroke="#6366f1" strokeWidth={2} fillOpacity={1} fill="url(#colorCargados)" />
+                <Area type="monotone" dataKey="Altas" stroke="#ec4899" strokeWidth={2} fillOpacity={1} fill="url(#colorAltas)" />
+              </AreaChart>
+            </ResponsiveContainer>
+          )}
         </div>
       </div>
     </div>
