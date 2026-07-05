@@ -68,8 +68,7 @@ body {
 }
 
 .login-bg-video {
-  transform: scale(1.18);
-  transform-origin: center center;
+  object-position: left top;
 }
 
 @media (min-width: 640px) {
