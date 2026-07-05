@@ -1295,49 +1295,13 @@ export default function App() {
             }}
           />
 
-          {/* Decorative Brand Showcase Panel */}
-          <div className="hidden lg:flex lg:col-span-7 text-slate-900 p-12 flex-col justify-between relative overflow-hidden z-10">
-            <div className="flex items-center gap-3 relative z-10">
-              <BrandLogo size={58} />
-              <div>
-                <h1 className="font-extrabold text-xl tracking-tight leading-none text-slate-950">Automatizate</h1>
-                <span className="text-[10px] text-fuchsia-600 font-bold uppercase tracking-widest block">Negocios</span>
-              </div>
-            </div>
+          <div className="hidden lg:block lg:col-span-7"></div>
 
-            <div className="space-y-6 relative z-10 max-w-lg">
-              <span className="text-xs bg-linear-to-r from-fuchsia-500 to-indigo-500 text-white px-3 py-1 rounded-full font-bold uppercase tracking-wider shadow-sm">
-                Área FDR • Formación y Desarrollo
-              </span>
-              <h2 className="text-4xl font-extrabold tracking-tight leading-tight text-slate-950">
-                Plataforma de Control de Asistencias y Altas
-              </h2>
-              <p className="text-slate-600 text-sm leading-relaxed">
-                Registra la asistencia diaria por campaña, deserciones por motivo y coordina con operaciones el alta en el primer día laboral. Toda la información consolidada en un solo lugar.
-              </p>
-            </div>
-
-            <p className="text-xs text-slate-500 relative z-10">
-              © 2026 Automatiza Tus Negocios. Todos los derechos reservados.
-            </p>
-          </div>
-
-          {/* Right Login Panel */}
+          {/* Login Panel */}
           <div className="lg:col-span-5 flex items-center justify-center px-4 py-6 sm:p-12 relative z-10">
             <div className="login-card w-full space-y-8 bg-white/90 backdrop-blur-xl border border-white/70 p-6 sm:p-8 rounded-3xl shadow-xl shadow-slate-900/15">
-              {/* Logo Small for Mobile */}
-              <div className="text-center lg:text-left space-y-3">
-                <div className="flex items-center justify-center lg:justify-start gap-2.5">
-                  <BrandLogo size={50} />
-                  <div>
-                    <h3 className="font-black text-lg text-slate-800 leading-none">Automatizate</h3>
-                    <span className="text-[10px] text-indigo-600 font-extrabold uppercase tracking-wider block">FDR</span>
-                  </div>
-                </div>
-                <div>
-                  <h2 className="text-slate-800 text-2xl font-black tracking-tight">Iniciar Sesión</h2>
-                  <p className="text-slate-500 text-xs mt-1">Plataforma de Formación y Desarrollo de Automatizate Negocios</p>
-                </div>
+              <div className="text-center lg:text-left">
+                <h2 className="text-slate-800 text-2xl font-black tracking-tight">Iniciar Sesión</h2>
               </div>
 
               {/* Login Form */}
