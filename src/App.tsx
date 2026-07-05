@@ -278,14 +278,17 @@ export default function App() {
     if (!video) return;
 
     video.loop = false;
-    video.muted = false;
+    video.muted = true;
     video.volume = 1;
     video.currentTime = 0;
 
     const playAttempt = video.play();
     if (playAttempt !== undefined) {
       playAttempt
-        .then(() => setLoginVideoNeedsGesture(false))
+        .then(() => {
+          video.muted = false;
+          setLoginVideoNeedsGesture(false);
+        })
         .catch(() => setLoginVideoNeedsGesture(true));
     }
   }, [activeUser, authChecking]);
@@ -1277,14 +1280,15 @@ export default function App() {
             src={loginBackgroundVideo}
             className="absolute inset-0 h-full w-full object-cover"
             autoPlay
+            muted
             playsInline
             preload="auto"
             onEnded={(event) => {
               event.currentTarget.pause();
             }}
           />
-          <div className="absolute inset-0 bg-white/15"></div>
-          <div className="absolute inset-0 bg-[linear-gradient(90deg,rgba(255,255,255,0.68)_0%,rgba(255,255,255,0.24)_48%,rgba(255,255,255,0.62)_100%)]"></div>
+          <div className="absolute inset-0 bg-slate-950/18"></div>
+          <div className="absolute inset-0 bg-[linear-gradient(90deg,rgba(255,255,255,0.22)_0%,rgba(255,255,255,0.08)_48%,rgba(255,255,255,0.34)_100%)]"></div>
 
           {loginVideoNeedsGesture && (
             <button
@@ -1304,10 +1308,10 @@ export default function App() {
           )}
 
           {/* Decorative Brand Showcase Panel */}
-          <div className="hidden lg:flex lg:col-span-7 bg-white/30 backdrop-blur-sm border-r border-white/40 text-slate-900 p-12 flex-col justify-between relative overflow-hidden z-10">
-            <div className="absolute inset-0 bg-[linear-gradient(135deg,rgba(255,255,255,0.96),rgba(248,250,252,0.88))]"></div>
-            <div className="absolute top-0 right-0 h-64 w-2/3 bg-gradient-to-l from-fuchsia-500/10 to-transparent blur-3xl"></div>
-            <div className="absolute bottom-0 left-0 h-64 w-2/3 bg-gradient-to-r from-blue-600/10 to-transparent blur-3xl"></div>
+          <div className="hidden lg:flex lg:col-span-7 bg-white/8 backdrop-blur-[1px] border-r border-white/25 text-slate-900 p-12 flex-col justify-between relative overflow-hidden z-10">
+            <div className="absolute inset-0 bg-[linear-gradient(135deg,rgba(255,255,255,0.42),rgba(255,255,255,0.16))]"></div>
+            <div className="absolute top-0 right-0 h-64 w-2/3 bg-gradient-to-l from-fuchsia-500/8 to-transparent blur-3xl"></div>
+            <div className="absolute bottom-0 left-0 h-64 w-2/3 bg-gradient-to-r from-blue-600/8 to-transparent blur-3xl"></div>
             <div className="absolute inset-x-12 bottom-36 h-px bg-gradient-to-r from-fuchsia-500/0 via-fuchsia-500/30 to-blue-600/0"></div>
 
             <div className="flex items-center gap-3 relative z-10">
@@ -1336,7 +1340,7 @@ export default function App() {
           </div>
 
           {/* Right Login Panel */}
-          <div className="lg:col-span-5 flex items-center justify-center px-4 py-6 sm:p-12 bg-white/38 backdrop-blur-sm border-l border-white/45 relative z-10">
+          <div className="lg:col-span-5 flex items-center justify-center px-4 py-6 sm:p-12 bg-white/18 backdrop-blur-[1px] border-l border-white/30 relative z-10">
             <div className="login-card w-full space-y-8 bg-white/90 backdrop-blur-xl border border-white/70 p-6 sm:p-8 rounded-3xl shadow-xl shadow-slate-900/15">
               {/* Logo Small for Mobile */}
               <div className="text-center lg:text-left space-y-3">
