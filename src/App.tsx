@@ -1285,7 +1285,7 @@ export default function App() {
           <video
             ref={loginVideoRef}
             src={loginBackgroundVideo}
-            className="absolute inset-0 h-full w-full object-cover"
+            className="login-bg-video absolute inset-0 h-full w-full object-cover"
             autoPlay
             muted
             playsInline

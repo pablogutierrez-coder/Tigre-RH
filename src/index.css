@@ -67,6 +67,11 @@ body {
   max-width: min(21rem, calc(100vw - 2rem));
 }
 
+.login-bg-video {
+  transform: scale(1.18);
+  transform-origin: center center;
+}
+
 @media (min-width: 640px) {
   .login-card {
     max-width: 24rem;
