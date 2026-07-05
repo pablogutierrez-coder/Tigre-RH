@@ -52,8 +52,7 @@ import {
   HelpCircle,
   Clock3,
   Undo,
-  ClipboardCheck,
-  Volume2
+  ClipboardCheck
 } from 'lucide-react';
 
 // Subcomponents
@@ -189,7 +188,6 @@ export default function App() {
   const [loginUser, setLoginUser] = useState('');
   const [loginPass, setLoginPass] = useState('');
   const [loginError, setLoginError] = useState('');
-  const [loginVideoNeedsGesture, setLoginVideoNeedsGesture] = useState(false);
   const [authChecking, setAuthChecking] = useState(true);
 
   // --- Navigation States ---
@@ -283,14 +281,23 @@ export default function App() {
     video.currentTime = 0;
 
     const playAttempt = video.play();
-    if (playAttempt !== undefined) {
-      playAttempt
-        .then(() => {
-          video.muted = false;
-          setLoginVideoNeedsGesture(false);
-        })
-        .catch(() => setLoginVideoNeedsGesture(true));
-    }
+    playAttempt?.catch(() => undefined);
+
+    const enableAudio = () => {
+      video.muted = false;
+      video.volume = 1;
+      video.play().catch(() => undefined);
+    };
+
+    window.addEventListener('pointerdown', enableAudio, { once: true });
+    window.addEventListener('keydown', enableAudio, { once: true });
+    window.addEventListener('touchstart', enableAudio, { once: true });
+
+    return () => {
+      window.removeEventListener('pointerdown', enableAudio);
+      window.removeEventListener('keydown', enableAudio);
+      window.removeEventListener('touchstart', enableAudio);
+    };
   }, [activeUser, authChecking]);
 
   // --- Helper to register system audit logs ---
@@ -1287,33 +1294,9 @@ export default function App() {
               event.currentTarget.pause();
             }}
           />
-          <div className="absolute inset-0 bg-slate-950/18"></div>
-          <div className="absolute inset-0 bg-[linear-gradient(90deg,rgba(255,255,255,0.22)_0%,rgba(255,255,255,0.08)_48%,rgba(255,255,255,0.34)_100%)]"></div>
-
-          {loginVideoNeedsGesture && (
-            <button
-              type="button"
-              onClick={() => {
-                const video = loginVideoRef.current;
-                if (!video) return;
-                video.muted = false;
-                video.volume = 1;
-                video.play().then(() => setLoginVideoNeedsGesture(false)).catch(() => undefined);
-              }}
-              className="absolute right-4 top-4 z-20 inline-flex items-center gap-2 rounded-xl border border-white/60 bg-white/85 px-3 py-2 text-xs font-bold text-slate-700 shadow-sm backdrop-blur-md transition-all hover:bg-white"
-            >
-              <Volume2 className="h-4 w-4 text-fuchsia-600" />
-              Activar video con audio
-            </button>
-          )}
 
           {/* Decorative Brand Showcase Panel */}
-          <div className="hidden lg:flex lg:col-span-7 bg-white/8 backdrop-blur-[1px] border-r border-white/25 text-slate-900 p-12 flex-col justify-between relative overflow-hidden z-10">
-            <div className="absolute inset-0 bg-[linear-gradient(135deg,rgba(255,255,255,0.42),rgba(255,255,255,0.16))]"></div>
-            <div className="absolute top-0 right-0 h-64 w-2/3 bg-gradient-to-l from-fuchsia-500/8 to-transparent blur-3xl"></div>
-            <div className="absolute bottom-0 left-0 h-64 w-2/3 bg-gradient-to-r from-blue-600/8 to-transparent blur-3xl"></div>
-            <div className="absolute inset-x-12 bottom-36 h-px bg-gradient-to-r from-fuchsia-500/0 via-fuchsia-500/30 to-blue-600/0"></div>
-
+          <div className="hidden lg:flex lg:col-span-7 text-slate-900 p-12 flex-col justify-between relative overflow-hidden z-10">
             <div className="flex items-center gap-3 relative z-10">
               <BrandLogo size={58} />
               <div>
@@ -1340,7 +1323,7 @@ export default function App() {
           </div>
 
           {/* Right Login Panel */}
-          <div className="lg:col-span-5 flex items-center justify-center px-4 py-6 sm:p-12 bg-white/18 backdrop-blur-[1px] border-l border-white/30 relative z-10">
+          <div className="lg:col-span-5 flex items-center justify-center px-4 py-6 sm:p-12 relative z-10">
             <div className="login-card w-full space-y-8 bg-white/90 backdrop-blur-xl border border-white/70 p-6 sm:p-8 rounded-3xl shadow-xl shadow-slate-900/15">
               {/* Logo Small for Mobile */}
               <div className="text-center lg:text-left space-y-3">
