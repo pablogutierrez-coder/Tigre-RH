@@ -1310,12 +1310,6 @@ export default function App() {
 	            }}
 	          />
 
-	          <div className="absolute left-4 top-4 sm:left-8 sm:top-8 z-10">
-	            <h1 className="text-white text-2xl sm:text-4xl font-black tracking-tight drop-shadow-[0_3px_12px_rgba(15,23,42,0.55)]">
-	              {APP_NAME}
-	            </h1>
-	          </div>
-	
 	          <div className="hidden lg:block lg:col-span-7"></div>
 
           {/* Login Panel */}
