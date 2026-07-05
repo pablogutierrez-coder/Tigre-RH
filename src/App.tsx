@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   INITIAL_USERS,
   INITIAL_CAMPAIGNS,
@@ -52,7 +52,8 @@ import {
   HelpCircle,
   Clock3,
   Undo,
-  ClipboardCheck
+  ClipboardCheck,
+  Volume2
 } from 'lucide-react';
 
 // Subcomponents
@@ -81,8 +82,11 @@ import {
   deactivatePlatformUser,
   updatePlatformUser,
 } from './services/firebase/userAdminService';
+import loginBackgroundVideo from './assets/login-background.mp4';
 
 export default function App() {
+  const loginVideoRef = useRef<HTMLVideoElement | null>(null);
+
   // --- Persistent States ---
   const [users, setUsers] = useState<User[]>(() => {
     const data = loadData('users', INITIAL_USERS);
@@ -185,6 +189,7 @@ export default function App() {
   const [loginUser, setLoginUser] = useState('');
   const [loginPass, setLoginPass] = useState('');
   const [loginError, setLoginError] = useState('');
+  const [loginVideoNeedsGesture, setLoginVideoNeedsGesture] = useState(false);
   const [authChecking, setAuthChecking] = useState(true);
 
   // --- Navigation States ---
@@ -265,6 +270,25 @@ export default function App() {
       localStorage.removeItem('fdr_active_user');
     }
   }, [activeUser]);
+
+  useEffect(() => {
+    if (authChecking || activeUser) return;
+
+    const video = loginVideoRef.current;
+    if (!video) return;
+
+    video.loop = false;
+    video.muted = false;
+    video.volume = 1;
+    video.currentTime = 0;
+
+    const playAttempt = video.play();
+    if (playAttempt !== undefined) {
+      playAttempt
+        .then(() => setLoginVideoNeedsGesture(false))
+        .catch(() => setLoginVideoNeedsGesture(true));
+    }
+  }, [activeUser, authChecking]);
 
   // --- Helper to register system audit logs ---
   const addAuditLog = (
@@ -1247,9 +1271,40 @@ export default function App() {
       {/* 1. AUTHENTICATED OR NOT ROUTING */}
       {!activeUser ? (
         /* LOGIN PANEL GRID */
-        <div className="min-h-screen grid grid-cols-1 lg:grid-cols-12 relative" id="login-layout">
+        <div className="min-h-screen grid grid-cols-1 lg:grid-cols-12 relative overflow-hidden bg-slate-950" id="login-layout">
+          <video
+            ref={loginVideoRef}
+            src={loginBackgroundVideo}
+            className="absolute inset-0 h-full w-full object-cover"
+            autoPlay
+            playsInline
+            preload="auto"
+            onEnded={(event) => {
+              event.currentTarget.pause();
+            }}
+          />
+          <div className="absolute inset-0 bg-white/15"></div>
+          <div className="absolute inset-0 bg-[linear-gradient(90deg,rgba(255,255,255,0.68)_0%,rgba(255,255,255,0.24)_48%,rgba(255,255,255,0.62)_100%)]"></div>
+
+          {loginVideoNeedsGesture && (
+            <button
+              type="button"
+              onClick={() => {
+                const video = loginVideoRef.current;
+                if (!video) return;
+                video.muted = false;
+                video.volume = 1;
+                video.play().then(() => setLoginVideoNeedsGesture(false)).catch(() => undefined);
+              }}
+              className="absolute right-4 top-4 z-20 inline-flex items-center gap-2 rounded-xl border border-white/60 bg-white/85 px-3 py-2 text-xs font-bold text-slate-700 shadow-sm backdrop-blur-md transition-all hover:bg-white"
+            >
+              <Volume2 className="h-4 w-4 text-fuchsia-600" />
+              Activar video con audio
+            </button>
+          )}
+
           {/* Decorative Brand Showcase Panel */}
-          <div className="hidden lg:flex lg:col-span-7 bg-white/76 backdrop-blur-xl border-r border-slate-200 text-slate-900 p-12 flex-col justify-between relative overflow-hidden">
+          <div className="hidden lg:flex lg:col-span-7 bg-white/30 backdrop-blur-sm border-r border-white/40 text-slate-900 p-12 flex-col justify-between relative overflow-hidden z-10">
             <div className="absolute inset-0 bg-[linear-gradient(135deg,rgba(255,255,255,0.96),rgba(248,250,252,0.88))]"></div>
             <div className="absolute top-0 right-0 h-64 w-2/3 bg-gradient-to-l from-fuchsia-500/10 to-transparent blur-3xl"></div>
             <div className="absolute bottom-0 left-0 h-64 w-2/3 bg-gradient-to-r from-blue-600/10 to-transparent blur-3xl"></div>
@@ -1281,8 +1336,8 @@ export default function App() {
           </div>
 
           {/* Right Login Panel */}
-          <div className="lg:col-span-5 flex items-center justify-center px-4 py-6 sm:p-12 bg-white/70 backdrop-blur-md border-l border-slate-100 relative">
-            <div className="login-card w-full space-y-8 bg-white/90 backdrop-blur-lg border border-slate-200 p-6 sm:p-8 rounded-3xl shadow-xl shadow-slate-200/70">
+          <div className="lg:col-span-5 flex items-center justify-center px-4 py-6 sm:p-12 bg-white/38 backdrop-blur-sm border-l border-white/45 relative z-10">
+            <div className="login-card w-full space-y-8 bg-white/90 backdrop-blur-xl border border-white/70 p-6 sm:p-8 rounded-3xl shadow-xl shadow-slate-900/15">
               {/* Logo Small for Mobile */}
               <div className="text-center lg:text-left space-y-3">
                 <div className="flex items-center justify-center lg:justify-start gap-2.5">
