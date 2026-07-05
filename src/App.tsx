@@ -5,19 +5,8 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import {
-  INITIAL_USERS,
-  INITIAL_CAMPAIGNS,
-  INITIAL_SESSIONS,
-  INITIAL_PARTICIPANTS,
-  INITIAL_ATTENDANCE,
-  INITIAL_CONFIRMATIONS,
-  INITIAL_REOPEN_REQUESTS,
-  INITIAL_AUDIT_LOGS,
-  INITIAL_SURVEYS,
-  INITIAL_RESPONSES,
   loadData,
   saveData,
-  restoreInitialData
 } from './db/initialData';
 import {
   User,
@@ -51,7 +40,6 @@ import {
   AlertTriangle,
   HelpCircle,
   Clock3,
-  Undo,
   ClipboardCheck
 } from 'lucide-react';
 
@@ -83,44 +71,70 @@ import {
 } from './services/firebase/userAdminService';
 import loginBackgroundVideo from './assets/login-background.mp4';
 
+const EMPTY_USERS: User[] = [];
+const EMPTY_SESSIONS: TrainingSession[] = [];
+const EMPTY_PARTICIPANTS: Participant[] = [];
+const EMPTY_ATTENDANCE: AttendanceRecord[] = [];
+const EMPTY_CONFIRMATIONS: OperationConfirmation[] = [];
+const EMPTY_REOPENS: AttendanceReopenRequest[] = [];
+const EMPTY_LOGS: AuditLog[] = [];
+const EMPTY_SURVEYS: TrainingSurvey[] = [];
+const EMPTY_RESPONSES: SurveyResponse[] = [];
+
+const LOCAL_DATA_KEYS = [
+  'fdr_users',
+  'fdr_sessions',
+  'fdr_participants',
+  'fdr_attendance',
+  'fdr_confirmations',
+  'fdr_reopens',
+  'fdr_logs',
+  'fdr_surveys',
+  'fdr_responses',
+];
+
+const ensureCleanLocalDataStore = () => {
+  if (typeof window === 'undefined') return;
+
+  const storageVersionKey = 'fdr_storage_schema';
+  const currentVersion = 'empty-production-v1';
+
+  if (localStorage.getItem(storageVersionKey) === currentVersion) return;
+
+  LOCAL_DATA_KEYS.forEach((key) => localStorage.removeItem(key));
+  localStorage.setItem(storageVersionKey, currentVersion);
+};
+
+ensureCleanLocalDataStore();
+
 export default function App() {
   const loginVideoRef = useRef<HTMLVideoElement | null>(null);
 
   // --- Persistent States ---
   const [users, setUsers] = useState<User[]>(() => {
-    const data = loadData('users', INITIAL_USERS);
-    const hasAlicia = data.some(u => u.usuario === 'Alicia.Cleque');
-    if (!hasAlicia) {
-      return INITIAL_USERS;
-    }
-    return data.map(u => {
-      if (u.usuario === 'admin' || u.usuario === 'reclutador' || u.usuario === 'formador' || u.usuario === 'vivi_formador' || u.usuario === 'edu_reclutador') {
-        return { ...u, estado: 'Inactivo' as const };
-      }
-      return u;
-    });
+    return loadData('users', EMPTY_USERS);
   });
   const [sessions, setSessions] = useState<TrainingSession[]>(() => {
-    const data = loadData('sessions', INITIAL_SESSIONS);
+    const data = loadData('sessions', EMPTY_SESSIONS);
     const hasEquifax = data.some(s => s.campaña === 'Equifax');
     if (hasEquifax) {
-      return INITIAL_SESSIONS;
+      return EMPTY_SESSIONS;
     }
     return data;
   });
-  const [participants, setParticipants] = useState<Participant[]>(() => loadData('participants', INITIAL_PARTICIPANTS));
-  const [attendance, setAttendance] = useState<AttendanceRecord[]>(() => loadData('attendance', INITIAL_ATTENDANCE));
-  const [confirmations, setConfirmations] = useState<OperationConfirmation[]>(() => loadData('confirmations', INITIAL_CONFIRMATIONS));
-  const [reopens, setReopens] = useState<AttendanceReopenRequest[]>(() => loadData('reopens', INITIAL_REOPEN_REQUESTS));
-  const [logs, setLogs] = useState<AuditLog[]>(() => loadData('logs', INITIAL_AUDIT_LOGS));
+  const [participants, setParticipants] = useState<Participant[]>(() => loadData('participants', EMPTY_PARTICIPANTS));
+  const [attendance, setAttendance] = useState<AttendanceRecord[]>(() => loadData('attendance', EMPTY_ATTENDANCE));
+  const [confirmations, setConfirmations] = useState<OperationConfirmation[]>(() => loadData('confirmations', EMPTY_CONFIRMATIONS));
+  const [reopens, setReopens] = useState<AttendanceReopenRequest[]>(() => loadData('reopens', EMPTY_REOPENS));
+  const [logs, setLogs] = useState<AuditLog[]>(() => loadData('logs', EMPTY_LOGS));
   const [surveys, setSurveys] = useState<TrainingSurvey[]>(() => {
-    const loaded = loadData('surveys', INITIAL_SURVEYS);
+    const loaded = loadData('surveys', EMPTY_SURVEYS);
     return loaded.map((s: any) => ({
       ...s,
       estado: s.estado === 'No habilitada' ? 'Deshabilitada' : s.estado
     }));
   });
-  const [responses, setResponses] = useState<SurveyResponse[]>(() => loadData('responses', INITIAL_RESPONSES));
+  const [responses, setResponses] = useState<SurveyResponse[]>(() => loadData('responses', EMPTY_RESPONSES));
 
   // Sync to localStorage
   useEffect(() => { saveData('users', users); }, [users]);
@@ -1667,15 +1681,6 @@ export default function App() {
 
             {/* Logout button */}
             <div className="p-4 border-t border-slate-200 space-y-2">
-              <button
-                onClick={restoreInitialData}
-                className="w-full flex items-center gap-3 px-3.5 py-2 text-slate-500 hover:text-rose-600 hover:bg-rose-50 rounded-xl text-[11px] transition-colors font-semibold"
-                title="Restablece datos iniciales en localStorage"
-              >
-                <Undo className="w-3.5 h-3.5" />
-                Restablecer base demo
-              </button>
-
               <button
                 onClick={handleLogout}
                 className="w-full bg-slate-50 hover:bg-rose-50 hover:text-rose-700 text-slate-700 font-bold px-3.5 py-2.5 rounded-xl text-xs flex items-center justify-center gap-2 border border-slate-200 hover:border-rose-200 transition-all cursor-pointer"
