@@ -62,7 +62,7 @@ Ejemplo:
 
 ```env
 RESEND_API_KEY=re_xxxxxxxxx
-EMAIL_FROM="FDR Automatizate <encuestas@tudominio.com>"
+EMAIL_FROM="Tigre RH <encuestas@tudominio.com>"
 EMAIL_REPLY_TO=encuestas@tudominio.com
 EMAIL_TRACE_COLLECTION=correos_enviados
 ```

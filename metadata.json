@@ -1,8 +1,6 @@
 {
-  "name": "Remix: Remix: FDR Formación y Desarrollo",
-  "description": "Plataforma de control de asistencia, capacitación, deserciones y confirmación de altas en operación para Automatizate Negocios.",
+  "name": "Tigre RH",
+  "description": "Tigre RH: plataforma de control de asistencia, capacitacion, deserciones y confirmacion de altas en operacion.",
   "requestFramePermissions": [],
-  "majorCapabilities": [
-    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
-  ]
+  "majorCapabilities": []
 }

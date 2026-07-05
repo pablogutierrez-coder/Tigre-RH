@@ -10,7 +10,7 @@ export default function BrandLogo({ size = 48, className = '' }: BrandLogoProps)
   return (
     <img
       src={logo}
-      alt="Automatizate"
+      alt="Logo"
       width={size}
       height={size}
       className={`rounded-2xl object-contain bg-white shadow-sm ring-1 ring-slate-200 ${className}`}

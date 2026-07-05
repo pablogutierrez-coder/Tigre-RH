@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { TrainingSurvey, SurveyResponse, Participant, TrainingSession, AuditLog, User } from '../types';
 import { AlertTriangle, CheckCircle2, ShieldCheck, Clipboard, Send, Star, HelpCircle } from 'lucide-react';
 import BrandLogo from './BrandLogo';
+import { APP_NAME } from '../constants/app';
 import { formatPeruDate } from '../utils/time';
 
 interface PublicSurveyFormProps {
@@ -368,8 +369,8 @@ export default function PublicSurveyForm({
           <div className="flex items-center gap-3">
             <BrandLogo size={46} />
             <div>
-              <h1 className="font-extrabold text-base tracking-tight leading-none text-slate-800">Automatizate</h1>
-              <span className="text-[9px] text-fuchsia-600 font-bold uppercase tracking-widest block">Negocios</span>
+              <h1 className="font-extrabold text-base tracking-tight leading-none text-slate-800">{APP_NAME}</h1>
+              <span className="text-[9px] text-fuchsia-600 font-bold uppercase tracking-widest block">FDR</span>
             </div>
           </div>
           <div className="text-right">
@@ -626,7 +627,7 @@ export default function PublicSurveyForm({
             <div className="space-y-2">
               <h2 className="text-slate-800 text-xl font-black tracking-tight">¡Muchas gracias, {activeParticipant.nombres}!</h2>
               <p className="text-slate-500 text-xs max-w-sm mx-auto leading-relaxed">
-                Tus respuestas se registraron exitosamente. Valoramos profundamente tus comentarios, ya que nos ayudan a perfeccionar continuamente nuestros procesos de Formación y Desarrollo en <strong>Automatizate Negocios</strong>.
+                Tus respuestas se registraron exitosamente. Valoramos profundamente tus comentarios, ya que nos ayudan a perfeccionar continuamente nuestros procesos de Formación y Desarrollo en <strong>{APP_NAME}</strong>.
               </p>
             </div>
 

@@ -69,6 +69,7 @@ import {
   deactivatePlatformUser,
   updatePlatformUser,
 } from './services/firebase/userAdminService';
+import { APP_NAME } from './constants/app';
 import loginBackgroundVideo from './assets/login-background.mp4';
 
 const EMPTY_USERS: User[] = [];
@@ -1304,12 +1305,18 @@ export default function App() {
             muted
             playsInline
             preload="auto"
-            onEnded={(event) => {
-              event.currentTarget.pause();
-            }}
-          />
+	            onEnded={(event) => {
+	              event.currentTarget.pause();
+	            }}
+	          />
 
-          <div className="hidden lg:block lg:col-span-7"></div>
+	          <div className="absolute left-4 top-4 sm:left-8 sm:top-8 z-10">
+	            <h1 className="text-white text-2xl sm:text-4xl font-black tracking-tight drop-shadow-[0_3px_12px_rgba(15,23,42,0.55)]">
+	              {APP_NAME}
+	            </h1>
+	          </div>
+	
+	          <div className="hidden lg:block lg:col-span-7"></div>
 
           {/* Login Panel */}
           <div className="lg:col-span-5 flex items-center justify-center px-4 py-6 sm:p-12 relative z-10">
@@ -1372,8 +1379,8 @@ export default function App() {
               <div className="flex items-center gap-2.5">
                 <BrandLogo size={42} />
                 <div>
-                  <h1 className="font-extrabold text-base tracking-tight leading-none text-slate-950">Automatizate</h1>
-                  <span className="text-[9px] text-fuchsia-600 font-bold uppercase tracking-widest block">FDR Portal</span>
+                  <h1 className="font-extrabold text-base tracking-tight leading-none text-slate-950">{APP_NAME}</h1>
+	                  <span className="text-[9px] text-fuchsia-600 font-bold uppercase tracking-widest block">FDR</span>
                 </div>
               </div>
               <span className="bg-slate-50 text-[10px] text-slate-500 px-2 py-0.5 rounded font-mono font-bold border border-slate-200">
@@ -1697,8 +1704,8 @@ export default function App() {
             {/* Top Navigation / Simulated Clock Controller Header */}
             <header className="glass-header px-6 py-4 flex flex-col md:flex-row md:items-center md:justify-between gap-4 sticky top-0 z-40">
               <div>
-                <span className="text-[10px] text-fuchsia-600 font-bold uppercase tracking-widest font-mono">Automatizate Negocios</span>
-                <h2 className="text-slate-800 text-lg font-black leading-tight tracking-tight">FDR | Formación y Desarrollo</h2>
+	                <span className="text-[10px] text-fuchsia-600 font-bold uppercase tracking-widest font-mono">FDR | Formación y Desarrollo</span>
+	                <h2 className="text-slate-800 text-lg font-black leading-tight tracking-tight">{APP_NAME}</h2>
               </div>
 
               {/* FECHA Y HORA OFICIAL */}
