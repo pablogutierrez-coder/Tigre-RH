@@ -366,11 +366,11 @@ export default function Dashboard({
   return (
     <div className="space-y-6" id="dashboard-container">
       {/* Filters Bar */}
-      <div className="glass-card rounded-2xl p-5">
+      <div className="glass-card rounded-2xl p-4 sm:p-5">
         <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
           <div className="flex items-center gap-2">
-            <Filter className="text-fuchsia-600 w-5 h-5" />
-            <h2 className="text-slate-800 font-semibold text-lg">Filtros Ejecutivos</h2>
+            <Filter className="text-indigo-600 w-5 h-5" />
+            <h2 className="text-slate-900 font-bold text-base">Filtros Ejecutivos</h2>
           </div>
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:flex lg:items-center gap-3">
             {/* Campaña */}
@@ -469,14 +469,14 @@ export default function Dashboard({
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4" id="kpi-grid">
         {/* Card 1 */}
         <div className="glass-card glass-card-hover rounded-2xl p-5 relative overflow-hidden">
-          <div className="absolute top-0 left-0 w-2 h-full bg-indigo-500"></div>
+          <div className="absolute inset-x-0 top-0 h-1 bg-indigo-500"></div>
           <div className="flex justify-between items-start">
             <div>
               <p className="text-slate-400 font-medium text-xs uppercase tracking-wider">Cargados en FDR</p>
-              <h3 className="text-slate-800 text-3xl font-bold mt-1">{metrics.totalCargados}</h3>
+              <h3 className="text-slate-900 text-3xl font-black mt-1">{metrics.totalCargados}</h3>
               <p className="text-xs text-indigo-500 font-medium mt-1">Participantes registrados</p>
             </div>
-            <div className="bg-indigo-50/50 backdrop-blur-xs rounded-xl p-2.5 text-indigo-600">
+            <div className="bg-indigo-50 rounded-xl p-2.5 text-indigo-600 border border-indigo-100">
               <Users className="w-5 h-5" />
             </div>
           </div>
@@ -484,16 +484,16 @@ export default function Dashboard({
 
         {/* Card 2 */}
         <div className="glass-card glass-card-hover rounded-2xl p-5 relative overflow-hidden">
-          <div className="absolute top-0 left-0 w-2 h-full bg-cyan-500"></div>
+          <div className="absolute inset-x-0 top-0 h-1 bg-cyan-500"></div>
           <div className="flex justify-between items-start">
             <div>
               <p className="text-slate-400 font-medium text-xs uppercase tracking-wider">Llegaron al Día 5</p>
-              <h3 className="text-slate-800 text-3xl font-bold mt-1">{metrics.asistieronDia5}</h3>
+              <h3 className="text-slate-900 text-3xl font-black mt-1">{metrics.asistieronDia5}</h3>
               <p className="text-xs text-emerald-600 font-medium mt-1">
                 {metrics.retencionDia1a5}% retención Día 1 a 5
               </p>
             </div>
-            <div className="bg-cyan-50/50 backdrop-blur-xs rounded-xl p-2.5 text-cyan-600">
+            <div className="bg-cyan-50 rounded-xl p-2.5 text-cyan-600 border border-cyan-100">
               <Clock className="w-5 h-5" />
             </div>
           </div>
@@ -501,16 +501,16 @@ export default function Dashboard({
 
         {/* Card 3 */}
         <div className="glass-card glass-card-hover rounded-2xl p-5 relative overflow-hidden">
-          <div className="absolute top-0 left-0 w-2 h-full bg-fuchsia-500"></div>
+          <div className="absolute inset-x-0 top-0 h-1 bg-fuchsia-500"></div>
           <div className="flex justify-between items-start">
             <div>
               <p className="text-slate-400 font-medium text-xs uppercase tracking-wider">Alta Confirmada</p>
-              <h3 className="text-slate-800 text-3xl font-bold mt-1">{metrics.altasConfirmadas}</h3>
+              <h3 className="text-slate-900 text-3xl font-black mt-1">{metrics.altasConfirmadas}</h3>
               <p className="text-xs text-fuchsia-600 font-medium mt-1">
                 {metrics.conversionAlta}% conversión final
               </p>
             </div>
-            <div className="bg-fuchsia-50/50 backdrop-blur-xs rounded-xl p-2.5 text-fuchsia-600">
+            <div className="bg-fuchsia-50 rounded-xl p-2.5 text-fuchsia-600 border border-fuchsia-100">
               <Award className="w-5 h-5" />
             </div>
           </div>
@@ -518,16 +518,16 @@ export default function Dashboard({
 
         {/* Card 4 */}
         <div className="glass-card glass-card-hover rounded-2xl p-5 relative overflow-hidden">
-          <div className="absolute top-0 left-0 w-2 h-full bg-rose-500"></div>
+          <div className="absolute inset-x-0 top-0 h-1 bg-rose-500"></div>
           <div className="flex justify-between items-start">
             <div>
               <p className="text-slate-400 font-medium text-xs uppercase tracking-wider">Deserciones</p>
-              <h3 className="text-slate-800 text-3xl font-bold mt-1">{metrics.desistidos}</h3>
+              <h3 className="text-slate-900 text-3xl font-black mt-1">{metrics.desistidos}</h3>
               <p className="text-xs text-rose-500 font-medium mt-1">
                 {metrics.desercionRate}% deserción total
               </p>
             </div>
-            <div className="bg-rose-50/50 backdrop-blur-xs rounded-xl p-2.5 text-rose-600">
+            <div className="bg-rose-50 rounded-xl p-2.5 text-rose-600 border border-rose-100">
               <UserX className="w-5 h-5" />
             </div>
           </div>

@@ -1314,7 +1314,7 @@ export default function App() {
 
           {/* Login Panel */}
           <div className="lg:col-span-5 flex items-center justify-center px-4 py-6 sm:p-12 relative z-10">
-            <div className="login-card w-full space-y-8 bg-white/90 backdrop-blur-xl border border-white/70 p-6 sm:p-8 rounded-3xl shadow-xl shadow-slate-900/15">
+            <div className="login-card w-full space-y-7 bg-white/94 backdrop-blur-md border border-white/80 p-6 sm:p-8 rounded-3xl shadow-xl shadow-slate-900/12">
               <div className="flex justify-center">
                 <BrandLogo width={190} height={64} className="max-w-full" />
               </div>
@@ -1371,9 +1371,9 @@ export default function App() {
         <div className="min-h-screen flex flex-col lg:flex-row" id="app-layout">
           
           {/* Sidebar */}
-          <aside className="w-full lg:w-72 bg-white/94 backdrop-blur-xl border-r border-slate-200 text-slate-700 flex flex-col shrink-0 shadow-xl shadow-slate-200/60">
+          <aside className="w-full lg:w-72 bg-white/96 backdrop-blur-md border-r border-slate-200 text-slate-700 flex flex-col shrink-0 shadow-sm">
             {/* Sidebar Brand Header */}
-            <div className="p-6 border-b border-slate-200 flex justify-between items-center">
+            <div className="p-5 border-b border-slate-200 flex justify-between items-center">
               <div className="flex items-center min-w-0">
                 <BrandLogo width={150} height={50} className="max-w-full" />
               </div>
@@ -1383,8 +1383,8 @@ export default function App() {
             </div>
 
             {/* Sidebar User profile Info */}
-            <div className="p-6 border-b border-slate-200 bg-slate-50/80 flex items-center gap-3">
-              <div className="bg-gradient-to-r from-fuchsia-600 to-indigo-600 w-10 h-10 rounded-xl flex items-center justify-center font-bold text-white text-sm shadow-md shadow-fuchsia-900/20">
+            <div className="p-5 border-b border-slate-200 bg-slate-50/75 flex items-center gap-3">
+              <div className="bg-gradient-to-r from-indigo-600 to-violet-600 w-10 h-10 rounded-xl flex items-center justify-center font-bold text-white text-sm shadow-sm">
                 {activeUser.nombre.substring(0, 2).toUpperCase()}
               </div>
               <div className="truncate text-xs">
@@ -1696,14 +1696,14 @@ export default function App() {
           <main className="flex-1 flex flex-col min-w-0 overflow-y-auto">
             
             {/* Top Navigation / Simulated Clock Controller Header */}
-            <header className="glass-header px-6 py-4 flex flex-col md:flex-row md:items-center md:justify-between gap-4 sticky top-0 z-40">
+            <header className="glass-header px-4 sm:px-6 py-4 flex flex-col md:flex-row md:items-center md:justify-between gap-4 sticky top-0 z-40">
               <div>
-	                <span className="text-[10px] text-fuchsia-600 font-bold uppercase tracking-widest font-mono">FDR | Formación y Desarrollo</span>
-	                <h2 className="text-slate-800 text-lg font-black leading-tight tracking-tight">{APP_NAME}</h2>
+	                <span className="text-[10px] text-indigo-600 font-bold uppercase tracking-widest font-mono">FDR | Formación y Desarrollo</span>
+	                <h2 className="text-slate-900 text-lg font-black leading-tight tracking-tight">{APP_NAME}</h2>
               </div>
 
               {/* FECHA Y HORA OFICIAL */}
-              <div className="bg-slate-50 border border-slate-200 rounded-2xl px-4 py-2.5 flex items-center gap-3">
+              <div className="bg-white border border-slate-200 rounded-2xl px-4 py-2.5 flex items-center gap-3 shadow-xs">
                 <Clock3 className="w-4 h-4 text-slate-500 shrink-0" />
                 <div className="text-xs">
                   <span className="block text-[10px] font-bold text-slate-400 uppercase">Fecha y Hora (Perú/Lima)</span>
@@ -1715,7 +1715,7 @@ export default function App() {
             </header>
 
             {/* View Port Content */}
-            <div className="p-6 max-w-7xl w-full mx-auto space-y-6">
+            <div className="p-4 sm:p-6 max-w-7xl w-full mx-auto space-y-6">
               
               {/* If "asistencia" is clicked but no session is selected, guide them to pick one */}
               {currentView === 'asistencia' && !selectedSessionId && (
