@@ -4,6 +4,8 @@ import {
   changeUserPasswordByAdmin,
   createPlatformUser,
   deactivatePlatformUser,
+  type CreatePlatformUserData,
+  type UpdatePlatformUserData,
   updatePlatformUser,
 } from '../services/userService.js';
 import {
@@ -25,35 +27,39 @@ const roleSchema = z.enum([
 ]);
 
 const stateSchema = z.enum(['Activo', 'Inactivo']);
+const normalizedRoleSchema = z.string().trim().pipe(roleSchema);
+const normalizedStateSchema = z.string().trim().pipe(stateSchema);
+const getValidationMessage = (fallback: string) => (error: z.ZodError) =>
+  error.issues[0]?.message || fallback;
 
 const createUserSchema = z.object({
-  nombre: z.string().min(1),
-  usuario: z.string().min(1),
-  password: z.string().min(6),
-  rol: roleSchema,
-  estado: stateSchema,
+  nombre: z.string().trim().min(1, 'El nombre del usuario es requerido.'),
+  usuario: z.string().trim().min(1, 'El usuario de acceso es requerido.'),
+  password: z.string().trim().min(6, 'La contrasena temporal debe tener al menos 6 caracteres.'),
+  rol: normalizedRoleSchema,
+  estado: normalizedStateSchema,
 });
 
 const updateUserSchema = z.object({
-  nombre: z.string().min(1).optional(),
-  usuario: z.string().min(1).optional(),
-  rol: roleSchema.optional(),
-  estado: stateSchema.optional(),
+  nombre: z.string().trim().min(1, 'El nombre del usuario es requerido.').optional(),
+  usuario: z.string().trim().min(1, 'El usuario de acceso es requerido.').optional(),
+  rol: normalizedRoleSchema.optional(),
+  estado: normalizedStateSchema.optional(),
 });
 
 const passwordSchema = z.object({
-  newPassword: z.string().min(6),
+  newPassword: z.string().trim().min(6, 'La nueva contrasena debe tener al menos 6 caracteres.'),
 });
 
 router.post('/', canManageUsers, async (req: AuthenticatedRequest, res: Response) => {
   const parsed = createUserSchema.safeParse(req.body);
   if (!parsed.success) {
-    res.status(400).json({ message: 'Datos de usuario invalidos.' });
+    res.status(400).json({ message: getValidationMessage('Datos de usuario invalidos.')(parsed.error) });
     return;
   }
 
   try {
-    const user = await createPlatformUser(parsed.data, {
+    const user = await createPlatformUser(parsed.data as CreatePlatformUserData, {
       uid: req.user!.uid,
       nombre: req.user!.nombre,
     });
@@ -67,12 +73,12 @@ router.post('/', canManageUsers, async (req: AuthenticatedRequest, res: Response
 router.patch('/:uid', canManageUsers, async (req: AuthenticatedRequest, res: Response) => {
   const parsed = updateUserSchema.safeParse(req.body);
   if (!parsed.success) {
-    res.status(400).json({ message: 'Datos de usuario invalidos.' });
+    res.status(400).json({ message: getValidationMessage('Datos de usuario invalidos.')(parsed.error) });
     return;
   }
 
   try {
-    await updatePlatformUser(req.params.uid, parsed.data, {
+    await updatePlatformUser(req.params.uid, parsed.data as UpdatePlatformUserData, {
       uid: req.user!.uid,
       nombre: req.user!.nombre,
     });
@@ -87,7 +93,7 @@ router.patch('/:uid', canManageUsers, async (req: AuthenticatedRequest, res: Res
 router.post('/:uid/password', canManageUsers, async (req: AuthenticatedRequest, res: Response) => {
   const parsed = passwordSchema.safeParse(req.body);
   if (!parsed.success) {
-    res.status(400).json({ message: 'La nueva contrasena es requerida.' });
+    res.status(400).json({ message: getValidationMessage('La nueva contrasena es requerida.')(parsed.error) });
     return;
   }
 

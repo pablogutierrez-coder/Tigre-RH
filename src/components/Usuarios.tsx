@@ -30,6 +30,8 @@ interface UsuariosProps {
   onResetPassword: (user: User, newPassword: string) => void | Promise<void>;
 }
 
+const MIN_PASSWORD_LENGTH = 6;
+
 export default function Usuarios({ users, currentUser, onAddUser, onUpdateUser, onDeleteUser, onResetPassword }: UsuariosProps) {
   const [searchTerm, setSearchTerm] = useState('');
   const [showModal, setShowModal] = useState(false);
@@ -111,14 +113,20 @@ export default function Usuarios({ users, currentUser, onAddUser, onUpdateUser, 
         });
         alert('Usuario actualizado correctamente.');
       } else {
-        if (!password.trim()) {
+        const trimmedPassword = password.trim();
+
+        if (!trimmedPassword) {
           alert('Se requiere una contrasena temporal para el nuevo usuario.');
+          return;
+        }
+        if (trimmedPassword.length < MIN_PASSWORD_LENGTH) {
+          alert(`La contrasena temporal debe tener al menos ${MIN_PASSWORD_LENGTH} caracteres.`);
           return;
         }
         await onAddUser({
           nombre: nombre.trim(),
           usuario: usuario.trim(),
-          password: password.trim(),
+          password: trimmedPassword,
           rol,
           estado
         });
@@ -136,6 +144,10 @@ export default function Usuarios({ users, currentUser, onAddUser, onUpdateUser, 
     e.preventDefault();
     if (!newPassword.trim()) {
       alert('La nueva contraseña no puede estar vacía.');
+      return;
+    }
+    if (newPassword.trim().length < MIN_PASSWORD_LENGTH) {
+      alert(`La nueva contrasena debe tener al menos ${MIN_PASSWORD_LENGTH} caracteres.`);
       return;
     }
     if (newPassword !== confirmPassword) {
@@ -456,6 +468,7 @@ export default function Usuarios({ users, currentUser, onAddUser, onUpdateUser, 
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     placeholder={editingId ? 'Use cambio temporal desde la accion de llave' : 'Minimo 6 caracteres'}
+                    minLength={MIN_PASSWORD_LENGTH}
                     disabled={editingId !== null}
                     className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 outline-hidden focus:ring-1 focus:ring-fuchsia-500 text-sm font-medium disabled:opacity-55"
                     required={!editingId}
@@ -553,6 +566,7 @@ export default function Usuarios({ users, currentUser, onAddUser, onUpdateUser, 
                   value={newPassword}
                   onChange={(e) => setNewPassword(e.target.value)}
                   placeholder="Ingrese nueva contraseña"
+                  minLength={MIN_PASSWORD_LENGTH}
                   className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 outline-hidden focus:ring-1 focus:ring-amber-500 text-sm font-medium"
                   required
                 />
@@ -565,6 +579,7 @@ export default function Usuarios({ users, currentUser, onAddUser, onUpdateUser, 
                   value={confirmPassword}
                   onChange={(e) => setConfirmPassword(e.target.value)}
                   placeholder="Repita nueva contraseña"
+                  minLength={MIN_PASSWORD_LENGTH}
                   className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 outline-hidden focus:ring-1 focus:ring-amber-500 text-sm font-medium"
                   required
                 />
