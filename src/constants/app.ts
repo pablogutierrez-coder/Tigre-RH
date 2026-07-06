@@ -1,1 +1,1 @@
-export const APP_NAME = 'Tigre RH';
+export const APP_NAME = 'FDR | Formación y Desarrollo';

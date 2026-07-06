@@ -1,4 +1,4 @@
-# Auditoria visual inicial - Tigre RH
+# Auditoria visual inicial - FDR
 
 ## 1. Problemas visuales encontrados
 

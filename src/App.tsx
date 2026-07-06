@@ -1698,7 +1698,7 @@ export default function App() {
             {/* Top Navigation / Simulated Clock Controller Header */}
             <header className="glass-header px-4 sm:px-6 py-4 flex flex-col md:flex-row md:items-center md:justify-between gap-4 sticky top-0 z-40">
               <div>
-	                <span className="text-[10px] text-indigo-600 font-bold uppercase tracking-widest font-mono">FDR | Formación y Desarrollo</span>
+	                <span className="text-[10px] text-indigo-600 font-bold uppercase tracking-widest font-mono">Área FDR</span>
 	                <h2 className="text-slate-900 text-lg font-black leading-tight tracking-tight">{APP_NAME}</h2>
               </div>
 

@@ -20,7 +20,7 @@ export default function BrandLogo({
   return (
     <img
       src={logo}
-      alt="Tigre RH"
+      alt="Logo FDR"
       className={`object-contain ${className}`}
       style={{ width: resolvedWidth, height: resolvedHeight }}
     />
