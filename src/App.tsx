@@ -471,10 +471,14 @@ export default function App() {
     const sId = `s-${Math.random().toString(36).substring(2, 11)}`;
     const fUser = users.find(u => u.id === newSess.formador_id);
     const rUser = activeUser;
+    const trainingIdentifier =
+      newSess.generation_code?.trim() || newSess.nombre_generacion?.trim() || `CAP-${sId}`;
 
     const sessionObj: TrainingSession = {
       ...newSess,
       id: sId,
+      nombre_generacion: trainingIdentifier,
+      generation_code: trainingIdentifier,
       formador_nombre: fUser ? fUser.nombre : 'Sin formador',
       reclutador_nombre: rUser ? rUser.nombre : 'Sin reclutador',
       fecha_creacion: new Date().toISOString()
@@ -484,7 +488,7 @@ export default function App() {
     setSessions(prev => [sessionObj, ...prev]);
 
     // Automatically create survey template
-    const genCode = sessionObj.generation_code || `GR-${Math.floor(10 + Math.random() * 90)}`;
+    const genCode = sessionObj.generation_code;
     const surveyObj: TrainingSurvey = {
       id: `srv-${Math.random().toString(36).substring(2, 11)}`,
       training_session_id: sId,
@@ -552,7 +556,7 @@ export default function App() {
         'Registro de capacitaciones',
         `Se generó automáticamente el código de generación "${sessionObj.generation_code}" para la campaña "${newSess.campaña}".`,
         newSess.campaña,
-        newSess.nombre_generacion
+        trainingIdentifier
       );
     }
 
@@ -560,17 +564,17 @@ export default function App() {
     addAuditLog(
       'Creación de capacitación',
       'Registro de capacitaciones',
-      `Se creó la generación "${newSess.nombre_generacion}" con ${partsWithId.length} participantes asignados a ${sessionObj.formador_nombre}.`,
+      `Se creó la capacitación "${trainingIdentifier}" con ${partsWithId.length} participantes asignados a ${sessionObj.formador_nombre}.`,
       newSess.campaña,
-      newSess.nombre_generacion
+      trainingIdentifier
     );
 
     addAuditLog(
       'Carga de archivo de participantes',
       'Carga de participantes',
-      `Se cargaron y mapearon ${partsWithId.length} participantes de forma exitosa para la generación "${newSess.nombre_generacion}".`,
+      `Se cargaron y mapearon ${partsWithId.length} participantes de forma exitosa para la capacitación "${trainingIdentifier}".`,
       newSess.campaña,
-      newSess.nombre_generacion
+      trainingIdentifier
     );
   };
 
@@ -634,12 +638,14 @@ export default function App() {
     setAttendance(prev => prev.filter(a => a.training_session_id !== sId));
     setConfirmations(prev => prev.filter(c => c.training_session_id !== sId));
 
+    const sessionIdentifier = sessionObj.generation_code || sessionObj.nombre_generacion;
+
     addAuditLog(
       'Eliminación de capacitación',
       'Registro de capacitaciones',
-      `Se eliminó la capacitación "${sessionObj.nombre_generacion}" y sus ${partsCount} registros asociados debido a un error de carga.`,
+      `Se eliminó la capacitación "${sessionIdentifier}" y sus ${partsCount} registros asociados debido a un error de carga.`,
       sessionObj.campaña,
-      sessionObj.nombre_generacion
+      sessionIdentifier
     );
   };
 
@@ -716,12 +722,14 @@ export default function App() {
       return s;
     }));
 
+    const sessionIdentifier = session.generation_code || session.nombre_generacion;
+
     addAuditLog(
       'Cierre de capacitación',
       'Control de asistencia',
-      `El ${userRol === 'Administrador' ? 'administrador' : 'formador'} cerró oficialmente la capacitación "${session.nombre_generacion}".`,
+      `El ${userRol === 'Administrador' ? 'administrador' : 'formador'} cerró oficialmente la capacitación "${sessionIdentifier}".`,
       session.campaña,
-      session.nombre_generacion
+      sessionIdentifier
     );
 
     alert('¡La capacitación ha sido cerrada oficialmente con éxito!');

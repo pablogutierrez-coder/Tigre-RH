@@ -78,6 +78,10 @@ const CAMPAIGN_CODE_MAP: Record<string, string> = {
   "Equifax": "EQUIFAX",
 };
 
+const getTrainingIdentifier = (
+  session?: Pick<TrainingSession, 'generation_code' | 'nombre_generacion'>,
+) => session?.generation_code?.trim() || session?.nombre_generacion?.trim() || 'Sin codigo';
+
 export default function Capacitaciones({
   sessions,
   participants,
@@ -104,7 +108,6 @@ export default function Capacitaciones({
   const [fechaFin, setFechaFin] = useState('2026-07-06');
   const [campaña, setCampaña] = useState('Entel Empresas');
   const [tipoCapacitacion, setTipoCapacitacion] = useState('Capacitación regular');
-  const [nombreGeneracion, setNombreGeneracion] = useState('');
   const [formadorId, setFormadorId] = useState('');
   const [modalidad, setModalidad] = useState<'Presencial' | 'Virtual' | 'Híbrida'>('Presencial');
   const [turno, setTurno] = useState<'Part time' | 'Full time' | 'Mini full'>('Full time');
@@ -291,9 +294,9 @@ export default function Capacitaciones({
       onAuditLog(
         'Intento de cierre de capacitación',
         'Control de asistencia',
-        `El formador inició el proceso de cierre para la capacitación "${session.nombre_generacion}".`,
+        `El formador inició el proceso de cierre para la capacitación "${getTrainingIdentifier(session)}".`,
         session.campaña,
-        session.nombre_generacion
+        getTrainingIdentifier(session)
       );
     }
 
@@ -313,9 +316,9 @@ export default function Capacitaciones({
       onAuditLog(
         'Intento de cierre con pendientes',
         'Control de asistencia',
-        `El formador visualizó los requisitos pendientes de cierre para la capacitación "${session.nombre_generacion}".`,
+        `El formador visualizó los requisitos pendientes de cierre para la capacitación "${getTrainingIdentifier(session)}".`,
         session.campaña,
-        session.nombre_generacion
+        getTrainingIdentifier(session)
       );
     }
   };
@@ -344,9 +347,9 @@ export default function Capacitaciones({
       onAuditLog(
         'Reapertura de capacitación',
         'Registro de Capacitaciones',
-        `Se reabrió la capacitación "${sessionToReopen.nombre_generacion}". Motivo de reapertura: "${reopenReason.trim()}".`,
+        `Se reabrió la capacitación "${getTrainingIdentifier(sessionToReopen)}". Motivo de reapertura: "${reopenReason.trim()}".`,
         sessionToReopen.campaña,
-        sessionToReopen.nombre_generacion
+        getTrainingIdentifier(sessionToReopen)
       );
     }
 
@@ -435,14 +438,6 @@ export default function Capacitaciones({
     }
   }, [campaña, fechaInicio, sessions]);
 
-  // Automatically suggest a generation name when Campaign is changed
-  React.useEffect(() => {
-    if (!nombreGeneracion) {
-      const nextGenNum = sessions.filter(s => s.campaña === campaña).length + 1;
-      setNombreGeneracion(`Generación ${nextGenNum} ${campaña}`);
-    }
-  }, [campaña, sessions]);
-
   // Set default formador
   React.useEffect(() => {
     if (trainers.length > 0 && !formadorId) {
@@ -454,9 +449,6 @@ export default function Capacitaciones({
   const handleCampañaChange = (newCamp: string) => {
     const oldCamp = campaña;
     setCampaña(newCamp);
-    const nextGenNum = sessions.filter(s => s.campaña === newCamp).length + 1;
-    const newGenName = `Generación ${nextGenNum} ${newCamp}`;
-    setNombreGeneracion(newGenName);
 
     if (onAuditLog && oldCamp !== newCamp) {
       const prefix = getCampaignPrefix(newCamp);
@@ -470,7 +462,7 @@ export default function Capacitaciones({
         'Registro de capacitaciones',
         `Se cambió la campaña de "${oldCamp}" a "${newCamp}" en el formulario de creación. El código se recalculó automáticamente a "${recalculatedCode}".`,
         newCamp,
-        newGenName
+        recalculatedCode
       );
     }
   };
@@ -526,21 +518,7 @@ export default function Capacitaciones({
       suggestedCampaña = 'Culqi';
     }
 
-    let suggestedGen = '';
-    const matchGen = fileName.match(/^(G\d+)/i);
-    if (matchGen) {
-      suggestedGen = matchGen[1].toUpperCase();
-    } else {
-      const dashIdx = fileName.indexOf('-');
-      if (dashIdx !== -1) {
-        suggestedGen = fileName.substring(0, dashIdx).trim().toUpperCase();
-      } else {
-        suggestedGen = 'G01';
-      }
-    }
-
     setCampaña(suggestedCampaña);
-    setNombreGeneracion(suggestedGen);
 
     // 2. Scan rows to find the one with the most matching target headers
     const targetHeaders = [
@@ -1085,8 +1063,10 @@ export default function Capacitaciones({
 
   // Confirm and Save Training Session & Participants
   const handleSaveCapacitacion = () => {
-    if (!nombreGeneracion.trim()) {
-      alert('Por favor ingrese un nombre para la Generación.');
+    const trainingIdentifier = generationCode.trim();
+
+    if (!trainingIdentifier) {
+      alert('No se pudo generar la nomenclatura de la capacitación.');
       return;
     }
     if (validatedParticipants.length === 0) {
@@ -1096,7 +1076,7 @@ export default function Capacitaciones({
 
     onAddSession(
       {
-        nombre_generacion: nombreGeneracion,
+        nombre_generacion: trainingIdentifier,
         campaña,
         tipo_capacitacion: tipoCapacitacion,
         fecha_inicio: fechaInicio,
@@ -1108,14 +1088,13 @@ export default function Capacitaciones({
         turno,
         observaciones,
         estado: 'En curso', // Begins in course once created & populated
-        generation_code: generationCode
+        generation_code: trainingIdentifier
       },
       validatedParticipants
     );
 
     // Reset Form
     setView('list');
-    setNombreGeneracion('');
     setRawText('');
     setUploadedFileName('');
     setUploadedFileFormat('');
@@ -1129,7 +1108,6 @@ export default function Capacitaciones({
   const handleCancelCarga = () => {
     // Reset Form
     setView('list');
-    setNombreGeneracion('');
     setRawText('');
     setUploadedFileName('');
     setUploadedFileFormat('');
@@ -1157,7 +1135,9 @@ export default function Capacitaciones({
   // Filter Sessions List
   const filteredSessions = useMemo(() => {
     return sessions.filter(s => {
-      const matchesSearch = s.nombre_generacion.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      const identifier = getTrainingIdentifier(s);
+      const matchesSearch = identifier.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        s.nombre_generacion.toLowerCase().includes(searchTerm.toLowerCase()) ||
         s.campaña.toLowerCase().includes(searchTerm.toLowerCase()) ||
         s.formador_nombre.toLowerCase().includes(searchTerm.toLowerCase());
 
@@ -1286,11 +1266,6 @@ export default function Capacitaciones({
                           }`}>
                             {session.campaña}
                           </span>
-                          {session.generation_code && (
-                            <span className="text-[10px] font-mono font-extrabold tracking-wider bg-slate-100 text-slate-700 px-2.5 py-1 rounded-full border border-slate-200">
-                              {session.generation_code}
-                            </span>
-                          )}
                         </div>
 
                         <span className={`text-xs px-2.5 py-0.5 rounded-full font-bold ${
@@ -1305,7 +1280,7 @@ export default function Capacitaciones({
                       </div>
 
                       <h4 className="text-slate-800 font-bold text-base leading-snug line-clamp-2">
-                        {session.nombre_generacion}
+                        {getTrainingIdentifier(session)}
                       </h4>
                       <p className="text-slate-400 text-xs mt-1">{session.tipo_capacitacion}</p>
                     </div>
@@ -1443,7 +1418,7 @@ export default function Capacitaciones({
                 Información de Campaña y Asignación
               </h4>
 
-              <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                 <div>
                   <label className="block text-xs font-semibold text-slate-600 mb-1">Campaña BPO *</label>
                   <select
@@ -1459,24 +1434,13 @@ export default function Capacitaciones({
                 </div>
 
                 <div>
-                  <label className="block text-xs font-semibold text-slate-600 mb-1">Código de generación</label>
+                  <label className="block text-xs font-semibold text-slate-600 mb-1">Nomenclatura de capacitación</label>
                   <input
                     type="text"
                     value={generationCode}
                     readOnly
                     disabled
                     className="w-full text-sm bg-slate-100 text-slate-500 font-extrabold rounded-xl border border-slate-200 p-2.5 cursor-not-allowed outline-hidden"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-semibold text-slate-600 mb-1">Nombre de Generación *</label>
-                  <input
-                    type="text"
-                    value={nombreGeneracion}
-                    onChange={(e) => setNombreGeneracion(e.target.value)}
-                    placeholder="Ej. Generación 1 Entel"
-                    className="w-full text-sm bg-slate-50 text-slate-700 rounded-xl border border-slate-200 p-2.5 focus:ring-2 focus:ring-fuchsia-500 outline-hidden"
                   />
                 </div>
 
@@ -2036,7 +2000,7 @@ export default function Capacitaciones({
             <div className="bg-linear-to-r from-indigo-600 to-purple-600 px-6 py-4 text-white flex justify-between items-center">
               <div>
                 <h3 className="font-black text-base text-white">Editar Capacitación</h3>
-                <p className="text-white/80 text-xs font-mono">{editingSession.generation_code} - {editingSession.nombre_generacion}</p>
+                <p className="text-white/80 text-xs font-mono">{getTrainingIdentifier(editingSession)}</p>
               </div>
               <button
                 onClick={() => setEditingSession(null)}
@@ -2200,7 +2164,7 @@ export default function Capacitaciones({
               <div>
                 <span className="bg-purple-500/30 text-purple-100 font-extrabold text-[9px] uppercase px-2 py-0.5 rounded-full tracking-wider">Cierre de Proceso</span>
                 <h3 className="font-black text-lg text-white mt-1">Validación de Requisitos de Cierre</h3>
-                <p className="text-white/80 text-xs font-mono mt-0.5">{sessionToClose.nombre_generacion} - {sessionToClose.campaña}</p>
+                <p className="text-white/80 text-xs font-mono mt-0.5">{getTrainingIdentifier(sessionToClose)} - {sessionToClose.campaña}</p>
               </div>
               <button
                 onClick={() => setSessionToClose(null)}
@@ -2442,7 +2406,7 @@ export default function Capacitaciones({
             <div className="bg-linear-to-r from-emerald-600 to-teal-600 px-6 py-4 text-white flex justify-between items-center">
               <div>
                 <h3 className="font-black text-base text-white">Reapertura de Capacitación</h3>
-                <p className="text-white/80 text-[10px] font-mono">{sessionToReopen.nombre_generacion}</p>
+                <p className="text-white/80 text-[10px] font-mono">{getTrainingIdentifier(sessionToReopen)}</p>
               </div>
               <button
                 onClick={() => setSessionToReopen(null)}
