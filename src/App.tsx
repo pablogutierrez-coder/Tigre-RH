@@ -1512,6 +1512,91 @@ export default function App() {
                 </>
               )}
 
+              {/* ANALISTA ROLE MENU */}
+              {activeUser.rol === 'Analista' && (
+                <>
+                  <div className="text-[10px] font-bold text-slate-500 uppercase tracking-widest px-3 mb-2 mt-2">Monitoreo</div>
+                  <button
+                    onClick={() => { setCurrentView('dashboard'); setSelectedSessionId(null); }}
+                    className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-semibold transition-all ${
+                      currentView === 'dashboard' ? 'bg-gradient-to-r from-fuchsia-600 to-indigo-600 text-white font-bold shadow-sm' : 'text-slate-600 hover:bg-slate-50 hover:text-slate-950'
+                    }`}
+                  >
+                    <LayoutDashboard className="w-4 h-4 shrink-0" />
+                    Dashboard General
+                  </button>
+
+                  <div className="text-[10px] font-bold text-slate-500 uppercase tracking-widest px-3 mb-2 mt-4">Operaciones FDR</div>
+                  <button
+                    onClick={() => { setCurrentView('capacitaciones'); setSelectedSessionId(null); }}
+                    className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-semibold transition-all ${
+                      currentView === 'capacitaciones' && !selectedSessionId ? 'bg-gradient-to-r from-fuchsia-600 to-indigo-600 text-white font-bold shadow-sm' : 'text-slate-600 hover:bg-slate-50 hover:text-slate-950'
+                    }`}
+                  >
+                    <BookOpen className="w-4 h-4 shrink-0" />
+                    Registro de Capacitaciones
+                  </button>
+
+                  <button
+                    onClick={() => { setCurrentView('asistencia'); }}
+                    className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-semibold transition-all ${
+                      currentView === 'asistencia' ? 'bg-gradient-to-r from-fuchsia-600 to-indigo-600 text-white font-bold shadow-sm' : 'text-slate-600 hover:bg-slate-50 hover:text-slate-950'
+                    }`}
+                  >
+                    <CalendarCheck className="w-4 h-4 shrink-0" />
+                    Control de Asistencia
+                  </button>
+
+                  <button
+                    onClick={() => { setCurrentView('altas'); setSelectedSessionId(null); }}
+                    className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-semibold transition-all ${
+                      currentView === 'altas' ? 'bg-gradient-to-r from-fuchsia-600 to-indigo-600 text-white font-bold shadow-sm' : 'text-slate-600 hover:bg-slate-50 hover:text-slate-950'
+                    }`}
+                  >
+                    <Award className="w-4 h-4 shrink-0" />
+                    ConfirmaciÃ³n de Altas
+                  </button>
+
+                  <button
+                    onClick={() => { setCurrentView('reaperturas'); setSelectedSessionId(null); }}
+                    className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-semibold transition-all ${
+                      currentView === 'reaperturas' ? 'bg-gradient-to-r from-fuchsia-600 to-indigo-600 text-white font-bold shadow-sm' : 'text-slate-600 hover:bg-slate-50 hover:text-slate-950'
+                    }`}
+                  >
+                    <div className="flex items-center gap-3">
+                      <Clock className="w-4 h-4 shrink-0" />
+                      Reaperturas
+                    </div>
+                    {reopens.filter(r => r.estado === 'pendiente').length > 0 && (
+                      <span className="bg-amber-600 text-white font-bold px-1.5 py-0.5 rounded-md text-[9px]">
+                        {reopens.filter(r => r.estado === 'pendiente').length}
+                      </span>
+                    )}
+                  </button>
+
+                  <div className="text-[10px] font-bold text-slate-500 uppercase tracking-widest px-3 mb-2 mt-4">Reportes</div>
+                  <button
+                    onClick={() => { setCurrentView('reportes'); setSelectedSessionId(null); }}
+                    className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-semibold transition-all ${
+                      currentView === 'reportes' ? 'bg-gradient-to-r from-fuchsia-600 to-indigo-600 text-white font-bold shadow-sm' : 'text-slate-600 hover:bg-slate-50 hover:text-slate-950'
+                    }`}
+                  >
+                    <FileSpreadsheet className="w-4 h-4 shrink-0" />
+                    Reportes Exportables
+                  </button>
+
+                  <button
+                    onClick={() => { setCurrentView('encuestas'); setSelectedSessionId(null); }}
+                    className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-semibold transition-all ${
+                      currentView === 'encuestas' ? 'bg-gradient-to-r from-fuchsia-600 to-indigo-600 text-white font-bold shadow-sm' : 'text-slate-600 hover:bg-slate-50 hover:text-slate-950'
+                    }`}
+                  >
+                    <ClipboardCheck className="w-4 h-4 shrink-0" />
+                    Encuestas de SatisfacciÃ³n
+                  </button>
+                </>
+              )}
+
               {/* RECLUTADOR ROLE MENU */}
               {activeUser.rol === 'Reclutador' && (
                 <>
@@ -1751,7 +1836,7 @@ export default function App() {
               )}
 
               {/* View 1: General Dashboard */}
-              {currentView === 'dashboard' && (activeUser.rol === 'Administrador' || activeUser.rol === 'Coordinador' || activeUser.rol === 'Sistemas') && (
+              {currentView === 'dashboard' && (activeUser.rol === 'Administrador' || activeUser.rol === 'Analista' || activeUser.rol === 'Coordinador' || activeUser.rol === 'Sistemas') && (
                 <Dashboard
                   sessions={sessions}
                   participants={participants}

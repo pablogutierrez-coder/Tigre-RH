@@ -131,6 +131,7 @@ export default function Encuestas({
   // --- SECURITY ROLES AND CLAIMS ---
   const isTrainer = currentUser.rol === 'Formador';
   const isAdmin = currentUser.rol === 'Administrador';
+  const isAnalyst = currentUser.rol === 'Analista';
   const isRecruiter = currentUser.rol === 'Reclutador';
   const isStaff = currentUser.rol === 'Coordinador' || currentUser.rol === 'Sistemas';
 
@@ -201,17 +202,14 @@ export default function Encuestas({
 
   // --- ACCESS FILTERED VIEW OF DATA ---
   const visibleSessionIds = useMemo(() => {
-    if (isAdmin || isStaff) {
+    if (isAdmin || isAnalyst || isStaff || isRecruiter) {
       return sessions.map(s => s.id);
     }
     if (isTrainer) {
       return sessions.filter(s => s.formador_id === currentUser.id).map(s => s.id);
     }
-    if (isRecruiter) {
-      return sessions.filter(s => s.reclutador_id === currentUser.id).map(s => s.id);
-    }
     return [];
-  }, [sessions, currentUser, isAdmin, isTrainer, isRecruiter, isStaff]);
+  }, [sessions, currentUser, isAdmin, isAnalyst, isTrainer, isRecruiter, isStaff]);
 
   // Only active surveys (excluding deleted ones)
   const visibleSurveys = useMemo(() => {
