@@ -73,12 +73,15 @@ import { getBootstrapData } from './services/bootstrapService';
 import {
   appendTrainingParticipants,
   createTrainingBundle,
+  deleteTraining,
   updateTraining,
 } from './services/trainingService';
 import {
   persistAttendance,
   persistConfirmation,
+  persistParticipant,
 } from './services/operationService';
+import { updateSurveyStatusRemote } from './services/surveyService';
 import { APP_NAME } from './constants/app';
 import loginBackgroundVideo from './assets/login-background.mp4';
 
@@ -643,6 +646,10 @@ export default function App() {
           deleted_at: status === 'Eliminada' ? nowPeru : s.deleted_at,
           deleted_by: status === 'Eliminada' ? (activeUser?.id || '') : s.deleted_by
         };
+        void updateSurveyStatusRemote(surveyId, status, updated).catch((error) => {
+          console.error('Error persisting survey status:', error);
+          alert(error instanceof Error ? error.message : 'No se pudo guardar el estado de la encuesta.');
+        });
         addAuditLog(
           `Estado de encuesta modificado: ${status}`,
           'Encuestas de Satisfacción',
@@ -680,11 +687,20 @@ export default function App() {
     if (!sessionObj) return;
 
     const partsCount = participants.filter(p => p.training_session_id === sId).length;
+    void deleteTraining(sId).catch((error) => {
+      console.error('Error deleting training:', error);
+      alert(error instanceof Error ? error.message : 'No se pudo eliminar la capacitación.');
+    });
 
     setSessions(prev => prev.filter(s => s.id !== sId));
     setParticipants(prev => prev.filter(p => p.training_session_id !== sId));
     setAttendance(prev => prev.filter(a => a.training_session_id !== sId));
     setConfirmations(prev => prev.filter(c => c.training_session_id !== sId));
+    const relatedSurveyIds = new Set(
+      surveys.filter(s => s.training_session_id === sId).map(s => s.id)
+    );
+    setSurveys(prev => prev.filter(s => s.training_session_id !== sId));
+    setResponses(prev => prev.filter(r => !relatedSurveyIds.has(r.training_survey_id)));
 
     const sessionIdentifier = sessionObj.generation_code || sessionObj.nombre_generacion;
 
@@ -833,6 +849,11 @@ export default function App() {
 
     // Auto update participant final state if marked "Desistió" or completed
     if (rec.estado_asistencia === 'Desistió') {
+      if (part) {
+        void persistParticipant({ ...part, estado_final: 'Desistió' }).catch((error) => {
+          console.error('Error persisting participant desertion:', error);
+        });
+      }
       setParticipants(prev => prev.map(p => {
         if (p.id === pId) return { ...p, estado_final: 'Desistió' };
         return p;
@@ -896,6 +917,13 @@ export default function App() {
 
     // Update participant final status
     if (status === 'Desistió') {
+      participants
+        .filter(p => pIds.includes(p.id))
+        .forEach((participant) => {
+          void persistParticipant({ ...participant, estado_final: 'Desistió' }).catch((error) => {
+            console.error('Error persisting bulk participant desertion:', error);
+          });
+        });
       setParticipants(prev => prev.map(p => {
         if (pIds.includes(p.id)) return { ...p, estado_final: 'Desistió' };
         return p;
@@ -920,16 +948,21 @@ export default function App() {
     const part = participants.find(p => p.id === pId);
     if (!part) return;
     const sess = sessions.find(s => s.id === part.training_session_id);
+    const nextParticipant: Participant = {
+      ...part,
+      resultado_formacion: outcome,
+      comentario_aptitud: outcome === 'Apto' ? comment : '',
+      motivo_no_apt: outcome === 'No apto' ? reason : '',
+      estado_final: outcome === 'Apto' ? 'Pendiente de alta' : (outcome === 'No apto' ? 'Desistió' : part.estado_final)
+    };
+    void persistParticipant(nextParticipant).catch((error) => {
+      console.error('Error persisting participant outcome:', error);
+      alert(error instanceof Error ? error.message : 'No se pudo guardar el resultado de formación.');
+    });
 
     setParticipants(prev => prev.map(p => {
       if (p.id === pId) {
-        return {
-          ...p,
-          resultado_formacion: outcome,
-          comentario_aptitud: outcome === 'Apto' ? comment : '',
-          motivo_no_apt: outcome === 'No apto' ? reason : '',
-          estado_final: outcome === 'Apto' ? 'Pendiente de alta' : (outcome === 'No apto' ? 'Desistió' : p.estado_final)
-        };
+        return nextParticipant;
       }
       return p;
     }));
@@ -1054,14 +1087,27 @@ export default function App() {
     }
 
     // Update participant final state mapping
+    const nextEstadoFinal =
+      conf.estado_alta === 'Alta confirmada' ? 'Alta confirmada' :
+      conf.estado_alta === 'No alta' ? 'Desistió' : 'Pendiente de alta';
     setParticipants(prev => prev.map(p => {
       if (p.id === pId) return {
         ...p,
-        estado_final: conf.estado_alta === 'Alta confirmada' ? 'Alta confirmada' :
-                      conf.estado_alta === 'No alta' ? 'Desistió' : 'Pendiente de alta'
+        estado_final: nextEstadoFinal,
+        estado_alta: conf.estado_alta
       };
       return p;
     }));
+    if (part) {
+      void persistParticipant({
+        ...part,
+        estado_final: nextEstadoFinal,
+        estado_alta: conf.estado_alta,
+      }).catch((error) => {
+        console.error('Error persisting participant alta state:', error);
+        alert(error instanceof Error ? error.message : 'No se pudo guardar el estado del participante.');
+      });
+    }
 
     addAuditLog(
       'Confirmación de alta',
@@ -1087,29 +1133,40 @@ export default function App() {
     const sess = sessions.find(s => s.id === conf.training_session_id);
 
     // Update confirmation status to 'Eliminada' and mark isDeleted
-    setConfirmations(prev => prev.map(c => {
-      if (c.id === confId) {
-        return {
-          ...c,
-          estado_alta: 'Eliminada',
-          isDeleted: true,
-          deletedAt: formatPeruDate(getEffectivePeruTime()),
-          deletedBy: activeUser?.id || ''
-        };
-      }
-      return c;
-    }));
+    const deletedConfirmation: OperationConfirmation = {
+      ...conf,
+      estado_alta: 'Eliminada',
+      isDeleted: true,
+      deletedAt: formatPeruDate(getEffectivePeruTime()),
+      deletedBy: activeUser?.id || ''
+    };
+    void persistConfirmation(deletedConfirmation).catch((error) => {
+      console.error('Error persisting deleted confirmation:', error);
+      alert(error instanceof Error ? error.message : 'No se pudo eliminar el alta.');
+    });
+    setConfirmations(prev => prev.map(c => c.id === confId ? deletedConfirmation : c));
 
     // Update participant's estado_final to 'Pendiente de alta'
     setParticipants(prev => prev.map(p => {
       if (p.id === pId) {
         return {
           ...p,
-          estado_final: 'Pendiente de alta'
+          estado_final: 'Pendiente de alta',
+          estado_alta: 'Pendiente de alta'
         };
       }
       return p;
     }));
+    if (part) {
+      void persistParticipant({
+        ...part,
+        estado_final: 'Pendiente de alta',
+        estado_alta: 'Pendiente de alta',
+      }).catch((error) => {
+        console.error('Error persisting participant after deleted alta:', error);
+        alert(error instanceof Error ? error.message : 'No se pudo actualizar el participante.');
+      });
+    }
 
     addAuditLog(
       'Administrador elimina alta',

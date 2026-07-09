@@ -8,12 +8,25 @@ const tokenSchema = z.string().trim().min(1).max(160);
 const dniSchema = z.string().trim().regex(/^\d{8,15}$/);
 
 const findSurvey = async (token: string) => {
-  const snapshot = await adminDb
+  const cleanToken = token.trim().toLowerCase();
+  const byToken = await adminDb
     .collection('surveys')
     .where('token', '==', token)
     .limit(1)
     .get();
-  return snapshot.docs[0] || null;
+  if (byToken.docs[0]) return byToken.docs[0];
+
+  const byId = await adminDb.collection('surveys').doc(token).get();
+  if (byId.exists) return byId;
+
+  const snapshot = await adminDb.collection('surveys').get();
+  return snapshot.docs.find((doc) => {
+    const survey = doc.data();
+    const surveyToken = String(survey.token || '').trim().toLowerCase();
+    const generation = String(survey.codigo_generacion || '').trim().toLowerCase();
+    const slug = generation.replace(/\s+/g, '-');
+    return surveyToken === cleanToken || generation === cleanToken || slug === cleanToken;
+  }) || null;
 };
 
 const findParticipant = async (sessionId: string, dni: string) => {

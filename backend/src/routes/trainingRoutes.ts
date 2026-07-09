@@ -73,6 +73,46 @@ router.patch('/:sessionId', canManageTraining, async (req: AuthenticatedRequest,
   res.json({ ok: true });
 });
 
+router.delete('/:sessionId', canManageTraining, async (req: AuthenticatedRequest, res: Response) => {
+  const sessionId = req.params.sessionId;
+  if (!(await assertTrainingAccess(req, sessionId))) {
+    res.status(403).json({ message: 'Solo puedes eliminar tus propias capacitaciones.' });
+    return;
+  }
+
+  const [
+    participantsSnapshot,
+    attendanceSnapshot,
+    confirmationsSnapshot,
+    surveysSnapshot,
+  ] = await Promise.all([
+    adminDb.collection('participants').where('training_session_id', '==', sessionId).get(),
+    adminDb.collection('attendance').where('training_session_id', '==', sessionId).get(),
+    adminDb.collection('confirmations').where('training_session_id', '==', sessionId).get(),
+    adminDb.collection('surveys').where('training_session_id', '==', sessionId).get(),
+  ]);
+
+  const surveyIds = surveysSnapshot.docs.map((doc) => doc.id);
+  const responseSnapshots = await Promise.all(
+    surveyIds.map((surveyId) =>
+      adminDb.collection('responses').where('training_survey_id', '==', surveyId).get(),
+    ),
+  );
+
+  const writer = adminDb.bulkWriter();
+  writer.delete(adminDb.collection('sessions').doc(sessionId));
+  participantsSnapshot.docs.forEach((doc) => writer.delete(doc.ref));
+  attendanceSnapshot.docs.forEach((doc) => writer.delete(doc.ref));
+  confirmationsSnapshot.docs.forEach((doc) => writer.delete(doc.ref));
+  surveysSnapshot.docs.forEach((doc) => writer.delete(doc.ref));
+  responseSnapshots.forEach((snapshot) =>
+    snapshot.docs.forEach((doc) => writer.delete(doc.ref)),
+  );
+  await writer.close();
+
+  res.json({ ok: true });
+});
+
 router.post(
   '/:sessionId/participants',
   canManageTraining,

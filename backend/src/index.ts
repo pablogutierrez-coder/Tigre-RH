@@ -10,6 +10,7 @@ import { highEmailRoutes } from './routes/highEmailRoutes.js';
 import { operationRoutes } from './routes/operationRoutes.js';
 import { publicSurveyRoutes } from './routes/publicSurveyRoutes.js';
 import { surveyEmailRoutes } from './routes/surveyEmailRoutes.js';
+import { surveyRoutes } from './routes/surveyRoutes.js';
 import { trainingRoutes } from './routes/trainingRoutes.js';
 import { userRoutes } from './routes/userRoutes.js';
 
@@ -78,6 +79,7 @@ app.use('/api/bootstrap', bootstrapRoutes);
 app.use('/api/high-emails', highEmailRoutes);
 app.use('/api/operations', operationRoutes);
 app.use('/api/public-surveys', publicSurveyRoutes);
+app.use('/api/surveys', surveyRoutes);
 app.use('/api/survey-emails', surveyEmailRoutes);
 app.use('/api/trainings', trainingRoutes);
 app.use('/api/users', userRoutes);

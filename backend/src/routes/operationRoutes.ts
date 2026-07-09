@@ -48,4 +48,19 @@ router.put(
   },
 );
 
+router.put(
+  '/participants/:id',
+  requireAuth,
+  requireRole(['Administrador', 'Analista', 'Formador', 'Reclutador', 'Coordinador']),
+  async (req: AuthenticatedRequest, res: Response) => {
+    const parsed = recordSchema.safeParse({ ...req.body, id: req.params.id });
+    if (!parsed.success || !(await ownsSession(req, parsed.data.training_session_id))) {
+      res.status(403).json({ message: 'No puedes modificar este participante.' });
+      return;
+    }
+    await adminDb.collection('participants').doc(req.params.id).set(parsed.data, { merge: true });
+    res.json({ ok: true });
+  },
+);
+
 export { router as operationRoutes };

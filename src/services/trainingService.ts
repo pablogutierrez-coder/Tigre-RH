@@ -44,6 +44,11 @@ export const updateTraining = (
   body: JSON.stringify(changes),
 });
 
+export const deleteTraining = (sessionId: string) =>
+  request(`/api/trainings/${sessionId}`, {
+    method: 'DELETE',
+  });
+
 export const appendTrainingParticipants = (
   sessionId: string,
   participants: Participant[],
