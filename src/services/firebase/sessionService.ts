@@ -38,6 +38,15 @@ export const getSessionsByTrainer = async (formadorId: string) => {
   return snapshot.docs.map((item) => ({ id: item.id, ...item.data() }) as TrainingSession);
 };
 
+export const getSessionsByRecruiter = async (reclutadorId: string) => {
+  const q = query(
+    collection(getRequiredDb(), FDR_COLLECTIONS.sessions),
+    where('reclutador_id', '==', reclutadorId),
+  );
+  const snapshot = await getDocs(q);
+  return snapshot.docs.map((item) => ({ id: item.id, ...item.data() }) as TrainingSession);
+};
+
 export const createSession = (session: TrainingSession) =>
   createDocumentWithId(FDR_COLLECTIONS.sessions, session.id, session);
 
