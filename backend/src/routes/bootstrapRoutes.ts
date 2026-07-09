@@ -23,6 +23,7 @@ router.get('/', requireAuth, async (req: AuthenticatedRequest, res: Response) =>
       'Analista',
       'Coordinador',
       'Sistemas',
+      'Reclutador',
     ].includes(user.rol);
 
     const [
@@ -70,7 +71,9 @@ router.get('/', requireAuth, async (req: AuthenticatedRequest, res: Response) =>
       users:
         user.rol === 'Administrador' || user.rol === 'Analista'
           ? allUsers
-          : allUsers.filter((profile) => profile.id === user.uid),
+          : allUsers.filter(
+              (profile) => profile.id === user.uid || profile.rol === 'Coordinador',
+            ),
       sessions,
       participants,
       attendance: allAttendance.filter(

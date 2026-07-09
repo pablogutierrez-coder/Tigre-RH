@@ -14,6 +14,8 @@ const schema = z.object({
   rows: z.array(z.object({
     dni: z.string(),
     nombre: z.string(),
+    correo: z.string(),
+    celular: z.string(),
     campana: z.string(),
     capacitacion: z.string(),
     fechaAlta: z.string(),
@@ -39,6 +41,8 @@ router.post(
       <tr>
         <td style="padding:8px;border-bottom:1px solid #e2e8f0">${escapeHtml(row.dni)}</td>
         <td style="padding:8px;border-bottom:1px solid #e2e8f0">${escapeHtml(row.nombre)}</td>
+        <td style="padding:8px;border-bottom:1px solid #e2e8f0">${escapeHtml(row.correo || '-')}</td>
+        <td style="padding:8px;border-bottom:1px solid #e2e8f0">${escapeHtml(row.celular || '-')}</td>
         <td style="padding:8px;border-bottom:1px solid #e2e8f0">${escapeHtml(row.campana)}</td>
         <td style="padding:8px;border-bottom:1px solid #e2e8f0">${escapeHtml(row.capacitacion)}</td>
         <td style="padding:8px;border-bottom:1px solid #e2e8f0">${escapeHtml(row.fechaAlta || '-')}</td>
@@ -60,7 +64,7 @@ router.post(
           <h2>Altas confirmadas - FDR</h2>
           <p>Enviado por ${escapeHtml(req.user!.nombre)}.</p>
           <table style="border-collapse:collapse;width:100%;font-size:13px">
-            <thead><tr><th>DNI</th><th>Nombre</th><th>Campana</th><th>Capacitacion</th><th>Fecha alta</th></tr></thead>
+            <thead><tr><th>DNI</th><th>Nombre</th><th>Correo</th><th>Celular</th><th>Campana</th><th>Capacitacion</th><th>Fecha alta</th></tr></thead>
             <tbody>${bodyRows}</tbody>
           </table>
         </body></html>`,

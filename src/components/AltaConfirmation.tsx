@@ -30,6 +30,7 @@ interface AltaConfirmationProps {
   participants: Participant[];
   confirmations: OperationConfirmation[];
   currentUser: AppUser;
+  coordinators?: AppUser[];
   onSaveConfirmation: (newConf: Omit<OperationConfirmation, 'id' | 'fecha_registro'>) => void;
   onDeleteConfirmation?: (id: string) => void;
   onAuditLog?: (
@@ -56,6 +57,7 @@ export default function AltaConfirmation({
   participants,
   confirmations,
   currentUser,
+  coordinators = [],
   onSaveConfirmation,
   onDeleteConfirmation,
   onAuditLog
@@ -179,7 +181,10 @@ export default function AltaConfirmation({
       alert('No hay altas confirmadas con los filtros actuales.');
       return;
     }
-    const recipient = window.prompt('Correo del Coordinador:')?.trim();
+    const configuredCoordinator = coordinators.find((coordinator) => coordinator.correo?.trim());
+    const recipient =
+      configuredCoordinator?.correo?.trim() ||
+      window.prompt('El Coordinador no tiene correo registrado. Ingresa el correo destino:')?.trim();
     if (!recipient) return;
     try {
       setSendingHighs(true);
@@ -191,6 +196,8 @@ export default function AltaConfirmation({
           return {
             dni: participant.dni,
             nombre: `${participant.nombres} ${participant.apellidos}`,
+            correo: participant.correo || '',
+            celular: participant.celular || '',
             campana: session?.campaña || '',
             capacitacion: session?.generation_code || session?.nombre_generacion || '',
             fechaAlta: confirmation?.fecha_alta || '',

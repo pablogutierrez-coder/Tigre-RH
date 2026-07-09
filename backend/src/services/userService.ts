@@ -11,6 +11,7 @@ export interface Actor {
 
 export interface CreatePlatformUserData {
   nombre: string;
+  correo?: string;
   usuario: string;
   password: string;
   rol: string;
@@ -19,6 +20,7 @@ export interface CreatePlatformUserData {
 
 export interface UpdatePlatformUserData {
   nombre?: string;
+  correo?: string;
   usuario?: string;
   rol?: string;
   estado?: 'Activo' | 'Inactivo';
@@ -114,7 +116,7 @@ export const createPlatformUser = async (
   const profile = {
     id: uid,
     nombre: data.nombre,
-    correo: '',
+    correo: data.correo || '',
     usuario: data.usuario,
     usuario_normalizado: usuarioNormalizado,
     rol: data.rol,
@@ -161,6 +163,7 @@ export const updatePlatformUser = async (
   const updateData: Record<string, unknown> = {};
 
   if (data.nombre !== undefined) updateData.nombre = data.nombre;
+  if (data.correo !== undefined) updateData.correo = data.correo;
   if (data.rol !== undefined) updateData.rol = data.rol;
   if (data.estado !== undefined) updateData.estado = data.estado;
 

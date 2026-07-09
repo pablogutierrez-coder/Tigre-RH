@@ -4,6 +4,7 @@ import type { User, UserRole } from '../../types';
 
 export interface CreatePlatformUserData {
   nombre: string;
+  correo?: string;
   usuario: string;
   password: string;
   rol: UserRole;
@@ -63,12 +64,13 @@ export const createPlatformUser = async (data: CreatePlatformUserData) => {
 
 export const updatePlatformUser = async (
   uid: string,
-  data: Partial<Omit<User, 'id' | 'password' | 'fecha_creacion' | 'correo'>>,
+  data: Partial<Omit<User, 'id' | 'password' | 'fecha_creacion'>>,
 ) => {
   await backendRequest(`/api/users/${uid}`, {
     method: 'PATCH',
     body: JSON.stringify({
       nombre: data.nombre,
+      correo: data.correo,
       usuario: data.usuario,
       rol: data.rol,
       estado: data.estado,

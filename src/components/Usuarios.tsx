@@ -107,6 +107,7 @@ export default function Usuarios({ users, currentUser, onAddUser, onUpdateUser, 
       if (editingId) {
         await onUpdateUser(editingId, {
           nombre: nombre.trim(),
+          correo: correo.trim(),
           usuario: usuario.trim(),
           rol,
           estado
@@ -125,6 +126,7 @@ export default function Usuarios({ users, currentUser, onAddUser, onUpdateUser, 
         }
         await onAddUser({
           nombre: nombre.trim(),
+          correo: correo.trim(),
           usuario: usuario.trim(),
           password: trimmedPassword,
           rol,
@@ -443,6 +445,17 @@ export default function Usuarios({ users, currentUser, onAddUser, onUpdateUser, 
 
               <div className="bg-slate-50 border border-slate-200 rounded-xl p-3 text-[11px] text-slate-500 font-medium">
                 El acceso se gestiona solo con usuario y contrasena.
+              </div>
+
+              <div>
+                <label className="block font-bold text-slate-600 mb-1">Correo de notificaciones</label>
+                <input
+                  type="email"
+                  value={correo}
+                  onChange={(e) => setCorreo(e.target.value)}
+                  placeholder="nombre@empresa.com"
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 outline-hidden focus:ring-1 focus:ring-fuchsia-500 text-sm font-medium"
+                />
               </div>
 
               <div className="grid grid-cols-2 gap-4">

@@ -34,6 +34,7 @@ const getValidationMessage = (fallback: string) => (error: z.ZodError) =>
 
 const createUserSchema = z.object({
   nombre: z.string().trim().min(1, 'El nombre del usuario es requerido.'),
+  correo: z.string().trim().email('El correo no es valido.').or(z.literal('')).optional(),
   usuario: z.string().trim().min(1, 'El usuario de acceso es requerido.'),
   password: z.string().trim().min(6, 'La contrasena temporal debe tener al menos 6 caracteres.'),
   rol: normalizedRoleSchema,
@@ -42,6 +43,7 @@ const createUserSchema = z.object({
 
 const updateUserSchema = z.object({
   nombre: z.string().trim().min(1, 'El nombre del usuario es requerido.').optional(),
+  correo: z.string().trim().email('El correo no es valido.').or(z.literal('')).optional(),
   usuario: z.string().trim().min(1, 'El usuario de acceso es requerido.').optional(),
   rol: normalizedRoleSchema.optional(),
   estado: normalizedStateSchema.optional(),

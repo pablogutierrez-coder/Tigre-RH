@@ -514,17 +514,7 @@ export default function Capacitaciones({
       });
     }
     if (onAppendParticipants && validatedParticipants.length > 0) {
-      const existingDnis = new Set(
-        participants
-          .filter((participant) => participant.training_session_id === editingSession.id)
-          .map((participant) => participant.dni.trim()),
-      );
-      const newParticipants = validatedParticipants.filter(
-        (participant) => !existingDnis.has(participant.dni.trim()),
-      );
-      if (newParticipants.length > 0) {
-        onAppendParticipants(editingSession.id, newParticipants);
-      }
+      onAppendParticipants(editingSession.id, validatedParticipants);
     }
     setValidatedParticipants([]);
     setUploadedFileName('');
@@ -539,7 +529,7 @@ export default function Capacitaciones({
     }
 
     // 1. Detect Campaign and Generation from file name
-    let suggestedCampaña = 'Entel Empresas';
+    let suggestedCampaña = campaña;
     const uppercaseFileName = fileName.toUpperCase();
     if (uppercaseFileName.includes('ENTEL EMPRESAS')) {
       suggestedCampaña = 'Entel Empresas';
@@ -634,6 +624,9 @@ export default function Capacitaciones({
       } else if (hLower === 'teléfono' || hLower === 'telefono' || hLower === 'celular' || hLower === 'cel' || hLower === 'phone' || hLower === 'contacto') {
         field = 'telefono';
         label = 'Teléfono';
+      } else if (hLower === 'correo' || hLower === 'email' || hLower === 'e-mail' || hLower === 'correo electronico' || hLower === 'correo electrónico') {
+        field = 'correo';
+        label = 'Correo';
       } else if (hLower === 'puesto' || hLower === 'cargo' || hLower === 'rol' || hLower === 'position') {
         field = 'puesto';
         label = 'Puesto';
@@ -697,6 +690,7 @@ export default function Capacitaciones({
     const colNombres = columns.find(c => c.field === 'nombres');
     const colApellidos = columns.find(c => c.field === 'apellidos');
     const colTelefono = columns.find(c => c.field === 'telefono');
+    const colCorreo = columns.find(c => c.field === 'correo');
     const colPuesto = columns.find(c => c.field === 'puesto');
     const colSueldo = columns.find(c => c.field === 'sueldo');
     const colPruebasPsicologicas = columns.find(c => c.field === 'estado_pruebas_psicologicas');
@@ -716,6 +710,7 @@ export default function Capacitaciones({
     let nombresIdx = colNombres ? colNombres.index : -1;
     let apellidosIdx = colApellidos ? colApellidos.index : -1;
     let telefonoIdx = colTelefono ? colTelefono.index : -1;
+    let correoIdx = colCorreo ? colCorreo.index : -1;
     let puestoIdx = colPuesto ? colPuesto.index : -1;
     let reclutadorIdx = colReclutador ? colReclutador.index : -1;
     let observacionIdx = -1;
@@ -740,6 +735,10 @@ export default function Capacitaciones({
     if (mappingCelular && mappingCelular.startsWith('col_')) {
       const found = columns.find(c => c.id === mappingCelular);
       if (found) telefonoIdx = found.index;
+    }
+    if (mappingCorreo && mappingCorreo.startsWith('col_')) {
+      const found = columns.find(c => c.id === mappingCorreo);
+      if (found) correoIdx = found.index;
     }
     if (mappingPuesto && mappingPuesto.startsWith('col_')) {
       const found = columns.find(c => c.id === mappingPuesto);
@@ -931,7 +930,7 @@ export default function Capacitaciones({
       const coordinador = coordinadorIdx !== -1 ? row[coordinadorIdx]?.trim() || '' : '';
       const ciudad = ciudadIdx !== -1 ? row[ciudadIdx]?.trim() || '' : '';
       const celular = telefonoIdx !== -1 ? row[telefonoIdx]?.trim() || '900000000' : '900000000';
-      const correo = '-'; // Default
+      const correo = correoIdx !== -1 ? row[correoIdx]?.trim() || '' : '';
       const puesto = puestoIdx !== -1 ? row[puestoIdx]?.trim() || 'Asesor BPO' : 'Asesor BPO';
       const sueldo = sueldoIdx !== -1 ? row[sueldoIdx]?.trim() || '' : '';
       const estado_pruebas_psicologicas = pruebasPsicologicasIdx !== -1 ? row[pruebasPsicologicasIdx]?.trim() || '' : '';
@@ -1008,6 +1007,7 @@ export default function Capacitaciones({
     setMappingNombres(selectOrIgnoredCol(colNombres));
     setMappingApellidos(selectOrIgnoredCol(colApellidos));
     setMappingCelular(selectOrIgnoredCol(colTelefono));
+    setMappingCorreo(selectOrIgnoredCol(colCorreo));
     setMappingPuesto(selectOrIgnoredCol(colPuesto));
     setMappingFuente(selectOrIgnoredCol(colReclutador));
     if (colPruebasPsicologicas) {
@@ -1182,8 +1182,7 @@ export default function Capacitaciones({
 
       // If user is a Formador, they can only see their own assigned sessions (this is double guarded here)
       const matchesRoleAccess =
-        (currentUser.rol !== 'Formador' || s.formador_id === currentUser.id) &&
-        (currentUser.rol !== 'Reclutador' || s.reclutador_id === currentUser.id);
+        currentUser.rol !== 'Formador' || s.formador_id === currentUser.id;
 
       return matchesSearch && matchesCampaña && matchesEstado && matchesRoleAccess;
     });
@@ -2187,8 +2186,8 @@ export default function Capacitaciones({
                   />
                   <p className="text-[11px] text-slate-500 mt-1">
                     {validatedParticipants.length > 0
-                      ? `${validatedParticipants.length} registros validos listos para agregar. Los DNI duplicados se omitiran.`
-                      : 'Adjunta un Excel o CSV para sumar nuevos participantes sin reemplazar el consolidado actual.'}
+                      ? `${validatedParticipants.length} registros validos listos. Los DNI existentes actualizaran correo y celular.`
+                      : 'Adjunta un Excel o CSV para sumar nuevos participantes o actualizar datos de contacto.'}
                   </p>
                 </div>
 

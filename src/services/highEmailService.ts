@@ -9,6 +9,8 @@ export const sendHighsEmail = async (
   rows: Array<{
     dni: string;
     nombre: string;
+    correo: string;
+    celular: string;
     campana: string;
     capacitacion: string;
     fechaAlta: string;

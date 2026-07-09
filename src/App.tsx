@@ -1287,20 +1287,26 @@ export default function App() {
       return;
     }
 
-    const existingDnis = new Set(
-      participants
-        .filter((participant) => participant.training_session_id === sessionId)
-        .map((participant) => participant.dni.trim()),
+    const sessionParticipants = participants.filter(
+      (participant) => participant.training_session_id === sessionId,
     );
-    const uniqueParticipants = newParticipants.filter(
-      (participant) => !existingDnis.has(participant.dni.trim()),
+    const created = newParticipants.map((participant) => {
+      const existing = sessionParticipants.find(
+        (item) => item.dni.trim() === participant.dni.trim(),
+      );
+      return {
+        ...(existing || {}),
+        ...participant,
+        id: existing?.id || `p-${Math.random().toString(36).substring(2, 11)}`,
+        training_session_id: sessionId,
+      };
+    });
+    const newIds = new Set(
+      created
+        .filter((participant) => !sessionParticipants.some((item) => item.id === participant.id))
+        .map((participant) => participant.id),
     );
-    const created = uniqueParticipants.map((participant) => ({
-      ...participant,
-      id: `p-${Math.random().toString(36).substring(2, 11)}`,
-      training_session_id: sessionId,
-    }));
-    const createdAttendance = created.flatMap((participant) =>
+    const createdAttendance = created.filter((participant) => newIds.has(participant.id)).flatMap((participant) =>
       [1, 2, 3, 4, 5].map((day) => {
         const date = new Date(`${session.fecha_inicio}T12:00:00`);
         date.setDate(date.getDate() + day - 1);
@@ -1317,7 +1323,13 @@ export default function App() {
       }),
     );
 
-    setParticipants((current) => [...current, ...created]);
+    setParticipants((current) => {
+      const updatedIds = new Set(created.map((participant) => participant.id));
+      return [
+        ...current.filter((participant) => !updatedIds.has(participant.id)),
+        ...created,
+      ];
+    });
     setAttendance((current) => [...current, ...createdAttendance]);
     void appendTrainingParticipants(sessionId, created, createdAttendance).catch((error) => {
       console.error('Error appending participants:', error);
@@ -1326,7 +1338,7 @@ export default function App() {
     addAuditLog(
       'Carga incremental de participantes',
       'Carga de participantes',
-      `${activeUser.nombre} agrego ${created.length} participantes al consolidado de "${session.generation_code || session.nombre_generacion}".`,
+      `${activeUser.nombre} agrego o actualizo ${created.length} participantes en "${session.generation_code || session.nombre_generacion}".`,
       session.campa\u00f1a,
       session.generation_code || session.nombre_generacion,
     );
@@ -2020,6 +2032,7 @@ export default function App() {
                   participants={participants}
                   confirmations={confirmations}
                   currentUser={activeUser}
+                  coordinators={users.filter((user) => user.rol === 'Coordinador' && user.estado === 'Activo')}
                   onSaveConfirmation={handleSaveConfirmation}
                   onDeleteConfirmation={handleDeleteConfirmation}
                   onAuditLog={addAuditLog}
