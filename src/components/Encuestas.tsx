@@ -50,6 +50,7 @@ import {
 } from 'recharts';
 import * as XLSX from 'xlsx';
 import { sendSurveyInvitations } from '../services/surveyEmailService';
+import { permissions } from '../utils/permissions';
 
 interface EncuestasProps {
   surveys: TrainingSurvey[];
@@ -894,8 +895,7 @@ export default function Encuestas({
 
         {/* Header CTA & Actions */}
         <div className="flex flex-wrap items-center gap-2">
-          {/* Create survey button (Only Admin and Analista) */}
-          {(isAdmin || currentUser.rol === 'Analista') && (
+          {permissions[currentUser.rol]?.canCreateSurvey && (
             <button
               onClick={() => setIsCreateModalOpen(true)}
               className="bg-fuchsia-600 hover:bg-fuchsia-700 text-white font-bold text-xs rounded-xl px-4 py-2.5 flex items-center gap-2 transition-all cursor-pointer shadow-sm shadow-fuchsia-950/10"
@@ -1613,7 +1613,7 @@ export default function Encuestas({
       )}
 
       {/* TAB 4.5: CONFIGURACION DE ENLACES (HABILITAR/DESACTIVAR/ELIMINAR) */}
-      {activeTab === 'configuracion' && (isAdmin || isTrainer || currentUser.rol === 'Analista') && (
+      {activeTab === 'configuracion' && permissions[currentUser.rol]?.canCreateSurvey && (
         <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-xs space-y-5" id="configuracion-tab-content">
           <div className="flex items-center justify-between border-b border-slate-100 pb-3">
             <div>
@@ -1751,8 +1751,7 @@ export default function Encuestas({
         </div>
       )}
 
-      {/* 5. MODAL PARA CREAR NUEVA ENCUESTA (ONLY FOR ADMIN & ANALISTA) */}
-      {isCreateModalOpen && (isAdmin || currentUser.rol === 'Analista') && (
+      {isCreateModalOpen && permissions[currentUser.rol]?.canCreateSurvey && (
         <div className="fixed inset-0 z-50 overflow-y-auto flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-fade-in" id="survey-creation-modal">
           <div className="w-full max-w-lg bg-white rounded-3xl shadow-2xl p-6 sm:p-7 space-y-5 border border-slate-100">
             <div className="flex items-center justify-between border-b border-slate-100 pb-3">

@@ -42,6 +42,10 @@ interface CapacitacionesProps {
   onViewAttendance: (sessionId: string) => void;
   onCloseCampaign?: (sessionId: string) => void;
   onUpdateSession?: (sessionId: string, updatedFields: Partial<TrainingSession>) => void;
+  onAppendParticipants?: (
+    sessionId: string,
+    participants: Omit<Participant, 'id'>[],
+  ) => void;
   onAuditLog?: (action: string, module: string, detail: string, campaign?: string, generation?: string) => void;
 }
 
@@ -96,6 +100,7 @@ export default function Capacitaciones({
   onViewAttendance,
   onCloseCampaign,
   onUpdateSession,
+  onAppendParticipants,
   onAuditLog
 }: CapacitacionesProps) {
   const [view, setView] = useState<'list' | 'create'>('list');
@@ -497,6 +502,21 @@ export default function Capacitaciones({
         observaciones: editObservaciones
       });
     }
+    if (onAppendParticipants && validatedParticipants.length > 0) {
+      const existingDnis = new Set(
+        participants
+          .filter((participant) => participant.training_session_id === editingSession.id)
+          .map((participant) => participant.dni.trim()),
+      );
+      const newParticipants = validatedParticipants.filter(
+        (participant) => !existingDnis.has(participant.dni.trim()),
+      );
+      if (newParticipants.length > 0) {
+        onAppendParticipants(editingSession.id, newParticipants);
+      }
+    }
+    setValidatedParticipants([]);
+    setUploadedFileName('');
     setEditingSession(null);
   };
 
@@ -1145,7 +1165,9 @@ export default function Capacitaciones({
       const matchesEstado = filterEstado === 'todos' || s.estado === filterEstado;
 
       // If user is a Formador, they can only see their own assigned sessions (this is double guarded here)
-      const matchesRoleAccess = currentUser.rol !== 'Formador' || s.formador_id === currentUser.id;
+      const matchesRoleAccess =
+        (currentUser.rol !== 'Formador' || s.formador_id === currentUser.id) &&
+        (currentUser.rol !== 'Reclutador' || s.reclutador_id === currentUser.id);
 
       return matchesSearch && matchesCampaña && matchesEstado && matchesRoleAccess;
     });
@@ -1327,8 +1349,9 @@ export default function Capacitaciones({
                     {/* Actions footer */}
                     <div className="bg-slate-50/50 p-4 rounded-b-2xl border-t border-slate-50 flex justify-between items-center gap-2">
                       <div className="flex items-center gap-1.5 flex-wrap">
-                        {/* Edit button (Only for Administrador and Analista) */}
-                        {(currentUser.rol === 'Administrador' || currentUser.rol === 'Analista') && (
+                        {permissions[currentUser.rol]?.canEditTraining &&
+                          (currentUser.rol !== 'Reclutador' ||
+                            session.reclutador_id === currentUser.id) && (
                           <button
                             onClick={() => startEditing(session)}
                             className="text-slate-400 hover:text-indigo-600 p-2 rounded-lg hover:bg-indigo-50 transition-colors cursor-pointer"
@@ -2121,6 +2144,23 @@ export default function Capacitaciones({
                       <option value="Capacitación cerrada">Capacitación cerrada</option>
                     )}
                   </select>
+                </div>
+
+                <div className="md:col-span-2">
+                  <label className="block text-xs font-semibold text-slate-600 mb-1">
+                    Agregar ingresantes al consolidado
+                  </label>
+                  <input
+                    type="file"
+                    accept=".xlsx,.xls,.csv"
+                    onChange={handleFileChange}
+                    className="w-full text-xs bg-slate-50 text-slate-700 rounded-xl border border-slate-200 p-2.5"
+                  />
+                  <p className="text-[11px] text-slate-500 mt-1">
+                    {validatedParticipants.length > 0
+                      ? `${validatedParticipants.length} registros validos listos para agregar. Los DNI duplicados se omitiran.`
+                      : 'Adjunta un Excel o CSV para sumar nuevos participantes sin reemplazar el consolidado actual.'}
+                  </p>
                 </div>
 
                 <div className="md:col-span-2">

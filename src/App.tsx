@@ -1238,6 +1238,61 @@ export default function App() {
     }
   };
 
+  const handleAppendParticipants = (
+    sessionId: string,
+    newParticipants: Omit<Participant, 'id'>[],
+  ) => {
+    const session = sessions.find((item) => item.id === sessionId);
+    if (!session || !activeUser) return;
+    if (
+      activeUser.rol === 'Reclutador' &&
+      session.reclutador_id !== activeUser.id
+    ) {
+      alert('Solo puedes agregar participantes a tus propias capacitaciones.');
+      return;
+    }
+
+    const existingDnis = new Set(
+      participants
+        .filter((participant) => participant.training_session_id === sessionId)
+        .map((participant) => participant.dni.trim()),
+    );
+    const uniqueParticipants = newParticipants.filter(
+      (participant) => !existingDnis.has(participant.dni.trim()),
+    );
+    const created = uniqueParticipants.map((participant) => ({
+      ...participant,
+      id: `p-${Math.random().toString(36).substring(2, 11)}`,
+      training_session_id: sessionId,
+    }));
+    const createdAttendance = created.flatMap((participant) =>
+      [1, 2, 3, 4, 5].map((day) => {
+        const date = new Date(`${session.fecha_inicio}T12:00:00`);
+        date.setDate(date.getDate() + day - 1);
+        return {
+          id: `att-${Math.random().toString(36).substring(2, 11)}`,
+          participant_id: participant.id,
+          training_session_id: sessionId,
+          dia: day,
+          fecha: date.toISOString().split('T')[0],
+          estado_asistencia: 'Seleccionar' as AttendanceStatus,
+          registrado_por: activeUser.id,
+          fecha_registro: new Date().toISOString(),
+        };
+      }),
+    );
+
+    setParticipants((current) => [...current, ...created]);
+    setAttendance((current) => [...current, ...createdAttendance]);
+    addAuditLog(
+      'Carga incremental de participantes',
+      'Carga de participantes',
+      `${activeUser.nombre} agrego ${created.length} participantes al consolidado de "${session.generation_code || session.nombre_generacion}".`,
+      session.campa\u00f1a,
+      session.generation_code || session.nombre_generacion,
+    );
+  };
+
   const handleAttemptLockedEdit = (sessionName: string, campaign: string, day: number) => {
     const isReadOnly = !permissions[activeUser?.rol || 'Formador']?.canEditAttendance;
     if (isReadOnly) {
@@ -1570,7 +1625,7 @@ export default function App() {
                   <button
                     onClick={() => { setCurrentView('asistencia'); }}
                     className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-semibold transition-all ${
-                      currentView === 'asistencia' ? 'bg-gradient-to-r from-fuchsia-600 to-indigo-600 text-white font-bold shadow-sm' : 'text-slate-600 hover:bg-slate-50 hover:text-slate-950'
+                      currentView === 'capacitaciones' ? 'bg-gradient-to-r from-fuchsia-600 to-indigo-600 text-white font-bold shadow-sm' : 'text-slate-600 hover:bg-slate-50 hover:text-slate-950'
                     }`}
                   >
                     <CalendarCheck className="w-4 h-4 shrink-0" />
@@ -1652,13 +1707,13 @@ export default function App() {
                   </button>
 
                   <button
-                    onClick={() => { setCurrentView('reportes'); setSelectedSessionId(null); }}
+                    onClick={() => { setCurrentView('capacitaciones'); setSelectedSessionId(null); }}
                     className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-semibold transition-all ${
-                      currentView === 'reportes' ? 'bg-gradient-to-r from-fuchsia-600 to-indigo-600 text-white font-bold shadow-sm' : 'text-slate-600 hover:bg-slate-50 hover:text-slate-950'
+                      currentView === 'asistencia' ? 'bg-gradient-to-r from-fuchsia-600 to-indigo-600 text-white font-bold shadow-sm' : 'text-slate-600 hover:bg-slate-50 hover:text-slate-950'
                     }`}
                   >
-                    <FileSpreadsheet className="w-4 h-4 shrink-0" />
-                    Historial de Cargas
+                    <CalendarCheck className="w-4 h-4 shrink-0" />
+                    Asistencias (solo lectura)
                   </button>
 
                   <button
@@ -1861,6 +1916,7 @@ export default function App() {
                     onViewAttendance={handleViewAttendance}
                     onCloseCampaign={handleCloseCampaign}
                     onUpdateSession={handleUpdateSession}
+                    onAppendParticipants={handleAppendParticipants}
                   />
                 </div>
               )}
@@ -1894,6 +1950,7 @@ export default function App() {
                   onViewAttendance={handleViewAttendance}
                   onCloseCampaign={handleCloseCampaign}
                   onUpdateSession={handleUpdateSession}
+                  onAppendParticipants={handleAppendParticipants}
                   onAuditLog={addAuditLog}
                 />
               )}

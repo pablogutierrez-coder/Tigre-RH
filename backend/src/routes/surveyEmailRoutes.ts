@@ -10,7 +10,7 @@ import {
 const router = Router();
 const canSendSurveyEmails = [
   requireAuth,
-  requireRole(['Administrador', 'Analista', 'Formador']),
+  requireRole(['Administrador', 'Analista', 'Formador', 'Reclutador', 'Coordinador']),
 ];
 
 const sendInvitationsSchema = z.object({

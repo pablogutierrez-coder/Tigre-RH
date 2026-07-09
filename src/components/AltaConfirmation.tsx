@@ -60,7 +60,7 @@ export default function AltaConfirmation({
 }: AltaConfirmationProps) {
   const isAdmin = currentUser.rol === 'Administrador';
   const isFormador = currentUser.rol === 'Formador';
-  const isReadOnly = !isAdmin && !isFormador;
+  const isReadOnly = !permissions[currentUser.rol]?.canConfirmHigh;
 
   // Initial Filter States
   const [selectedCampaña, setSelectedCampaña] = useState<string>('todos');
