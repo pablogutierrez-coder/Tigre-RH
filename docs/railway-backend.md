@@ -51,23 +51,26 @@ Configurar estas variables privadas en el servicio backend:
 - `BCRYPT_ROUNDS`
 - `PORT`
 
-Para enviar encuestas por correo desde Railway se usa Resend por API HTTPS:
+Para enviar encuestas por correo desde Railway se usa Brevo por API HTTPS:
 
-- `RESEND_API_KEY`
-- `EMAIL_FROM`
+- `BREVO_API_KEY`
+- `BREVO_SENDER_EMAIL`
+- `BREVO_SENDER_NAME` opcional
 - `EMAIL_REPLY_TO` opcional
 - `EMAIL_TRACE_COLLECTION` opcional
 
 Ejemplo:
 
 ```env
-RESEND_API_KEY=re_xxxxxxxxx
-EMAIL_FROM="FDR Formación y Desarrollo <encuestas@tudominio.com>"
-EMAIL_REPLY_TO=encuestas@tudominio.com
+BREVO_API_KEY=xkeysib-xxxxxxxxx
+BREVO_SENDER_EMAIL=no-reply@automatizate.pe
+BREVO_SENDER_NAME=Automatizate
+EMAIL_REPLY_TO=no-reply@automatizate.pe
 EMAIL_TRACE_COLLECTION=correos_enviados
 ```
 
-`EMAIL_FROM` debe usar un dominio verificado en Resend. No guardar `RESEND_API_KEY` en `.env.local` ni exponerla en React.
+`BREVO_SENDER_EMAIL` debe ser un remitente autorizado en Brevo. No guardar
+`BREVO_API_KEY` en `.env.local`, archivos del repositorio ni codigo React.
 
 `FIREBASE_PRIVATE_KEY` puede pegarse con saltos `\n` escapados. El backend los convierte internamente con `replace(/\\n/g, "\n")`.
 

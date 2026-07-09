@@ -24,22 +24,22 @@ interface SendSurveyInvitationsInput {
   };
 }
 
-interface ResendEmailResponse {
-  id?: string;
+interface BrevoEmailResponse {
+  messageId?: string;
   message?: string;
-  name?: string;
+  code?: string;
 }
 
-const requiredResendVars = ['RESEND_API_KEY'];
+const requiredBrevoVars = ['BREVO_API_KEY', 'BREVO_SENDER_EMAIL'];
 
-const getEmailFrom = () => process.env.EMAIL_FROM || process.env.FROM_EMAIL || '';
-const getEmailReplyTo = () => process.env.EMAIL_REPLY_TO || process.env.FROM_EMAIL || getEmailFrom();
+const getSenderName = () => process.env.BREVO_SENDER_NAME || 'Automatizate';
+const getSenderEmail = () => process.env.BREVO_SENDER_EMAIL || '';
+const getEmailReplyTo = () => process.env.EMAIL_REPLY_TO || getSenderEmail();
 
-const validateResendConfig = () => {
-  const missing = requiredResendVars.filter((key) => !process.env[key]);
-  if (!getEmailFrom()) missing.push('EMAIL_FROM');
+const validateBrevoConfig = () => {
+  const missing = requiredBrevoVars.filter((key) => !process.env[key]?.trim());
   if (missing.length > 0) {
-    throw new Error(`Faltan variables Resend: ${missing.join(', ')}`);
+    throw new Error(`Faltan variables Brevo: ${missing.join(', ')}`);
   }
 };
 
@@ -96,7 +96,7 @@ export const sendSurveyInvitations = async ({
   recipients,
   requestedBy,
 }: SendSurveyInvitationsInput) => {
-  validateResendConfig();
+  validateBrevoConfig();
 
   const results = [];
   for (const recipient of recipients) {
@@ -107,7 +107,7 @@ export const sendSurveyInvitations = async ({
       participant_id: recipient.participant_id,
       destinatario: recipient.correo,
       tipo_correo: 'survey_invitation',
-      provider: 'resend',
+      provider: 'brevo',
       requested_by_uid: requestedBy.uid,
       requested_by_nombre: requestedBy.nombre,
       fecha_envio: new Date().toISOString(),
@@ -116,44 +116,54 @@ export const sendSurveyInvitations = async ({
     try {
       const controller = new AbortController();
       const timeout = setTimeout(() => controller.abort(), 20000);
-      const response = await fetch('https://api.resend.com/emails', {
+      const response = await fetch('https://api.brevo.com/v3/smtp/email', {
         method: 'POST',
         headers: {
-          Authorization: `Bearer ${process.env.RESEND_API_KEY}`,
+          'api-key': process.env.BREVO_API_KEY!,
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          from: getEmailFrom(),
-          to: [recipient.correo],
-          reply_to: getEmailReplyTo(),
+          sender: {
+            name: getSenderName(),
+            email: getSenderEmail(),
+          },
+          to: [
+            {
+              email: recipient.correo,
+              name: recipient.nombre,
+            },
+          ],
+          replyTo: {
+            email: getEmailReplyTo(),
+          },
           subject: content.subject,
-          text: content.text,
-          html: content.html,
+          textContent: content.text,
+          htmlContent: content.html,
         }),
         signal: controller.signal,
       }).finally(() => clearTimeout(timeout));
 
-      const data = (await response.json().catch(() => null)) as ResendEmailResponse | null;
+      const data = (await response.json().catch(() => null)) as BrevoEmailResponse | null;
       if (!response.ok) {
-        const message = data?.message || data?.name || 'Resend no pudo enviar el correo.';
+        const message = data?.message || data?.code || 'Brevo no pudo enviar el correo.';
         throw new Error(message);
       }
 
       await saveEmailTrace({
         ...traceBase,
         estado_envio: 'enviado',
-        message_id: data?.id || '',
+        message_id: data?.messageId || '',
       });
 
       results.push({
         participant_id: recipient.participant_id,
         correo: recipient.correo,
-        messageId: data?.id || '',
+        messageId: data?.messageId || '',
       });
     } catch (error) {
       const message =
         error instanceof Error && error.name === 'AbortError'
-          ? 'Timeout conectando con Resend.'
+          ? 'Timeout conectando con Brevo.'
           : error instanceof Error
             ? error.message
             : 'No se pudo enviar el correo.';

@@ -10,7 +10,7 @@ Plataforma React/Vite para control de capacitaciones, asistencia, altas, reapert
 - Backend Express en Railway
 - Firebase Storage preparado
 - Railway para hosting del frontend
-- Resend para envio de encuestas por correo
+- Brevo para envio de encuestas por correo
 
 ## Desarrollo Local
 
@@ -36,11 +36,12 @@ El backend Railway usa variables privadas sin prefijo `VITE_*`.
 
 No subir `.env.local` al repositorio.
 
-Para enviar encuestas por correo, Railway tambien necesita variables privadas de Resend:
+Para enviar encuestas por correo, Railway tambien necesita variables privadas de Brevo:
 
 ```env
-RESEND_API_KEY=
-EMAIL_FROM=
+BREVO_API_KEY=
+BREVO_SENDER_EMAIL=no-reply@automatizate.pe
+BREVO_SENDER_NAME=Automatizate
 EMAIL_REPLY_TO=
 EMAIL_TRACE_COLLECTION=
 ```
