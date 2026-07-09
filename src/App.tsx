@@ -69,18 +69,7 @@ import {
   deactivatePlatformUser,
   updatePlatformUser,
 } from './services/firebase/userAdminService';
-import { getUsers } from './services/firebase/userService';
-import {
-  getSessions,
-  getSessionsByRecruiter,
-  getSessionsByTrainer,
-} from './services/firebase/sessionService';
-import { getParticipants } from './services/firebase/participantService';
-import { getAttendance } from './services/firebase/attendanceService';
-import { getConfirmations } from './services/firebase/confirmationService';
-import { getReopenRequests } from './services/firebase/reopenService';
-import { getAuditLogs } from './services/firebase/auditLogService';
-import { getResponses, getSurveys } from './services/firebase/surveyService';
+import { getBootstrapData } from './services/bootstrapService';
 import { APP_NAME } from './constants/app';
 import loginBackgroundVideo from './assets/login-background.mp4';
 
@@ -424,52 +413,25 @@ export default function App() {
     if (!activeUser || authChecking) return;
 
     let cancelled = false;
-    const loadCollection = async <T,>(
-      name: string,
-      loader: () => Promise<T[]>,
-      setter: React.Dispatch<React.SetStateAction<T[]>>,
-    ) => {
+    const loadPlatformData = async () => {
       try {
-        const data = await loader();
-        if (!cancelled) setter(data);
+        const data = await getBootstrapData();
+        if (cancelled) return;
+        setUsers(data.users);
+        setSessions(data.sessions);
+        setParticipants(data.participants);
+        setAttendance(data.attendance);
+        setConfirmations(data.confirmations);
+        setReopens(data.reopens);
+        setLogs(data.logs);
+        setSurveys(data.surveys);
+        setResponses(data.responses);
       } catch (error) {
-        console.error(`Error loading Firestore collection "${name}":`, error);
+        console.error('Error loading platform data:', error);
       }
     };
 
-    const sessionLoader =
-      activeUser.rol === 'Formador'
-        ? () => getSessionsByTrainer(activeUser.id)
-        : activeUser.rol === 'Reclutador'
-          ? () => getSessionsByRecruiter(activeUser.id)
-          : getSessions;
-
-    void Promise.all([
-      loadCollection('sessions', sessionLoader, setSessions),
-      loadCollection('participants', getParticipants, setParticipants),
-      loadCollection('attendance', getAttendance, setAttendance),
-      loadCollection('confirmations', getConfirmations, setConfirmations),
-      loadCollection('reopens', getReopenRequests, setReopens),
-      loadCollection('surveys', getSurveys, setSurveys),
-      loadCollection('responses', getResponses, setResponses),
-    ]);
-
-    if (activeUser.rol === 'Administrador' || activeUser.rol === 'Analista') {
-      void loadCollection('users', getUsers, setUsers);
-    } else {
-      setUsers((current) => {
-        const exists = current.some((user) => user.id === activeUser.id);
-        return exists ? current : [activeUser, ...current];
-      });
-    }
-
-    if (
-      activeUser.rol === 'Administrador' ||
-      activeUser.rol === 'Coordinador' ||
-      activeUser.rol === 'Sistemas'
-    ) {
-      void loadCollection('logs', getAuditLogs, setLogs);
-    }
+    void loadPlatformData();
 
     return () => {
       cancelled = true;
