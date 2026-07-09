@@ -5,6 +5,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { authRoutes } from './routes/authRoutes.js';
+import { publicSurveyRoutes } from './routes/publicSurveyRoutes.js';
 import { surveyEmailRoutes } from './routes/surveyEmailRoutes.js';
 import { userRoutes } from './routes/userRoutes.js';
 
@@ -69,6 +70,7 @@ app.get('/config.js', (_req, res) => {
 });
 
 app.use('/api/auth', authRoutes);
+app.use('/api/public-surveys', publicSurveyRoutes);
 app.use('/api/survey-emails', surveyEmailRoutes);
 app.use('/api/users', userRoutes);
 

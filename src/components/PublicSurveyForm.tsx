@@ -4,6 +4,10 @@ import { AlertTriangle, CheckCircle2, ShieldCheck, Clipboard, Send, Star, HelpCi
 import BrandLogo from './BrandLogo';
 import { APP_NAME } from '../constants/app';
 import { formatPeruDate } from '../utils/time';
+import {
+  getPublicSurveyContext,
+  submitPublicSurveyResponse,
+} from '../services/publicSurveyService';
 
 interface PublicSurveyFormProps {
   surveys: TrainingSurvey[];
@@ -61,6 +65,9 @@ export default function PublicSurveyForm({
   const [validationError, setValidationError] = useState('');
   const [activeParticipant, setActiveParticipant] = useState<Participant | null>(null);
   const [activeSurvey, setActiveSurvey] = useState<TrainingSurvey | null>(null);
+  const [remoteSurvey, setRemoteSurvey] = useState<TrainingSurvey | null>(null);
+  const [validating, setValidating] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
 
   // --- Form Answers States ---
   const [p1, setP1] = useState<number>(0);
@@ -77,6 +84,28 @@ export default function PublicSurveyForm({
 
   // Find survey list that are enabled/habilitadas
   const activeSurveysList = surveys.filter(s => s.estado === 'Habilitada');
+
+  React.useEffect(() => {
+    if (!surveyToken || !dni) return;
+
+    let cancelled = false;
+    getPublicSurveyContext(surveyToken, dni)
+      .then(({ survey }) => {
+        if (cancelled) return;
+        setRemoteSurvey(survey);
+        setSelectedSurveyId(survey.id);
+        setValidationError('');
+      })
+      .catch((error) => {
+        if (!cancelled) {
+          setValidationError(error instanceof Error ? error.message : 'No se pudo cargar la encuesta.');
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [surveyToken]);
 
   const deletedSurvey = React.useMemo(() => {
     if (!surveyToken) return null;
@@ -106,9 +135,34 @@ export default function PublicSurveyForm({
   }, [surveyToken, surveys]);
 
   // Handle DNI validation
-  const handleValidate = (e: React.FormEvent) => {
+  const handleValidate = async (e: React.FormEvent) => {
     e.preventDefault();
     setValidationError('');
+
+    const cleanDni = dni.trim();
+    if (!cleanDni) {
+      setValidationError('Por favor, ingresa tu DNI.');
+      return;
+    }
+
+    if (surveyToken) {
+      try {
+        setValidating(true);
+        const context = await getPublicSurveyContext(surveyToken, cleanDni);
+        setRemoteSurvey(context.survey);
+        setSelectedSurveyId(context.survey.id);
+        setActiveParticipant(context.participant);
+        setActiveSurvey(context.survey);
+        setStep('form');
+      } catch (error) {
+        setValidationError(
+          error instanceof Error ? error.message : 'No se pudo validar tu registro.',
+        );
+      } finally {
+        setValidating(false);
+      }
+      return;
+    }
 
     const targetSurveyId = selectedSurveyId;
     if (!targetSurveyId) {
@@ -140,12 +194,6 @@ export default function PublicSurveyForm({
     }
 
     // Match DNI against participants of that session
-    const cleanDni = dni.trim();
-    if (!cleanDni) {
-      setValidationError('Por favor, ingresa tu DNI.');
-      return;
-    }
-
     const matchedPart = participants.find(
       p => p.training_session_id === survey.training_session_id && p.dni.trim() === cleanDni
     );
@@ -214,7 +262,7 @@ export default function PublicSurveyForm({
   };
 
   // Handle survey submission
-  const handleSubmitSurvey = (e: React.FormEvent) => {
+  const handleSubmitSurvey = async (e: React.FormEvent) => {
     e.preventDefault();
     setFormError('');
 
@@ -291,7 +339,34 @@ export default function PublicSurveyForm({
       aspecto_mejora: aspectoMejora.trim()
     };
 
-    onAddResponse(newResponse);
+    if (surveyToken) {
+      try {
+        setSubmitting(true);
+        const result = await submitPublicSurveyResponse(surveyToken, {
+          dni: activeParticipant.dni,
+          q1: p1,
+          q2: p2,
+          q3: p3,
+          q4: p4,
+          q5: p5,
+          q6: p6,
+          q7: p7,
+          q8: p8,
+          comentario_positivo: comentarioPositivo.trim(),
+          aspecto_mejora: aspectoMejora.trim(),
+        });
+        onAddResponse(result.response);
+      } catch (error) {
+        setFormError(
+          error instanceof Error ? error.message : 'No se pudo registrar la encuesta.',
+        );
+        setSubmitting(false);
+        return;
+      }
+      setSubmitting(false);
+    } else {
+      onAddResponse(newResponse);
+    }
 
     // Register audit log for successful survey response
     onAuditLog(
@@ -434,7 +509,7 @@ export default function PublicSurveyForm({
                 ) : (
                   // Hidden/disabled view of selected survey details
                   (() => {
-                    const s = surveys.find(
+                    const s = remoteSurvey || surveys.find(
                       srv => srv.token.toLowerCase() === surveyToken.trim().toLowerCase() ||
                       srv.codigo_generacion.replace(/\s+/g, '-').toLowerCase() === surveyToken.trim().toLowerCase()
                     );
@@ -484,10 +559,11 @@ export default function PublicSurveyForm({
                 <div className="pt-2 flex gap-3">
                   <button
                     type="submit"
+                    disabled={validating}
                     className="flex-1 bg-gradient-to-r from-fuchsia-600 to-indigo-600 text-white font-bold text-xs rounded-xl py-3 flex items-center justify-center gap-2 cursor-pointer hover:opacity-95 shadow-sm active:scale-[0.98] transition-transform"
                   >
                     <ShieldCheck className="w-4 h-4" />
-                    Validar Registro & Responder
+                    {validating ? 'Validando...' : 'Validar Registro & Responder'}
                   </button>
                 </div>
               </form>
@@ -604,6 +680,7 @@ export default function PublicSurveyForm({
               </button>
               <button
                 type="submit"
+                disabled={submitting}
                 className="flex-1 bg-gradient-to-r from-fuchsia-600 to-indigo-600 text-white font-bold text-xs rounded-xl py-3 flex items-center justify-center gap-2 cursor-pointer hover:opacity-95 shadow-sm active:scale-[0.98] transition-transform"
               >
                 <Send className="w-4 h-4" />
