@@ -6,6 +6,8 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { authRoutes } from './routes/authRoutes.js';
 import { bootstrapRoutes } from './routes/bootstrapRoutes.js';
+import { highEmailRoutes } from './routes/highEmailRoutes.js';
+import { operationRoutes } from './routes/operationRoutes.js';
 import { publicSurveyRoutes } from './routes/publicSurveyRoutes.js';
 import { surveyEmailRoutes } from './routes/surveyEmailRoutes.js';
 import { trainingRoutes } from './routes/trainingRoutes.js';
@@ -73,6 +75,8 @@ app.get('/config.js', (_req, res) => {
 
 app.use('/api/auth', authRoutes);
 app.use('/api/bootstrap', bootstrapRoutes);
+app.use('/api/high-emails', highEmailRoutes);
+app.use('/api/operations', operationRoutes);
 app.use('/api/public-surveys', publicSurveyRoutes);
 app.use('/api/survey-emails', surveyEmailRoutes);
 app.use('/api/trainings', trainingRoutes);

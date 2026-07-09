@@ -18,10 +18,12 @@ import {
   Trash2,
   AlertTriangle,
   Save,
-  Undo
+  Undo,
+  Mail
 } from 'lucide-react';
 import { TrainingSession, Participant, OperationConfirmation, AltaStatus, User as AppUser } from '../types';
 import { permissions } from '../utils/permissions';
+import { sendHighsEmail } from '../services/highEmailService';
 
 interface AltaConfirmationProps {
   sessions: TrainingSession[];
@@ -69,6 +71,7 @@ export default function AltaConfirmation({
   const [selectedEstadoCapacitacion, setSelectedEstadoCapacitacion] = useState<string>('todos');
   const [selectedEstadoAlta, setSelectedEstadoAlta] = useState<string>('todos');
   const [searchTerm, setSearchTerm] = useState('');
+  const [sendingHighs, setSendingHighs] = useState(false);
 
   // Draft changes state (participant_id -> Partial<OperationConfirmation>)
   const [drafts, setDrafts] = useState<{ [key: string]: Partial<OperationConfirmation> }>({});
@@ -167,6 +170,40 @@ export default function AltaConfirmation({
       return true;
     });
   }, [participants, sessionMap, isFormador, currentUser.id, selectedCampaña, selectedGeneracion, selectedFormador, selectedEstadoCapacitacion, searchTerm, confirmationsMap, drafts, selectedEstadoAlta]);
+
+  const handleSendHighs = async () => {
+    const confirmed = filteredCandidates.filter(
+      (participant) => confirmationsMap[participant.id]?.estado_alta === 'Alta confirmada',
+    );
+    if (confirmed.length === 0) {
+      alert('No hay altas confirmadas con los filtros actuales.');
+      return;
+    }
+    const recipient = window.prompt('Correo del Coordinador:')?.trim();
+    if (!recipient) return;
+    try {
+      setSendingHighs(true);
+      await sendHighsEmail(
+        recipient,
+        confirmed.map((participant) => {
+          const session = sessionMap[participant.training_session_id];
+          const confirmation = confirmationsMap[participant.id];
+          return {
+            dni: participant.dni,
+            nombre: `${participant.nombres} ${participant.apellidos}`,
+            campana: session?.campaña || '',
+            capacitacion: session?.generation_code || session?.nombre_generacion || '',
+            fechaAlta: confirmation?.fecha_alta || '',
+          };
+        }),
+      );
+      alert(`Se enviaron ${confirmed.length} altas al Coordinador.`);
+    } catch (error) {
+      alert(error instanceof Error ? error.message : 'No se pudieron enviar las altas.');
+    } finally {
+      setSendingHighs(false);
+    }
+  };
 
   // Handle changing status in the row
   const handleSelectStatus = (part: Participant, status: AltaStatus) => {
@@ -337,15 +374,27 @@ export default function AltaConfirmation({
             Filtra por campaña y capacitación para marcar manualmente a los ejecutivos que pasaron a operaciones.
           </p>
         </div>
-        {hasDrafts && (
-          <button
-            onClick={handleSaveAllDrafts}
-            className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs rounded-xl px-4 py-2.5 shadow-md flex items-center gap-1.5 transition-all cursor-pointer active:scale-98"
-          >
-            <Save className="w-4 h-4" />
-            Guardar {Object.keys(drafts).length} Cambios
-          </button>
-        )}
+        <div className="flex flex-wrap gap-2">
+          {permissions[currentUser.rol]?.canConfirmHigh && (
+            <button
+              onClick={handleSendHighs}
+              disabled={sendingHighs}
+              className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl px-4 py-2.5 shadow-md flex items-center gap-1.5"
+            >
+              <Mail className="w-4 h-4" />
+              {sendingHighs ? 'Enviando...' : 'Enviar altas al Coordinador'}
+            </button>
+          )}
+          {hasDrafts && (
+            <button
+              onClick={handleSaveAllDrafts}
+              className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs rounded-xl px-4 py-2.5 shadow-md flex items-center gap-1.5 transition-all cursor-pointer active:scale-98"
+            >
+              <Save className="w-4 h-4" />
+              Guardar {Object.keys(drafts).length} Cambios
+            </button>
+          )}
+        </div>
       </div>
 
       {/* FILTER PANEL - REDESIGNED */}

@@ -114,6 +114,9 @@ export default function Capacitaciones({
   const [campaña, setCampaña] = useState('Entel Empresas');
   const [tipoCapacitacion, setTipoCapacitacion] = useState('Capacitación regular');
   const [formadorId, setFormadorId] = useState('');
+  const [reclutadorId, setReclutadorId] = useState(
+    currentUser.rol === 'Reclutador' ? currentUser.id : '',
+  );
   const [modalidad, setModalidad] = useState<'Presencial' | 'Virtual' | 'Híbrida'>('Presencial');
   const [turno, setTurno] = useState<'Part time' | 'Full time' | 'Mini full'>('Full time');
   const [horaCapacitacion, setHoraCapacitacion] = useState('08:00');
@@ -449,6 +452,14 @@ export default function Capacitaciones({
       setFormadorId(trainers[0].id);
     }
   }, [trainers, formadorId]);
+
+  React.useEffect(() => {
+    if (currentUser.rol === 'Reclutador') {
+      setReclutadorId(currentUser.id);
+    } else if (!reclutadorId && recruiters.length > 0) {
+      setReclutadorId(recruiters[0].id);
+    }
+  }, [currentUser, recruiters, reclutadorId]);
 
   // Handle manual generation name trigger
   const handleCampañaChange = (newCamp: string) => {
@@ -1094,6 +1105,11 @@ export default function Capacitaciones({
       return;
     }
 
+    if (sessions.some((session) => getTrainingIdentifier(session) === trainingIdentifier)) {
+      alert('Ya existe una capacitacion con esta nomenclatura. Edita el consolidado existente para agregar personas.');
+      return;
+    }
+
     onAddSession(
       {
         nombre_generacion: trainingIdentifier,
@@ -1103,7 +1119,7 @@ export default function Capacitaciones({
         fecha_fin: fechaFin,
         hora_capacitacion: horaCapacitacion,
         formador_id: formadorId,
-        reclutador_id: currentUser.id,
+        reclutador_id: reclutadorId || currentUser.id,
         modalidad,
         turno,
         observaciones,
@@ -1551,12 +1567,25 @@ export default function Capacitaciones({
 
                 <div>
                   <label className="block text-xs font-semibold text-slate-600 mb-1">Responsable de Carga (Reclutador)</label>
-                  <input
-                    type="text"
-                    disabled
-                    value={currentUser.nombre}
-                    className="w-full text-sm bg-slate-100 text-slate-500 rounded-xl border border-slate-200 p-2.5 cursor-not-allowed outline-hidden"
-                  />
+                  {currentUser.rol === 'Reclutador' ? (
+                    <input
+                      type="text"
+                      disabled
+                      value={currentUser.nombre}
+                      className="w-full text-sm bg-slate-100 text-slate-500 rounded-xl border border-slate-200 p-2.5 cursor-not-allowed outline-hidden"
+                    />
+                  ) : (
+                    <select
+                      value={reclutadorId}
+                      onChange={(event) => setReclutadorId(event.target.value)}
+                      className="w-full text-sm bg-slate-50 text-slate-700 rounded-xl border border-slate-200 p-2.5"
+                    >
+                      <option value="">Selecciona un reclutador</option>
+                      {recruiters.map((recruiter) => (
+                        <option key={recruiter.id} value={recruiter.id}>{recruiter.nombre}</option>
+                      ))}
+                    </select>
+                  )}
                 </div>
               </div>
 

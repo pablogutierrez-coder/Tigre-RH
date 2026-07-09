@@ -75,6 +75,10 @@ import {
   createTrainingBundle,
   updateTraining,
 } from './services/trainingService';
+import {
+  persistAttendance,
+  persistConfirmation,
+} from './services/operationService';
 import { APP_NAME } from './constants/app';
 import loginBackgroundVideo from './assets/login-background.mp4';
 
@@ -505,7 +509,7 @@ export default function App() {
   ) => {
     const sId = `s-${Math.random().toString(36).substring(2, 11)}`;
     const fUser = users.find(u => u.id === newSess.formador_id);
-    const rUser = activeUser;
+    const rUser = users.find(u => u.id === newSess.reclutador_id) || activeUser;
     const trainingIdentifier =
       newSess.generation_code?.trim() || newSess.nombre_generacion?.trim() || `CAP-${sId}`;
 
@@ -810,6 +814,10 @@ export default function App() {
       id: existingIdx !== -1 ? attendance[existingIdx].id : `att-${Math.random().toString(36).substring(2, 11)}`,
       fecha_registro: new Date().toISOString()
     };
+    void persistAttendance(updatedRec).catch((error) => {
+      console.error('Error persisting attendance:', error);
+      alert(error instanceof Error ? error.message : 'No se pudo guardar la asistencia.');
+    });
 
     let prevStatus = 'Ninguno';
     if (existingIdx !== -1) {
@@ -872,6 +880,11 @@ export default function App() {
         registrado_por: activeUser ? activeUser.id : 'sistema',
         fecha_registro: new Date().toISOString()
       };
+    });
+    newRecords.forEach((record) => {
+      void persistAttendance(record).catch((error) => {
+        console.error('Error persisting bulk attendance:', error);
+      });
     });
 
     // Update attendance state
@@ -1025,6 +1038,10 @@ export default function App() {
       id: existingIdx !== -1 ? confirmations[existingIdx].id : `conf-${Math.random().toString(36).substring(2, 11)}`,
       fecha_registro: new Date().toISOString()
     };
+    void persistConfirmation(confirmationObj).catch((error) => {
+      console.error('Error persisting confirmation:', error);
+      alert(error instanceof Error ? error.message : 'No se pudo guardar el alta.');
+    });
 
     if (existingIdx !== -1) {
       setConfirmations(prev => {

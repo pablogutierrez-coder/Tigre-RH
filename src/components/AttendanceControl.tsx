@@ -259,6 +259,12 @@ export default function AttendanceControl({
     return { total, asistio, tardanza, falto, desistio, pendiente, marked, progressPercent };
   }, [filteredParts, attendanceMap, selectedDay]);
 
+  const attendanceWindowLabel = useMemo(() => {
+    const [hour, minute] = (session.hora_capacitacion || '09:00').split(':').map(Number);
+    const end = hour * 60 + minute + 30;
+    return `${session.hora_capacitacion || '09:00'} a ${String(Math.floor(end / 60) % 24).padStart(2, '0')}:${String(end % 60).padStart(2, '0')}`;
+  }, [session.hora_capacitacion]);
+
   // Check if modification is locked based on Role, Simulated Time and Reopens
   const isTimeLocked = useMemo(() => {
     if (!currentUser) return true;
@@ -275,8 +281,11 @@ export default function AttendanceControl({
       const min = simulatedTime.minute;
       const totalMinutes = hour * 60 + min;
 
-      const startMinutes = 9 * 60; // 09:00
-      const endMinutes = 9 * 60 + 30; // 09:30
+      const [startHour, startMinute] = (session.hora_capacitacion || '09:00')
+        .split(':')
+        .map(Number);
+      const startMinutes = startHour * 60 + startMinute;
+      const endMinutes = startMinutes + 30;
 
       const isWithinNormalWindow = totalMinutes >= startMinutes && totalMinutes <= endMinutes;
 
@@ -308,7 +317,7 @@ export default function AttendanceControl({
         if (currentUser.rol === 'Formador' && onAttemptLockedEdit) {
           onAttemptLockedEdit(session.nombre_generacion, session.campaña, day);
         }
-        alert('El horario de registro de asistencia finalizó a las 09:30. Para registrar o modificar asistencia, solicita autorización al administrador.');
+        alert(`El horario de registro de asistencia es de ${attendanceWindowLabel}. Para registrar o modificar fuera de ese horario, solicita autorizacion al administrador.`);
       }
       return;
     }
@@ -405,7 +414,7 @@ export default function AttendanceControl({
       if (currentUser.rol === 'Formador' && onAttemptLockedEdit) {
         onAttemptLockedEdit(session.nombre_generacion, session.campaña, selectedDay);
       }
-      alert('El horario de registro de asistencia finalizó a las 09:30. Para registrar o modificar asistencia, solicita autorización al administrador.');
+      alert(`El horario de registro de asistencia es de ${attendanceWindowLabel}. Para registrar o modificar fuera de ese horario, solicita autorizacion al administrador.`);
       return;
     }
     if (selectedParticipants.length === 0) {
@@ -486,7 +495,7 @@ export default function AttendanceControl({
             </h4>
             <p className="text-xs max-w-2xl leading-relaxed">
               {isTimeLocked
-                ? 'El horario de registro de asistencia finalizó a las 09:30. Para registrar o modificar asistencia, solicita autorización al administrador.'
+                ? `El horario de registro de asistencia es de ${attendanceWindowLabel}. Para registrar o modificar fuera de ese horario, solicita autorizacion al administrador.`
                 : 'Se encuentra dentro del horario permitido oficial para registrar o modificar la asistencia del día.'}
             </p>
 
