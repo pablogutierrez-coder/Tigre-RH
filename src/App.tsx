@@ -70,6 +70,11 @@ import {
   updatePlatformUser,
 } from './services/firebase/userAdminService';
 import { getBootstrapData } from './services/bootstrapService';
+import {
+  appendTrainingParticipants,
+  createTrainingBundle,
+  updateTraining,
+} from './services/trainingService';
 import { APP_NAME } from './constants/app';
 import loginBackgroundVideo from './assets/login-background.mp4';
 
@@ -578,6 +583,15 @@ export default function App() {
     });
 
     setAttendance(prev => [...prev, ...initialAttendanceRecords]);
+    void createTrainingBundle(
+      sessionObj,
+      surveyObj,
+      partsWithId,
+      initialAttendanceRecords,
+    ).catch((error) => {
+      console.error('Error persisting training:', error);
+      alert(error instanceof Error ? error.message : 'No se pudo guardar la capacitacion.');
+    });
 
     // Register automatic code generation audit log
     if (sessionObj.generation_code) {
@@ -767,6 +781,10 @@ export default function App() {
 
   // 2c. Update training session details (for Administrador edit)
   const handleUpdateSession = (sessionId: string, updatedFields: Partial<TrainingSession>) => {
+    void updateTraining(sessionId, updatedFields).catch((error) => {
+      console.error('Error updating training:', error);
+      alert(error instanceof Error ? error.message : 'No se pudo editar la capacitacion.');
+    });
     setSessions(prev => prev.map(s => {
       if (s.id === sessionId) {
         return {
@@ -1284,6 +1302,10 @@ export default function App() {
 
     setParticipants((current) => [...current, ...created]);
     setAttendance((current) => [...current, ...createdAttendance]);
+    void appendTrainingParticipants(sessionId, created, createdAttendance).catch((error) => {
+      console.error('Error appending participants:', error);
+      alert(error instanceof Error ? error.message : 'No se pudieron agregar los participantes.');
+    });
     addAuditLog(
       'Carga incremental de participantes',
       'Carga de participantes',

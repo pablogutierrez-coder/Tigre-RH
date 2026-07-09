@@ -8,6 +8,7 @@ import { authRoutes } from './routes/authRoutes.js';
 import { bootstrapRoutes } from './routes/bootstrapRoutes.js';
 import { publicSurveyRoutes } from './routes/publicSurveyRoutes.js';
 import { surveyEmailRoutes } from './routes/surveyEmailRoutes.js';
+import { trainingRoutes } from './routes/trainingRoutes.js';
 import { userRoutes } from './routes/userRoutes.js';
 
 const app = express();
@@ -74,6 +75,7 @@ app.use('/api/auth', authRoutes);
 app.use('/api/bootstrap', bootstrapRoutes);
 app.use('/api/public-surveys', publicSurveyRoutes);
 app.use('/api/survey-emails', surveyEmailRoutes);
+app.use('/api/trainings', trainingRoutes);
 app.use('/api/users', userRoutes);
 
 if (frontendDistPath) {
