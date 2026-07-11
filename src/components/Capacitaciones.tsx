@@ -428,15 +428,21 @@ export default function Capacitaciones({
     return { year: '2026', month: '01', day: '01' };
   };
 
-  // Dynamically calculate the generation_code for the selected campaign
-  const generationCode = useMemo(() => {
+  const buildTrainingCode = (
+    campaignName: string,
+    startDate: string,
+    excludeSessionId?: string,
+  ) => {
     try {
-      const prefix = getCampaignPrefix(campaña);
-      const { year, month, day } = parseDateParts(fechaInicio);
+      const prefix = getCampaignPrefix(campaignName);
+      const { year, month, day } = parseDateParts(startDate);
       const baseCode = `CAP-${prefix}${year}${day}${month}`;
 
       const sameDayTrainings = sessions.filter(
-        (s) => s.generation_code && s.generation_code.startsWith(baseCode)
+        (s) =>
+          s.id !== excludeSessionId &&
+          s.generation_code &&
+          s.generation_code.startsWith(baseCode)
       );
 
       const count = sameDayTrainings.length;
@@ -444,7 +450,25 @@ export default function Capacitaciones({
     } catch {
       return '';
     }
+  };
+
+  // Dynamically calculate the generation_code for the selected campaign
+  const generationCode = useMemo(() => {
+    return buildTrainingCode(campaña, fechaInicio);
   }, [campaña, fechaInicio, sessions]);
+
+  const editGenerationCode = useMemo(() => {
+    if (!editingSession) return '';
+    return buildTrainingCode(editCampaña, editFechaInicio, editingSession.id);
+  }, [editCampaña, editFechaInicio, editingSession, sessions]);
+
+  const editDisplayedCode = useMemo(() => {
+    if (!editingSession) return '';
+    const { year, month, day } = parseDateParts(editFechaInicio);
+    const expectedBaseCode = `CAP-${getCampaignPrefix(editCampaña)}${year}${day}${month}`;
+    const currentCode = getTrainingIdentifier(editingSession);
+    return currentCode.startsWith(expectedBaseCode) ? currentCode : editGenerationCode;
+  }, [editCampaña, editFechaInicio, editGenerationCode, editingSession]);
 
   // Set default formador
   React.useEffect(() => {
@@ -500,8 +524,10 @@ export default function Capacitaciones({
   const handleSaveEdit = () => {
     if (!editingSession) return;
     if (onUpdateSession) {
+      const nextTrainingIdentifier = editDisplayedCode;
       onUpdateSession(editingSession.id, {
         campaña: editCampaña,
+        nombre_generacion: nextTrainingIdentifier,
         fecha_inicio: editFechaInicio,
         fecha_fin: editFechaFin,
         hora_capacitacion: editHoraCapacitacion,
@@ -510,7 +536,8 @@ export default function Capacitaciones({
         formador_id: editFormadorId,
         reclutador_id: editReclutadorId,
         estado: editEstado,
-        observaciones: editObservaciones
+        observaciones: editObservaciones,
+        generation_code: nextTrainingIdentifier
       });
     }
     if (onAppendParticipants && validatedParticipants.length > 0) {
@@ -2051,7 +2078,7 @@ export default function Capacitaciones({
             <div className="bg-linear-to-r from-indigo-600 to-purple-600 px-6 py-4 text-white flex justify-between items-center">
               <div>
                 <h3 className="font-black text-base text-white">Editar Capacitación</h3>
-                <p className="text-white/80 text-xs font-mono">{getTrainingIdentifier(editingSession)}</p>
+                <p className="text-white/80 text-xs font-mono">{editDisplayedCode}</p>
               </div>
               <button
                 onClick={() => setEditingSession(null)}

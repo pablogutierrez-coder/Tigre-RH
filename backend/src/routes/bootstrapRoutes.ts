@@ -72,7 +72,9 @@ router.get('/', requireAuth, async (req: AuthenticatedRequest, res: Response) =>
         user.rol === 'Administrador' || user.rol === 'Analista'
           ? allUsers
           : allUsers.filter(
-              (profile) => profile.id === user.uid || profile.rol === 'Coordinador',
+              (profile) =>
+                profile.id === user.uid ||
+                ['Coordinador', 'Formador', 'Reclutador'].includes(String(profile.rol)),
             ),
       sessions,
       participants,
