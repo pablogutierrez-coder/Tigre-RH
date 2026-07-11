@@ -801,7 +801,19 @@ export default function App() {
 
   // 2c. Update training session details (for Administrador edit)
   const handleUpdateSession = (sessionId: string, updatedFields: Partial<TrainingSession>) => {
-    void updateTraining(sessionId, updatedFields).catch((error) => {
+    const formador = updatedFields.formador_id
+      ? users.find(u => u.id === updatedFields.formador_id)
+      : undefined;
+    const reclutador = updatedFields.reclutador_id
+      ? users.find(u => u.id === updatedFields.reclutador_id)
+      : undefined;
+    const normalizedFields: Partial<TrainingSession> = {
+      ...updatedFields,
+      ...(formador ? { formador_nombre: formador.nombre } : {}),
+      ...(reclutador ? { reclutador_nombre: reclutador.nombre } : {}),
+    };
+
+    void updateTraining(sessionId, normalizedFields).catch((error) => {
       console.error('Error updating training:', error);
       alert(error instanceof Error ? error.message : 'No se pudo editar la capacitacion.');
     });
@@ -809,7 +821,7 @@ export default function App() {
       if (s.id === sessionId) {
         return {
           ...s,
-          ...updatedFields
+          ...normalizedFields
         };
       }
       return s;
@@ -943,7 +955,9 @@ export default function App() {
     pId: string, 
     outcome: 'Marcar' | 'Apto' | 'No apto', 
     comment: string, 
-    reason: string
+    reason: string,
+    evaluationScore?: number,
+    evaluationObservation = ''
   ) => {
     const part = participants.find(p => p.id === pId);
     if (!part) return;
@@ -953,6 +967,8 @@ export default function App() {
       resultado_formacion: outcome,
       comentario_aptitud: outcome === 'Apto' ? comment : '',
       motivo_no_apt: outcome === 'No apto' ? reason : '',
+      evaluacion_nota: evaluationScore ?? null,
+      observacion_evaluacion: evaluationObservation,
       estado_final: outcome === 'Apto' ? 'Pendiente de alta' : (outcome === 'No apto' ? 'Desistió' : part.estado_final)
     };
     void persistParticipant(nextParticipant).catch((error) => {

@@ -1931,19 +1931,19 @@ export default function Capacitaciones({
                           <table className="w-full text-left text-[11px] text-slate-600 border-collapse min-w-[3200px]">
                             <thead className="bg-slate-900 text-white uppercase text-[9px] tracking-wider sticky top-0 font-bold z-10">
                               <tr>
-                                <th className="p-3 bg-slate-900 sticky left-0 z-20">Reclutador</th>
-                                <th className="p-3">Coordinador</th>
-                                <th className="p-3">Ciudad</th>
-                                <th className="p-3">DNI</th>
-                                <th className="p-3">Nombre Completo</th>
-                                <th className="p-3">Teléfono</th>
-                                <th className="p-3">Puesto</th>
-                                <th className="p-3">Sueldo</th>
-                                <th className="p-3">Pruebas Psicológicas</th>
-                                <th className="p-3 text-center">Fecha Entrevista SUP</th>
-                                <th className="p-3 text-center">Resultado Entrevista SUP</th>
-                                <th className="p-3 text-center">Fecha Capacitación</th>
-                                <th className="p-3">Formador</th>
+                                <th className="p-3 bg-slate-900 text-white sticky left-0 z-20 whitespace-nowrap">Reclutador</th>
+                                <th className="p-3 bg-slate-900 text-white whitespace-nowrap">Coordinador</th>
+                                <th className="p-3 bg-slate-900 text-white whitespace-nowrap">Ciudad</th>
+                                <th className="p-3 bg-slate-900 text-white whitespace-nowrap">DNI</th>
+                                <th className="p-3 bg-slate-900 text-white whitespace-nowrap">Nombre Completo</th>
+                                <th className="p-3 bg-slate-900 text-white whitespace-nowrap">Teléfono</th>
+                                <th className="p-3 bg-slate-900 text-white whitespace-nowrap">Puesto</th>
+                                <th className="p-3 bg-slate-900 text-white whitespace-nowrap">Sueldo</th>
+                                <th className="p-3 bg-slate-900 text-white whitespace-nowrap">Pruebas Psicológicas</th>
+                                <th className="p-3 bg-slate-900 text-white text-center whitespace-nowrap">Fecha Entrevista SUP</th>
+                                <th className="p-3 bg-slate-900 text-white text-center whitespace-nowrap">Resultado Entrevista SUP</th>
+                                <th className="p-3 bg-slate-900 text-white text-center whitespace-nowrap">Fecha Capacitación</th>
+                                <th className="p-3 bg-slate-900 text-white whitespace-nowrap">Formador</th>
                                 
                                 {/* Operational Attendance columns */}
                                 {[1, 2, 3, 4, 5].map(day => (
@@ -2174,15 +2174,12 @@ export default function Capacitaciones({
 
                 <div>
                   <label className="block text-xs font-semibold text-slate-600 mb-1">Reclutador Asignado *</label>
-                  <select
-                    value={editReclutadorId}
-                    onChange={(e) => setEditReclutadorId(e.target.value)}
-                    className="w-full text-sm bg-slate-50 text-slate-700 rounded-xl border border-slate-200 p-2.5 focus:ring-2 focus:ring-indigo-500 outline-hidden"
-                  >
-                    {recruiters.map(r => (
-                      <option key={r.id} value={r.id}>{r.nombre}</option>
-                    ))}
-                  </select>
+                  <input
+                    type="text"
+                    disabled
+                    value={recruiters.find(r => r.id === editReclutadorId)?.nombre || editingSession?.reclutador_nombre || 'Sin reclutador'}
+                    className="w-full text-sm bg-slate-100 text-slate-500 rounded-xl border border-slate-200 p-2.5 cursor-not-allowed outline-hidden"
+                  />
                 </div>
 
                 <div className="md:col-span-2">

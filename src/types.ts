@@ -91,6 +91,8 @@ export interface Participant {
   resultado_formacion?: 'Marcar' | 'Apto' | 'No apto';
   comentario_aptitud?: string;
   motivo_no_apt?: string;
+  evaluacion_nota?: number | null;
+  observacion_evaluacion?: string;
 }
 
 export type AttendanceStatus = 'Seleccionar' | 'Asistió' | 'Tardanza' | 'Faltó' | 'Desistió' | 'Pendiente';

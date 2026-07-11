@@ -41,7 +41,14 @@ interface AttendanceControlProps {
   onSaveAttendance: (record: Omit<AttendanceRecord, 'id' | 'fecha_registro'>) => void;
   onBulkAttendance: (sessionId: string, dia: number, status: AttendanceStatus, participantIds: string[], motivo_desercion?: string, obs?: string) => void;
   onRequestReopen: (newRequest: Omit<AttendanceReopenRequest, 'id' | 'formador_id' | 'formador_nombre' | 'estado' | 'fecha_solicitud'>) => void;
-  onUpdateParticipantOutcome?: (pId: string, outcome: 'Marcar' | 'Apto' | 'No apto', comment: string, reason: string) => void;
+  onUpdateParticipantOutcome?: (
+    pId: string,
+    outcome: 'Marcar' | 'Apto' | 'No apto',
+    comment: string,
+    reason: string,
+    evaluationScore?: number,
+    evaluationObservation?: string,
+  ) => void;
   onGoBack: () => void;
   onAttemptLockedEdit?: (sessionName: string, campaign: string, day: number) => void;
 }
@@ -152,6 +159,45 @@ export default function AttendanceControl({
     }
     setShowOutcomeModal(false);
     setOutcomeParticipant(null);
+  };
+
+  const canEditEvaluation = (part: Participant) => {
+    const isTrainer = currentUser.rol === 'Formador';
+    const isAssignedTrainer = isTrainer && session.formador_id === currentUser.id;
+    return currentUser.rol === 'Administrador' || (isAssignedTrainer && selectedDay === 5 && part.estado_final !== 'Alta confirmada');
+  };
+
+  const saveEvaluation = (part: Participant, rawScore: string, observation: string) => {
+    if (!onUpdateParticipantOutcome || !canEditEvaluation(part)) return;
+    const trimmedScore = rawScore.trim();
+    const cleanObservation = observation.trim();
+
+    if (!trimmedScore) {
+      onUpdateParticipantOutcome(part.id, 'Marcar', '', '', undefined, cleanObservation);
+      return;
+    }
+
+    const score = Number(trimmedScore);
+    if (!Number.isFinite(score) || score < 0 || score > 20) {
+      alert('La nota de evaluación debe estar entre 0 y 20.');
+      return;
+    }
+
+    const roundedScore = Number(score.toFixed(2));
+    const isApproved = roundedScore >= 16;
+    const defaultObservation = isApproved
+      ? `Evaluación aprobada con nota ${roundedScore}.`
+      : `Evaluación desaprobada con nota ${roundedScore}.`;
+    const finalObservation = cleanObservation || defaultObservation;
+
+    onUpdateParticipantOutcome(
+      part.id,
+      isApproved ? 'Apto' : 'No apto',
+      isApproved ? finalObservation : '',
+      isApproved ? '' : finalObservation,
+      roundedScore,
+      finalObservation,
+    );
   };
 
   // Map confirmations by participant_id (ignoring deleted/Eliminada ones)
@@ -854,6 +900,7 @@ export default function AttendanceControl({
                       Día {dayNum}
                     </th>
                   ))}
+                  <th className="p-4 text-center">Evaluación</th>
                   <th className="p-4 text-center">Resultado formación</th>
                   <th className="p-4">Estado Final</th>
                   <th className="p-4">Deserción / Obs</th>
@@ -970,6 +1017,51 @@ export default function AttendanceControl({
                           </td>
                         );
                       })}
+
+                      {/* Evaluation score cell */}
+                      <td className="p-2 text-center bg-slate-50/60 min-w-[190px]">
+                        {(() => {
+                          const editable = canEditEvaluation(part);
+                          const currentScore = part.evaluacion_nota ?? '';
+                          const currentObservation = part.observacion_evaluacion || '';
+                          const scoreNumber = typeof currentScore === 'number' ? currentScore : Number(currentScore);
+                          const scored = currentScore !== '' && Number.isFinite(scoreNumber);
+                          const approved = scored && scoreNumber >= 16;
+                          return (
+                            <div className="flex flex-col items-center gap-1.5">
+                              <input
+                                type="number"
+                                min="0"
+                                max="20"
+                                step="0.01"
+                                defaultValue={currentScore}
+                                disabled={!editable}
+                                onBlur={(event) => saveEvaluation(part, event.currentTarget.value, part.observacion_evaluacion || '')}
+                                className={`w-20 text-center text-xs font-black rounded-lg border px-2 py-1 outline-hidden ${
+                                  !editable ? 'bg-slate-100 text-slate-400 border-slate-200' :
+                                  approved ? 'bg-emerald-50 text-emerald-700 border-emerald-200 focus:ring-1 focus:ring-emerald-500' :
+                                  scored ? 'bg-rose-50 text-rose-700 border-rose-200 focus:ring-1 focus:ring-rose-500' :
+                                  'bg-white text-slate-700 border-slate-200 focus:ring-1 focus:ring-indigo-500'
+                                }`}
+                                placeholder="0-20"
+                              />
+                              <textarea
+                                defaultValue={currentObservation}
+                                disabled={!editable}
+                                rows={2}
+                                onBlur={(event) => saveEvaluation(part, String(part.evaluacion_nota ?? ''), event.currentTarget.value)}
+                                className="w-36 resize-none rounded-lg border border-slate-200 bg-white px-2 py-1 text-[10px] text-slate-600 outline-hidden focus:ring-1 focus:ring-indigo-500 disabled:bg-slate-100 disabled:text-slate-400"
+                                placeholder="Observación"
+                              />
+                              {scored && (
+                                <span className={`text-[9px] font-black uppercase ${approved ? 'text-emerald-600' : 'text-rose-600'}`}>
+                                  {approved ? 'Aprobado' : 'Desaprobado'}
+                                </span>
+                              )}
+                            </div>
+                          );
+                        })()}
+                      </td>
 
                       {/* Resultado formación cell */}
                       <td className="p-2 text-center bg-indigo-50/5">
