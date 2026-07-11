@@ -39,7 +39,16 @@ interface AttendanceControlProps {
   currentUser: AppUser;
   simulatedTime: { hour: number; minute: number; isSimulated: boolean };
   onSaveAttendance: (record: Omit<AttendanceRecord, 'id' | 'fecha_registro'>) => void;
-  onBulkAttendance: (sessionId: string, dia: number, status: AttendanceStatus, participantIds: string[], motivo_desercion?: string, obs?: string) => void;
+  onBulkAttendance: (
+    sessionId: string,
+    dia: number,
+    status: AttendanceStatus,
+    participantIds: string[],
+    motivo_desercion?: string,
+    obs?: string,
+    evidencia_nombre?: string,
+    evidencia_imagen?: string,
+  ) => void;
   onRequestReopen: (newRequest: Omit<AttendanceReopenRequest, 'id' | 'formador_id' | 'formador_nombre' | 'estado' | 'fecha_solicitud'>) => void;
   onUpdateParticipantOutcome?: (
     pId: string,
@@ -100,6 +109,9 @@ export default function AttendanceControl({
   const [modalParticipant, setModalParticipant] = useState<Participant | null>(null);
   const [desistióMotivo, setDesistióMotivo] = useState(MOTIVOS_DESERCION[0]);
   const [desistióComentario, setDesistióComentario] = useState('');
+  const [desistióStatus, setDesistióStatus] = useState<Extract<AttendanceStatus, 'Desistió' | 'Baja'>>('Desistió');
+  const [desistióEvidenceName, setDesistióEvidenceName] = useState('');
+  const [desistióEvidenceImage, setDesistióEvidenceImage] = useState('');
 
   // Single Participant Observation Modal (Faltó/Tardanza)
   const [showObservationModal, setShowObservationModal] = useState(false);
@@ -117,6 +129,8 @@ export default function AttendanceControl({
   const [bulkStatus, setBulkStatus] = useState<AttendanceStatus>('Asistió');
   const [bulkMotivoDesercion, setBulkMotivoDesercion] = useState(MOTIVOS_DESERCION[0]);
   const [bulkComentario, setBulkComentario] = useState('');
+  const [bulkEvidenceName, setBulkEvidenceName] = useState('');
+  const [bulkEvidenceImage, setBulkEvidenceImage] = useState('');
 
   // Save feedback state (psychological peace of mind)
   const [showSaveFeedback, setShowSaveFeedback] = useState(false);
@@ -240,7 +254,7 @@ export default function AttendanceControl({
 
       // 3. Dynamic Calculation of Final Status for filtering
       const rowAttendance = [1, 2, 3, 4, 5].map(d => attendanceMap[`${p.id}_${d}`]);
-      const hasDesistió = rowAttendance.some(a => a?.estado_asistencia === 'Desistió');
+      const hasDesistió = rowAttendance.some(a => a?.estado_asistencia === 'Desistió' || a?.estado_asistencia === 'Baja');
       const d1 = attendanceMap[`${p.id}_1`]?.estado_asistencia;
 
       let computedStatus = p.estado_final;
@@ -295,7 +309,7 @@ export default function AttendanceControl({
       if (status === 'Asistió') asistio++;
       else if (status === 'Tardanza') tardanza++;
       else if (status === 'Faltó') falto++;
-      else if (status === 'Desistió') desistio++;
+      else if (status === 'Desistió' || status === 'Baja') desistio++;
       else pendiente++;
     });
 
@@ -350,6 +364,27 @@ export default function AttendanceControl({
     return true;
   }, [currentUser, simulatedTime, reopens, session.id, selectedDay]);
 
+  const readEvidenceImage = (
+    file: File | undefined,
+    onReady: (name: string, image: string) => void,
+  ) => {
+    if (!file) {
+      onReady('', '');
+      return;
+    }
+    if (!file.type.startsWith('image/')) {
+      alert('Solo se permiten archivos de imagen.');
+      return;
+    }
+    if (file.size > 900 * 1024) {
+      alert('La imagen debe pesar menos de 900 KB.');
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => onReady(file.name, String(reader.result || ''));
+    reader.readAsDataURL(file);
+  };
+
   // Handle single attendance click change
   const handleStatusChange = (participant: Participant, day: number, status: AttendanceStatus) => {
     if (isTimeLocked) {
@@ -368,11 +403,14 @@ export default function AttendanceControl({
       return;
     }
 
-    if (status === 'Desistió') {
+    if (status === 'Desistió' || status === 'Baja') {
       // Open Deserción details modal
       setModalParticipant(participant);
+      setDesistióStatus(status);
       setDesistióMotivo(MOTIVOS_DESERCION[0]);
       setDesistióComentario('');
+      setDesistióEvidenceName('');
+      setDesistióEvidenceImage('');
       setShowDesistióModal(true);
     } else if (status === 'Faltó' || status === 'Tardanza') {
       // Open Novedad Observation capture modal
@@ -413,13 +451,17 @@ export default function AttendanceControl({
       training_session_id: session.id,
       dia: selectedDay,
       fecha: getDayDate(selectedDay),
-      estado_asistencia: 'Desistió',
+      estado_asistencia: desistióStatus,
       motivo_desercion: desistióMotivo,
       observacion: desistióComentario,
+      evidencia_nombre: desistióEvidenceName,
+      evidencia_imagen: desistióEvidenceImage,
       registrado_por: currentUser.id
     });
     setShowDesistióModal(false);
     setModalParticipant(null);
+    setDesistióEvidenceName('');
+    setDesistióEvidenceImage('');
   };
 
   // Submit Reopen Request
@@ -470,6 +512,8 @@ export default function AttendanceControl({
 
     setBulkMotivoDesercion(MOTIVOS_DESERCION[0]);
     setBulkComentario('');
+    setBulkEvidenceName('');
+    setBulkEvidenceImage('');
     setShowBulkDialogModal(true);
   };
 
@@ -479,14 +523,18 @@ export default function AttendanceControl({
       selectedDay,
       bulkStatus,
       selectedParticipants,
-      bulkStatus === 'Desistió' ? bulkMotivoDesercion : undefined,
-      bulkComentario || undefined
+      bulkStatus === 'Desistió' || bulkStatus === 'Baja' ? bulkMotivoDesercion : undefined,
+      bulkComentario || undefined,
+      bulkEvidenceName || undefined,
+      bulkEvidenceImage || undefined
     );
 
     // Reset selection & options
     setSelectedParticipants([]);
     setShowBulkDialogModal(false);
     setBulkComentario('');
+    setBulkEvidenceName('');
+    setBulkEvidenceImage('');
   };
 
   // Fetch current day request status
@@ -756,7 +804,8 @@ export default function AttendanceControl({
                   <option value="Asistió">Asistió</option>
                   <option value="Tardanza">Tardanza</option>
                   <option value="Faltó">Faltó</option>
-                  <option value="Desistió">Desistió</option>
+                <option value="Desistió">Desistió</option>
+                <option value="Baja">Baja</option>
                 </select>
               </div>
 
@@ -860,7 +909,8 @@ export default function AttendanceControl({
                 <option value="Asistió">Marcar Asistió</option>
                 <option value="Tardanza">Marcar Tardanza</option>
                 <option value="Faltó">Marcar Faltó</option>
-                <option value="Desistió">Marcar Desistió (Baja)</option>
+                <option value="Desistió">Marcar Desistió</option>
+                <option value="Baja">Marcar Baja</option>
               </select>
 
               <button
@@ -912,7 +962,7 @@ export default function AttendanceControl({
 
                   // Calculate reactive indicators for row
                   const rowAttendance = [1, 2, 3, 4, 5].map(d => attendanceMap[`${part.id}_${d}`]);
-                  const hasDesistió = rowAttendance.some(a => a?.estado_asistencia === 'Desistió');
+                  const hasDesistió = rowAttendance.some(a => a?.estado_asistencia === 'Desistió' || a?.estado_asistencia === 'Baja');
                   const d1 = attendanceMap[`${part.id}_1`]?.estado_asistencia;
 
                   // Dynamic final status calculations
@@ -927,7 +977,7 @@ export default function AttendanceControl({
                     computedStatus = part.estado_final === 'Alta confirmada' ? 'Alta confirmada' : 'Pendiente de alta';
                   }
 
-                  const activeDesistioRecord = rowAttendance.find(a => a?.estado_asistencia === 'Desistió');
+                  const activeDesistioRecord = rowAttendance.find(a => a?.estado_asistencia === 'Desistió' || a?.estado_asistencia === 'Baja');
 
                   return (
                     <tr key={part.id} className={`hover:bg-slate-50/40 transition-colors ${isSelected ? 'bg-indigo-50/20' : ''}`}>
@@ -968,11 +1018,13 @@ export default function AttendanceControl({
                                   record.estado_asistencia === 'Asistió' ? 'bg-emerald-50 text-emerald-700' :
                                   record.estado_asistencia === 'Tardanza' ? 'bg-amber-50 text-amber-700' :
                                   record.estado_asistencia === 'Faltó' ? 'bg-rose-50 text-rose-700' :
+                                  record.estado_asistencia === 'Baja' ? 'bg-orange-50 text-orange-800' :
                                   'bg-red-50 text-red-800'
                                 }`}>
                                   {record.estado_asistencia === 'Asistió' ? 'Asistió' :
                                    record.estado_asistencia === 'Tardanza' ? 'Tarde' :
-                                   record.estado_asistencia === 'Faltó' ? 'Faltó' : 'Desistió'}
+                                   record.estado_asistencia === 'Faltó' ? 'Faltó' :
+                                   record.estado_asistencia === 'Baja' ? 'Baja' : 'Desistió'}
                                 </span>
                               ) : (
                                 <span className="text-slate-300">-</span>
@@ -986,6 +1038,7 @@ export default function AttendanceControl({
                                       record.estado_asistencia === 'Asistió' ? 'bg-emerald-100 text-emerald-800' :
                                       record.estado_asistencia === 'Tardanza' ? 'bg-amber-100 text-amber-800' :
                                       record.estado_asistencia === 'Faltó' ? 'bg-rose-100 text-rose-800' :
+                                      record.estado_asistencia === 'Baja' ? 'bg-orange-100 text-orange-800' :
                                       'bg-red-100 text-red-900'
                                     }`}>
                                       {record.estado_asistencia}
@@ -1001,6 +1054,7 @@ export default function AttendanceControl({
                                       record?.estado_asistencia === 'Asistió' ? 'bg-emerald-50 border-emerald-200 text-emerald-700' :
                                       record?.estado_asistencia === 'Tardanza' ? 'bg-amber-50 border-amber-200 text-amber-700' :
                                       record?.estado_asistencia === 'Faltó' ? 'bg-rose-50 border-rose-200 text-rose-700' :
+                                      record?.estado_asistencia === 'Baja' ? 'bg-orange-50 border-orange-200 text-orange-800' :
                                       record?.estado_asistencia === 'Desistió' ? 'bg-red-50 border-red-200 text-red-800' :
                                       'bg-white border-slate-200 text-slate-500'
                                     }`}
@@ -1010,6 +1064,7 @@ export default function AttendanceControl({
                                     <option value="Tardanza">Tardanza</option>
                                     <option value="Faltó">Faltó</option>
                                     <option value="Desistió">Desistió</option>
+                                    <option value="Baja">Baja</option>
                                   </select>
                                 )}
                               </div>
@@ -1149,6 +1204,16 @@ export default function AttendanceControl({
                           <div className="text-[10px]" title={activeDesistioRecord.observacion}>
                             <p className="font-semibold text-rose-600 truncate">{activeDesistioRecord.motivo_desercion}</p>
                             <p className="text-slate-400 truncate italic">{activeDesistioRecord.observacion}</p>
+                            {activeDesistioRecord.evidencia_imagen && (
+                              <a
+                                href={activeDesistioRecord.evidencia_imagen}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="mt-1 inline-flex text-[9px] font-bold text-indigo-600 underline"
+                              >
+                                Ver imagen
+                              </a>
+                            )}
                           </div>
                         ) : (
                           <span className="text-slate-300 italic">Sin novedades</span>
@@ -1169,16 +1234,16 @@ export default function AttendanceControl({
           <div className="bg-white/90 backdrop-blur-md rounded-2xl p-6 max-w-md w-full border border-white/40 shadow-xl space-y-4 animate-in fade-in-50 zoom-in-95 animate-duration-200">
             <div className="flex items-center gap-2.5 text-rose-600 border-b border-slate-100 pb-2">
               <AlertTriangle className="w-5 h-5 animate-bounce" />
-              <h3 className="font-bold text-base">Registrar Deserción (Baja de FDR)</h3>
+              <h3 className="font-bold text-base">Registrar {desistióStatus === 'Baja' ? 'Baja' : 'Deserción'} de FDR</h3>
             </div>
 
             <p className="text-slate-600 text-xs leading-relaxed">
-              Estás marcando al participante <strong>{modalParticipant.nombres} {modalParticipant.apellidos}</strong> como desistido en el Día {selectedDay}. Este cambio es irreversible sin reapertura. Indica el motivo:
+              Estás marcando al participante <strong>{modalParticipant.nombres} {modalParticipant.apellidos}</strong> como <strong>{desistióStatus}</strong> en el Día {selectedDay}. Este cambio es irreversible sin reapertura. Indica el motivo:
             </p>
 
             <div className="space-y-3 text-xs">
               <div>
-                <label className="block font-bold text-slate-600 mb-1">Motivo de Deserción *</label>
+                <label className="block font-bold text-slate-600 mb-1">Motivo de {desistióStatus === 'Baja' ? 'Baja' : 'Deserción'} *</label>
                 <select
                   value={desistióMotivo}
                   onChange={(e) => setDesistióMotivo(e.target.value)}
@@ -1191,7 +1256,7 @@ export default function AttendanceControl({
               </div>
 
               <div>
-                <label className="block font-bold text-slate-600 mb-1">Observaciones / Comentario de Baja *</label>
+                <label className="block font-bold text-slate-600 mb-1">Observaciones / Comentario de {desistióStatus === 'Baja' ? 'Baja' : 'Deserción'} *</label>
                 <textarea
                   value={desistióComentario}
                   onChange={(e) => setDesistióComentario(e.target.value)}
@@ -1200,6 +1265,29 @@ export default function AttendanceControl({
                   className="w-full bg-slate-50 border rounded-xl p-2.5 outline-hidden focus:ring-1 focus:ring-rose-500"
                 />
               </div>
+
+              <div>
+                <label className="block font-bold text-slate-600 mb-1">Imagen de evidencia (opcional)</label>
+                <input
+                  type="file"
+                  accept="image/*"
+                  onChange={(event) =>
+                    readEvidenceImage(event.currentTarget.files?.[0], (name, image) => {
+                      setDesistióEvidenceName(name);
+                      setDesistióEvidenceImage(image);
+                    })
+                  }
+                  className="w-full text-xs bg-slate-50 border rounded-xl p-2.5 text-slate-600"
+                />
+                {desistióEvidenceName && (
+                  <div className="mt-2 flex items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 p-2">
+                    {desistióEvidenceImage && (
+                      <img src={desistióEvidenceImage} alt="Evidencia de baja" className="h-12 w-12 rounded-lg object-cover border border-slate-200" />
+                    )}
+                    <span className="text-[10px] font-semibold text-slate-600 truncate">{desistióEvidenceName}</span>
+                  </div>
+                )}
+              </div>
             </div>
 
             <div className="flex justify-end gap-3 pt-3">
@@ -1207,6 +1295,8 @@ export default function AttendanceControl({
                 onClick={() => {
                   setShowDesistióModal(false);
                   setModalParticipant(null);
+                  setDesistióEvidenceName('');
+                  setDesistióEvidenceImage('');
                 }}
                 className="bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold text-xs px-4 py-2 rounded-xl"
               >
@@ -1217,7 +1307,7 @@ export default function AttendanceControl({
                 disabled={!desistióComentario.trim()}
                 className="bg-rose-600 hover:bg-rose-700 disabled:opacity-50 text-white font-bold text-xs px-4 py-2 rounded-xl"
               >
-                Confirmar Baja
+                Confirmar {desistióStatus === 'Baja' ? 'Baja' : 'Deserción'}
               </button>
             </div>
           </div>
@@ -1378,9 +1468,9 @@ export default function AttendanceControl({
             </p>
 
             <div className="space-y-3 text-xs">
-              {bulkStatus === 'Desistió' && (
+              {(bulkStatus === 'Desistió' || bulkStatus === 'Baja') && (
                 <div>
-                  <label className="block font-bold text-slate-600 mb-1">Motivo de Deserción Masiva *</label>
+                  <label className="block font-bold text-slate-600 mb-1">Motivo de {bulkStatus === 'Baja' ? 'Baja' : 'Deserción'} Masiva *</label>
                   <select
                     value={bulkMotivoDesercion}
                     onChange={(e) => setBulkMotivoDesercion(e.target.value)}
@@ -1395,22 +1485,49 @@ export default function AttendanceControl({
 
               <div>
                 <label className="block font-bold text-slate-600 mb-1">
-                  Observación / Novedad {bulkStatus === 'Desistió' || bulkStatus === 'Faltó' ? '(Obligatorio) *' : '(Opcional)'}
+                  Observación / Novedad {bulkStatus === 'Desistió' || bulkStatus === 'Baja' || bulkStatus === 'Faltó' ? '(Obligatorio) *' : '(Opcional)'}
                 </label>
                 <textarea
                   value={bulkComentario}
                   onChange={(e) => setBulkComentario(e.target.value)}
-                  placeholder={bulkStatus === 'Desistió' || bulkStatus === 'Faltó' ? 'Escribe la justificación o comentario para este grupo...' : 'Ingresa comentarios o novedades si aplica...'}
+                  placeholder={bulkStatus === 'Desistió' || bulkStatus === 'Baja' || bulkStatus === 'Faltó' ? 'Escribe la justificación o comentario para este grupo...' : 'Ingresa comentarios o novedades si aplica...'}
                   rows={3}
                   className="w-full bg-slate-50 border rounded-xl p-2.5 outline-hidden focus:ring-1 focus:ring-indigo-500 text-xs text-slate-800"
                 />
               </div>
+
+              {(bulkStatus === 'Desistió' || bulkStatus === 'Baja') && (
+                <div>
+                  <label className="block font-bold text-slate-600 mb-1">Imagen de evidencia masiva (opcional)</label>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    onChange={(event) =>
+                      readEvidenceImage(event.currentTarget.files?.[0], (name, image) => {
+                        setBulkEvidenceName(name);
+                        setBulkEvidenceImage(image);
+                      })
+                    }
+                    className="w-full text-xs bg-slate-50 border rounded-xl p-2.5 text-slate-600"
+                  />
+                  {bulkEvidenceName && (
+                    <div className="mt-2 flex items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 p-2">
+                      {bulkEvidenceImage && (
+                        <img src={bulkEvidenceImage} alt="Evidencia masiva" className="h-12 w-12 rounded-lg object-cover border border-slate-200" />
+                      )}
+                      <span className="text-[10px] font-semibold text-slate-600 truncate">{bulkEvidenceName}</span>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
 
             <div className="flex justify-end gap-3 pt-3">
               <button
                 onClick={() => {
                   setShowBulkDialogModal(false);
+                  setBulkEvidenceName('');
+                  setBulkEvidenceImage('');
                 }}
                 className="bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold text-xs px-4 py-2 rounded-xl cursor-pointer"
               >
@@ -1418,7 +1535,7 @@ export default function AttendanceControl({
               </button>
               <button
                 onClick={handleConfirmBulkApply}
-                disabled={(bulkStatus === 'Desistió' || bulkStatus === 'Faltó') && !bulkComentario.trim()}
+                disabled={(bulkStatus === 'Desistió' || bulkStatus === 'Baja' || bulkStatus === 'Faltó') && !bulkComentario.trim()}
                 className="bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white font-bold text-xs px-4 py-2 rounded-xl cursor-pointer"
               >
                 Confirmar Marcado Masivo

@@ -95,7 +95,7 @@ export interface Participant {
   observacion_evaluacion?: string;
 }
 
-export type AttendanceStatus = 'Seleccionar' | 'Asistió' | 'Tardanza' | 'Faltó' | 'Desistió' | 'Pendiente';
+export type AttendanceStatus = 'Seleccionar' | 'Asistió' | 'Tardanza' | 'Faltó' | 'Desistió' | 'Baja' | 'Pendiente';
 
 export interface AttendanceRecord {
   id: string;
@@ -107,6 +107,8 @@ export interface AttendanceRecord {
   minutos_tardanza?: number; // Optional
   motivo_desercion?: string; // Optional (if Desistió)
   observacion?: string;
+  evidencia_nombre?: string;
+  evidencia_imagen?: string;
   registrado_por: string; // User ID
   fecha_registro: string;
 }

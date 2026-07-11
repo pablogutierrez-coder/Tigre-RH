@@ -167,7 +167,7 @@ export default function Capacitaciones({
     // Condition 1: Asistencia completa
     const checkAttendanceDay = (p: Participant, day: number) => {
       const pAtts = attendance.filter(a => a.participant_id === p.id && a.training_session_id === sessionId);
-      const desistedDays = pAtts.filter(a => a.estado_asistencia === 'Desistió').map(a => a.dia);
+      const desistedDays = pAtts.filter(a => a.estado_asistencia === 'Desistió' || a.estado_asistencia === 'Baja').map(a => a.dia);
       if (desistedDays.some(d => d < day) || p.estado_final === 'Desistió') {
         return true; // excused
       }
@@ -177,7 +177,7 @@ export default function Capacitaciones({
       if (!status || status === 'Seleccionar' || status === 'Pendiente' || (status as string) === 'Marcar' || (status as string) === '') {
         return false;
       }
-      return ['Asistió', 'Faltó', 'Tardanza', 'Desistió'].includes(status);
+      return ['Asistió', 'Faltó', 'Tardanza', 'Desistió', 'Baja'].includes(status);
     };
 
     const isAttendanceComplete = sessionParts.length > 0 && sessionParts.every(p => {
@@ -258,13 +258,13 @@ export default function Capacitaciones({
 
     const checkAttendanceDay = (p: Participant, day: number) => {
       const pAtts = attendance.filter(a => a.participant_id === p.id && a.training_session_id === session.id);
-      const desistedDays = pAtts.filter(a => a.estado_asistencia === 'Desistió').map(a => a.dia);
+      const desistedDays = pAtts.filter(a => a.estado_asistencia === 'Desistió' || a.estado_asistencia === 'Baja').map(a => a.dia);
       if (desistedDays.some(d => d < day) || p.estado_final === 'Desistió') return true;
       const record = pAtts.find(a => a.dia === day);
       if (!record) return false;
       const status = record.estado_asistencia;
       if (!status || status === 'Seleccionar' || status === 'Pendiente' || (status as string) === 'Marcar' || (status as string) === '') return false;
-      return ['Asistió', 'Faltó', 'Tardanza', 'Desistió'].includes(status);
+      return ['Asistió', 'Faltó', 'Tardanza', 'Desistió', 'Baja'].includes(status);
     };
 
     const isAttendanceComplete = sParts.length > 0 && sParts.every(p => [1, 2, 3, 4, 5].every(d => checkAttendanceDay(p, d)));
@@ -886,6 +886,7 @@ export default function Capacitaciones({
       if (v === 'T' || v === 'TARDANZA') return 'Tardanza';
       if (v === 'F' || v === 'FALTÓ' || v === 'FALTO') return 'Faltó';
       if (v === 'D' || v === 'DESISTIÓ' || v === 'DESISTIO') return 'Desistió';
+      if (v === 'B' || v === 'BAJA') return 'Baja';
       if (v === 'R' || v === 'RETIRO' || v === 'RETIRADO') {
         errorsList.push(`Fila ${fileRowNumber} - Día ${dayNum}: Se interpretó "R" como "Desistió / Retiro". Verifique o edite en la lista.`);
         return 'Desistió';
@@ -2009,6 +2010,7 @@ export default function Capacitaciones({
                                             status === 'Asistió' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' :
                                             status === 'Tardanza' ? 'bg-amber-50 text-amber-700 border-amber-200' :
                                             status === 'Faltó' ? 'bg-rose-50 text-rose-700 border-rose-200' :
+                                            status === 'Baja' ? 'bg-orange-50 text-orange-800 border-orange-200' :
                                             status === 'Desistió' ? 'bg-slate-100 text-slate-700 border-slate-300' :
                                             'bg-slate-100 text-slate-600 border-slate-200'
                                           }`}>

@@ -178,7 +178,7 @@ export default function App() {
 
         if (hasConf) {
           computedStatus = 'Alta confirmada';
-        } else if (days.includes('Desistió')) {
+        } else if (days.includes('Desistió') || days.includes('Baja')) {
           computedStatus = 'Desistió';
         } else if (days.every(status => status === 'Pendiente')) {
           computedStatus = 'Pendiente de gestión';
@@ -582,7 +582,7 @@ export default function App() {
           fecha: recDate,
           estado_asistencia: initialStatus,
           observacion: initialObs,
-          motivo_desercion: initialStatus === 'Desistió' ? (p.motivo_desercion || '') : undefined,
+          motivo_desercion: initialStatus === 'Desistió' || initialStatus === 'Baja' ? (p.motivo_desercion || '') : undefined,
           registrado_por: rUser ? rUser.id : 'sistema',
           fecha_registro: new Date().toISOString()
         });
@@ -735,7 +735,7 @@ export default function App() {
     // 1. Validate attendance for 5 days
     const isAsistenciaCompleta = sessionParts.every(p => {
       const pAtts = attendance.filter(a => a.participant_id === p.id);
-      const hasDesistio = pAtts.some(a => a.estado_asistencia === 'Desistió') || p.estado_final === 'Desistió';
+      const hasDesistio = pAtts.some(a => a.estado_asistencia === 'Desistió' || a.estado_asistencia === 'Baja') || p.estado_final === 'Desistió';
       return hasDesistio || pAtts.length === 5;
     });
 
@@ -746,11 +746,11 @@ export default function App() {
 
     // 2. Validate desertion reasons and observations
     const isDesercionesValidas = sessionParts.every(p => {
-      const hasDesistio = p.estado_final === 'Desistió' || attendance.some(a => a.participant_id === p.id && a.estado_asistencia === 'Desistió');
+      const hasDesistio = p.estado_final === 'Desistió' || attendance.some(a => a.participant_id === p.id && (a.estado_asistencia === 'Desistió' || a.estado_asistencia === 'Baja'));
       if (!hasDesistio) return true;
 
-      const motive = p.motivo_desercion || attendance.find(a => a.participant_id === p.id && a.estado_asistencia === 'Desistió')?.motivo_desercion;
-      const obs = p.observacion_general || attendance.find(a => a.participant_id === p.id && a.estado_asistencia === 'Desistió')?.observacion;
+      const motive = p.motivo_desercion || attendance.find(a => a.participant_id === p.id && (a.estado_asistencia === 'Desistió' || a.estado_asistencia === 'Baja'))?.motivo_desercion;
+      const obs = p.observacion_general || attendance.find(a => a.participant_id === p.id && (a.estado_asistencia === 'Desistió' || a.estado_asistencia === 'Baja'))?.observacion;
 
       return !!motive?.trim() && !!obs?.trim();
     });
@@ -763,7 +763,7 @@ export default function App() {
     // 3. For Formador, check "Ningún participante en estado Marcar, Seleccionar o Pendiente" in Resultado formación
     if (userRol === 'Formador') {
       const isResultadoFormacionCompleto = sessionParts.every(p => {
-        const hasDesistio = p.estado_final === 'Desistió' || attendance.some(a => a.participant_id === p.id && a.estado_asistencia === 'Desistió');
+        const hasDesistio = p.estado_final === 'Desistió' || attendance.some(a => a.participant_id === p.id && (a.estado_asistencia === 'Desistió' || a.estado_asistencia === 'Baja'));
         if (hasDesistio) return true;
         
         return p.resultado_formacion && p.resultado_formacion !== 'Marcar';
@@ -860,7 +860,7 @@ export default function App() {
     }
 
     // Auto update participant final state if marked "Desistió" or completed
-    if (rec.estado_asistencia === 'Desistió') {
+    if (rec.estado_asistencia === 'Desistió' || rec.estado_asistencia === 'Baja') {
       if (part) {
         void persistParticipant({ ...part, estado_final: 'Desistió' }).catch((error) => {
           console.error('Error persisting participant desertion:', error);
@@ -893,7 +893,9 @@ export default function App() {
     status: AttendanceStatus,
     pIds: string[],
     motivo_desercion?: string,
-    obs?: string
+    obs?: string,
+    evidencia_nombre?: string,
+    evidencia_imagen?: string
   ) => {
     const sess = sessions.find(s => s.id === sId);
     const date = new Date().toISOString().split('T')[0];
@@ -910,6 +912,8 @@ export default function App() {
         minutos_tardanza: status === 'Tardanza' ? 10 : undefined,
         motivo_desercion,
         observacion: obs,
+        evidencia_nombre,
+        evidencia_imagen,
         registrado_por: activeUser ? activeUser.id : 'sistema',
         fecha_registro: new Date().toISOString()
       };
@@ -928,7 +932,7 @@ export default function App() {
     });
 
     // Update participant final status
-    if (status === 'Desistió') {
+    if (status === 'Desistió' || status === 'Baja') {
       participants
         .filter(p => pIds.includes(p.id))
         .forEach((participant) => {
