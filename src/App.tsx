@@ -193,6 +193,8 @@ export default function App() {
             computedStatus = 'En riesgo';
           } else if (days.every(status => status === 'Asistió' || status === 'Tardanza')) {
             computedStatus = 'Pendiente de alta';
+          } else if (hasEverAttended) {
+            computedStatus = 'En formación';
           } else {
             computedStatus = 'Pendiente de gestión';
           }

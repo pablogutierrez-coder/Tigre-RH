@@ -56,7 +56,7 @@ export interface Participant {
   puesto: string;
   fuente_reclutamiento: string;
   observacion?: string;
-  estado_final: 'Completó capacitación' | 'Desistió' | 'No asistió' | 'En riesgo' | 'Pendiente de alta' | 'Alta confirmada' | 'Pendiente de gestión';
+  estado_final: 'Completó capacitación' | 'Desistió' | 'No asistió' | 'En riesgo' | 'En formación' | 'Pendiente de alta' | 'Alta confirmada' | 'Pendiente de gestión';
   
   // Real Excel fields
   reclutador_origen?: string;

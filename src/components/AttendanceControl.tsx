@@ -267,6 +267,8 @@ export default function AttendanceControl({
       } else if (rowAttendance.filter(a => a?.estado_asistencia === 'Asistió' || a?.estado_asistencia === 'Tardanza').length === 5) {
         const conf = confirmationsMap[p.id];
         computedStatus = conf?.estado_alta === 'Alta confirmada' ? 'Alta confirmada' : 'Pendiente de alta';
+      } else if (rowAttendance.some(a => a?.estado_asistencia === 'Asistió' || a?.estado_asistencia === 'Tardanza')) {
+        computedStatus = 'En formación';
       }
 
       if (filterFinalStatus !== 'Todos' && computedStatus !== filterFinalStatus) {
@@ -821,6 +823,7 @@ export default function AttendanceControl({
                 >
                   <option value="Todos">Todos</option>
                   <option value="Pendiente de gestión">Pendiente de gestión</option>
+                  <option value="En formación">En formación</option>
                   <option value="Completó capacitación">Completó capacitación</option>
                   <option value="Desistió">Desistió</option>
                   <option value="No asistió">No asistió</option>
@@ -977,6 +980,8 @@ export default function AttendanceControl({
                     computedStatus = 'En riesgo';
                   } else if (rowAttendance.filter(a => a?.estado_asistencia === 'Asistió' || a?.estado_asistencia === 'Tardanza').length === 5) {
                     computedStatus = part.estado_final === 'Alta confirmada' ? 'Alta confirmada' : 'Pendiente de alta';
+                  } else if (rowAttendance.some(a => a?.estado_asistencia === 'Asistió' || a?.estado_asistencia === 'Tardanza')) {
+                    computedStatus = 'En formación';
                   }
 
                   const activeDesistioRecord = rowAttendance.find(a => a?.estado_asistencia === 'Desistió' || a?.estado_asistencia === 'Baja');
@@ -1191,6 +1196,7 @@ export default function AttendanceControl({
                       <td className="p-4">
                         <span className={`px-2 py-1 rounded-full font-bold text-[10px] ${
                           computedStatus === 'Alta confirmada' ? 'bg-emerald-100 text-emerald-800' :
+                          computedStatus === 'En formación' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' :
                           computedStatus === 'Pendiente de alta' || computedStatus === 'Completó capacitación' ? 'bg-indigo-100 text-indigo-800' :
                           computedStatus === 'En riesgo' ? 'bg-amber-100 text-amber-800 font-semibold' :
                           computedStatus === 'Desistió' ? 'bg-red-100 text-red-800' :
