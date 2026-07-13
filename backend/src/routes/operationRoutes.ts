@@ -63,4 +63,28 @@ router.put(
   },
 );
 
+router.put(
+  '/reopens/:id',
+  requireAuth,
+  requireRole(['Administrador', 'Formador']),
+  async (req: AuthenticatedRequest, res: Response) => {
+    const parsed = recordSchema.safeParse({ ...req.body, id: req.params.id });
+    if (!parsed.success || !(await ownsSession(req, parsed.data.training_session_id))) {
+      res.status(403).json({ message: 'No puedes modificar esta solicitud de reapertura.' });
+      return;
+    }
+
+    if (
+      req.user!.rol === 'Formador' &&
+      (parsed.data.formador_id !== req.user!.uid || parsed.data.estado !== 'pendiente')
+    ) {
+      res.status(403).json({ message: 'Solo puedes crear solicitudes pendientes propias.' });
+      return;
+    }
+
+    await adminDb.collection('reopens').doc(req.params.id).set(parsed.data, { merge: true });
+    res.json({ ok: true });
+  },
+);
+
 export { router as operationRoutes };

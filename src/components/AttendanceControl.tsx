@@ -539,10 +539,12 @@ export default function AttendanceControl({
 
   // Fetch current day request status
   const currentDayRequest = useMemo(() => {
-    return reopens.find(r =>
-      r.training_session_id === session.id &&
-      r.dia_capacitacion === selectedDay
-    );
+    return reopens
+      .filter(r =>
+        r.training_session_id === session.id &&
+        r.dia_capacitacion === selectedDay
+      )
+      .sort((a, b) => new Date(b.fecha_solicitud).getTime() - new Date(a.fecha_solicitud).getTime())[0];
   }, [reopens, session.id, selectedDay]);
 
   return (

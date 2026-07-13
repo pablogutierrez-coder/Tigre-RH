@@ -80,6 +80,7 @@ import {
   persistAttendance,
   persistConfirmation,
   persistParticipant,
+  persistReopenRequest,
 } from './services/operationService';
 import { updateSurveyStatusRemote } from './services/surveyService';
 import { APP_NAME } from './constants/app';
@@ -1013,6 +1014,10 @@ export default function App() {
       fecha_solicitud: new Date().toISOString()
     };
 
+    void persistReopenRequest(newReq).catch((error) => {
+      console.error('Error persisting reopen request:', error);
+      alert(error instanceof Error ? error.message : 'No se pudo enviar la solicitud de reapertura.');
+    });
     setReopens(prev => [newReq, ...prev]);
 
     addAuditLog(
@@ -1033,14 +1038,20 @@ export default function App() {
     const limit = new Date();
     limit.setHours(23, 59, 59, 999);
 
+    const updatedReq: AttendanceReopenRequest = {
+      ...req,
+      estado: 'aprobada',
+      aprobado_por: adminName,
+      fecha_respuesta: new Date().toISOString(),
+      habilitado_hasta: limit.toISOString()
+    };
+    void persistReopenRequest(updatedReq).catch((error) => {
+      console.error('Error approving reopen request:', error);
+      alert(error instanceof Error ? error.message : 'No se pudo aprobar la solicitud de reapertura.');
+    });
+
     setReopens(prev => prev.map(r => {
-      if (r.id === reqId) return {
-        ...r,
-        estado: 'aprobada',
-        aprobado_por: adminName,
-        fecha_respuesta: new Date().toISOString(),
-        habilitado_hasta: limit.toISOString()
-      };
+      if (r.id === reqId) return updatedReq;
       return r;
     }));
 
@@ -1058,14 +1069,20 @@ export default function App() {
     const req = reopens.find(r => r.id === reqId);
     if (!req) return;
 
+    const updatedReq: AttendanceReopenRequest = {
+      ...req,
+      estado: 'rechazada',
+      aprobado_por: adminName,
+      fecha_respuesta: new Date().toISOString(),
+      comentario_respuesta: reason
+    };
+    void persistReopenRequest(updatedReq).catch((error) => {
+      console.error('Error rejecting reopen request:', error);
+      alert(error instanceof Error ? error.message : 'No se pudo rechazar la solicitud de reapertura.');
+    });
+
     setReopens(prev => prev.map(r => {
-      if (r.id === reqId) return {
-        ...r,
-        estado: 'rechazada',
-        aprobado_por: adminName,
-        fecha_respuesta: new Date().toISOString(),
-        comentario_respuesta: reason
-      };
+      if (r.id === reqId) return updatedReq;
       return r;
     }));
 

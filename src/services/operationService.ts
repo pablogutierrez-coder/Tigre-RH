@@ -1,6 +1,6 @@
 import { auth } from '../lib/firebase';
 import { getRuntimeEnv } from '../lib/runtimeConfig';
-import type { AttendanceRecord, OperationConfirmation, Participant } from '../types';
+import type { AttendanceRecord, AttendanceReopenRequest, OperationConfirmation, Participant } from '../types';
 
 const API_BASE_URL =
   getRuntimeEnv('VITE_API_BASE_URL') || (import.meta.env.PROD ? '' : 'http://localhost:8080');
@@ -28,3 +28,6 @@ export const persistConfirmation = (confirmation: OperationConfirmation) =>
 
 export const persistParticipant = (participant: Participant) =>
   save(`/api/operations/participants/${participant.id}`, participant);
+
+export const persistReopenRequest = (request: AttendanceReopenRequest) =>
+  save(`/api/operations/reopens/${request.id}`, request);
