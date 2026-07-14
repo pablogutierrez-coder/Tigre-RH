@@ -552,33 +552,6 @@ export default function Seleccion({ currentUser, users, initialView = 'dashboard
         {renderKpi('Cumplimiento SLA', `${percent(metrics.slaOk, metrics.total)}%`, <BarChart3 className="w-5 h-5" />, 'amber')}
       </div>
 
-      <div className="bg-white rounded-2xl border border-slate-200 p-2 shadow-xs flex flex-wrap gap-2">
-        {[
-          ['dashboard', 'Dashboard'],
-          ['convocatorias', 'Convocatorias'],
-          ['postulantes', 'Postulantes'],
-          ['seguimientos', 'Seguimientos'],
-          ['evaluaciones', 'Entrevistas y Evaluaciones'],
-          ['aptos', 'Aptos para Capacitación'],
-          ['historial', 'Historial'],
-          ['catalogos', 'Catálogos'],
-          ['reportes', 'Reportes'],
-          ['auditoria', 'Auditoría'],
-        ].map(([key, label]) => (
-          <button
-            key={key}
-            onClick={() => setActiveView(key as ViewMode)}
-            className={`px-3 py-2 rounded-xl text-xs font-black transition ${
-              activeView === key
-                ? 'bg-gradient-to-r from-fuchsia-600 to-indigo-600 text-white shadow-sm'
-                : 'text-slate-500 hover:bg-slate-50'
-            }`}
-          >
-            {label}
-          </button>
-        ))}
-      </div>
-
       {activeView === 'dashboard' && (
         <div className="grid xl:grid-cols-3 gap-4">
           <div className="xl:col-span-2 bg-white rounded-2xl border border-slate-200 p-5 shadow-xs">
