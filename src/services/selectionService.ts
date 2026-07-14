@@ -87,6 +87,12 @@ export const updateSelectionApplicant = (
     body: JSON.stringify(changes),
   });
 
+export const deleteSelectionApplicant = (id: string, reason: string) =>
+  request<{ ok: true; changes: Partial<SelectionApplicant> }>(`/api/selection/applicants/${id}`, {
+    method: 'DELETE',
+    body: JSON.stringify({ reason }),
+  });
+
 export const assignSelectionToTraining = (
   requisitionId: string,
   applicantIds: string[],

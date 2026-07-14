@@ -275,9 +275,17 @@ export type SelectionRequisitionStatus =
 
 export type SelectionApplicantStatus =
   | 'Pendiente de gestión'
+  | 'Registrado'
+  | 'Pendiente de contacto'
+  | 'Contactado'
+  | 'No contactado'
   | 'Interesado'
+  | 'Citado'
+  | 'Ausente'
+  | 'En evaluación'
   | 'No interesado'
   | 'No responde'
+  | 'No contesta'
   | 'Entrevista inicial'
   | 'Examen teórico'
   | 'Entrevista RH'
@@ -287,8 +295,10 @@ export type SelectionApplicantStatus =
   | 'Asignado a capacitación'
   | 'Alta en operación'
   | 'Caído'
-  | 'No apto';
-
+  | 'Desistió'
+  | 'No corresponde'
+  | 'No apto'
+  | 'Eliminado';
 export type SelectionEvaluationStatus =
   | 'Pendiente'
   | 'Programada'

@@ -1,4 +1,4 @@
-/**
+﻿/**
  * @license
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -37,6 +37,7 @@ import {
   assignSelectionToTraining,
   createSelectionApplicant,
   createSelectionRequisition,
+  deleteSelectionApplicant,
   deleteSelectionRequisition,
   getSelectionBootstrap,
   importSelectionApplicants,
@@ -67,12 +68,12 @@ interface SeleccionProps {
 
 const emptyRequisition: Partial<SelectionRequisition> = {
   nombre: '',
-  cuenta: '',
+  cuenta: 'Entel Empresas',
   posicion: '',
   ciudad: '',
-  fuente_principal: 'Referido',
+  fuente_principal: 'Pandapé',
   vacantes: 1,
-  meta_leads: 10,
+  meta_leads: 0,
   prioridad: 'Media',
   fecha_inicio: new Date().toISOString().slice(0, 10),
   fecha_fin: new Date().toISOString().slice(0, 10),
@@ -88,9 +89,17 @@ const emptyRequisition: Partial<SelectionRequisition> = {
 
 const applicantStatuses: SelectionApplicantStatus[] = [
   'Pendiente de gestión',
+  'Registrado',
+  'Pendiente de contacto',
+  'Contactado',
+  'No contactado',
   'Interesado',
+  'Citado',
+  'Ausente',
+  'En evaluación',
   'No interesado',
   'No responde',
+  'No contesta',
   'Entrevista inicial',
   'Examen teórico',
   'Entrevista RH',
@@ -100,6 +109,8 @@ const applicantStatuses: SelectionApplicantStatus[] = [
   'Asignado a capacitación',
   'Alta en operación',
   'Caído',
+  'Desistió',
+  'No corresponde',
   'No apto',
 ];
 
@@ -160,6 +171,47 @@ const getDaysLeft = (endDate?: string) => {
 const percent = (value: number, base: number) => (base > 0 ? Math.round((value / base) * 100) : 0);
 
 const isManagerRole = (role: string) => ['Administrador', 'Analista', 'Coordinador'].includes(role);
+const canCreateRequisition = (role: string) => ['Administrador', 'Analista', 'Coordinador'].includes(role);
+const canEditRequisitionCode = (role: string) => role === 'Administrador';
+
+const campaignOptions = ['Entel Empresas', 'Culqi', 'Equifax', 'Prosegur'];
+const sourceOptions = ['Pandapé', 'Computrabajo', 'Boomerang', 'LinkedIn', 'Redes sociales'];
+const finalRequisitionStates = ['Activa', 'Finalizada'];
+const dashboardViews = ['Vista general', 'Vista por campaña', 'Vista individual por reclutador', 'Vista por convocatoria'];
+
+const dropoutReasons = [
+  'No aprobó entrevista de Recursos Humanos',
+  'No aprobó entrevista con Supervisor o Coordinador',
+  'No aprobó examen teórico',
+  'No aprobó pruebas psicológicas',
+  'No cumple con el perfil',
+  'No cuenta con experiencia requerida',
+  'No acepta las condiciones económicas',
+  'No acepta el horario',
+  'No acepta la modalidad de trabajo',
+  'No acepta la ubicación',
+  'Consiguió otra propuesta laboral',
+  'Desistió del proceso',
+  'No asistió a la entrevista',
+  'No respondió llamadas o mensajes',
+  'Datos incorrectos',
+  'Duplicado',
+  'No corresponde a la campaña',
+  'Documentación incompleta',
+  'Otro',
+];
+
+const requiresDropoutReason = (status?: string) =>
+  [
+    'No apto',
+    'Desistió',
+    'Ausente',
+    'No corresponde',
+    'No interesado',
+    'Caído',
+    'Desaprobado',
+    'No continúa',
+  ].some((term) => String(status || '').toLowerCase().includes(term.toLowerCase()));
 
 const downloadTemplate = () => {
   const worksheet = XLSX.utils.aoa_to_sheet([excelHeaders]);
@@ -187,11 +239,21 @@ export default function Seleccion({ currentUser, users, initialView = 'dashboard
   const [showApplicantModal, setShowApplicantModal] = useState(false);
   const [applicantForm, setApplicantForm] = useState<Partial<SelectionApplicant>>({});
   const [editingApplicant, setEditingApplicant] = useState<SelectionApplicant | null>(null);
+  const [deleteApplicantTarget, setDeleteApplicantTarget] = useState<SelectionApplicant | null>(null);
+  const [deleteApplicantReason, setDeleteApplicantReason] = useState('');
   const [importPreview, setImportPreview] = useState<Partial<SelectionApplicant>[]>([]);
   const [importErrors, setImportErrors] = useState<string[]>([]);
   const [selectedApplicants, setSelectedApplicants] = useState<string[]>([]);
   const [assignTarget, setAssignTarget] = useState<SelectionRequisition | null>(null);
   const [assignForm, setAssignForm] = useState<Record<string, string>>({});
+  const [dashboardView, setDashboardView] = useState('Vista general');
+  const [filterCampaign, setFilterCampaign] = useState('Todos');
+  const [filterRecruiter, setFilterRecruiter] = useState('Todos');
+  const [filterSource, setFilterSource] = useState('Todos');
+  const [filterApplicantStatus, setFilterApplicantStatus] = useState('Todos');
+  const [filterStartDate, setFilterStartDate] = useState('');
+  const [filterEndDate, setFilterEndDate] = useState('');
+  const [lastSync, setLastSync] = useState('');
 
   const recruiters = users.filter((user) => user.rol === 'Reclutador' && user.estado === 'Activo');
   const trainers = users.filter((user) => user.rol === 'Formador' && user.estado === 'Activo');
@@ -238,11 +300,16 @@ export default function Seleccion({ currentUser, users, initialView = 'dashboard
         req.nombre.toLowerCase().includes(term) ||
         req.codigo.toLowerCase().includes(term) ||
         req.cuenta.toLowerCase().includes(term) ||
-        req.posicion.toLowerCase().includes(term);
+        String(req.fuente_principal || '').toLowerCase().includes(term);
       const matchesStatus = statusFilter === 'Todos' || req.estado === statusFilter;
-      return matchesSearch && matchesStatus;
+      const matchesCampaign = filterCampaign === 'Todos' || req.cuenta === filterCampaign;
+      const matchesRecruiter = filterRecruiter === 'Todos' || req.reclutador_ids?.includes(filterRecruiter);
+      const matchesSource = filterSource === 'Todos' || req.fuente_principal === filterSource;
+      const matchesStart = !filterStartDate || req.fecha_inicio >= filterStartDate;
+      const matchesEnd = !filterEndDate || req.fecha_fin <= filterEndDate;
+      return matchesSearch && matchesStatus && matchesCampaign && matchesRecruiter && matchesSource && matchesStart && matchesEnd;
     });
-  }, [requisitions, search, statusFilter]);
+  }, [filterCampaign, filterEndDate, filterRecruiter, filterSource, filterStartDate, requisitions, search, statusFilter]);
 
   const scopedApplicants = useMemo(() => {
     return applicants.filter((applicant) => {
@@ -253,18 +320,102 @@ export default function Seleccion({ currentUser, users, initialView = 'dashboard
   }, [activeView, applicants, selectedReq?.id]);
 
   const metrics = useMemo(() => {
-    const total = applicants.length;
-    const managed = applicants.filter((item) => item.fecha_primera_gestion).length;
-    const interested = applicants.filter((item) => item.ultimo_estado === 'Interesado').length;
-    const noInterested = applicants.filter((item) => item.ultimo_estado === 'No interesado').length;
-    const noResponse = applicants.filter((item) => item.ultimo_estado === 'No responde').length;
-    const apt = applicants.filter((item) => item.ultimo_estado === 'Apto para capacitación' || item.ultimo_estado === 'Asignado a capacitación' || item.ultimo_estado === 'Alta en operación').length;
-    const assigned = applicants.filter((item) => item.training_session_id).length;
-    const high = applicants.filter((item) => item.estado_alta_operacion === 'Alta en operación').length;
-    const slaOk = applicants.filter((item) => item.cumple_sla).length;
-    return { total, managed, interested, noInterested, noResponse, apt, assigned, high, slaOk };
-  }, [applicants]);
+    const reqIds = new Set(visibleReqs.map((req) => req.id));
+    const scoped = applicants.filter((item) => {
+      if (!reqIds.has(item.requisition_id)) return false;
+      if (filterApplicantStatus !== 'Todos' && item.ultimo_estado !== filterApplicantStatus) return false;
+      return true;
+    });
+    const total = scoped.length;
+    const contacted = scoped.filter((item) => item.fecha_primera_gestion || ['Interesado', 'No interesado', 'No responde'].includes(item.ultimo_estado)).length;
+    const managed = contacted;
+    const interested = scoped.filter((item) => item.ultimo_estado === 'Interesado').length;
+    const interviewed = scoped.filter((item) => item.entrevista === 'Realizada' || item.ultimo_estado.includes('Entrevista')).length;
+    const evaluated = scoped.filter((item) => item.examen_teorico || item.pruebas_psic || item.entrevista_rh).length;
+    const noApt = scoped.filter((item) => item.ultimo_estado === 'No apto').length;
+    const dropped = scoped.filter((item) => ['No interesado', 'No responde', 'Caído'].includes(item.ultimo_estado)).length;
+    const pending = scoped.filter((item) => item.ultimo_estado === 'Pendiente de gestión').length;
+    const apt = scoped.filter((item) => item.ultimo_estado === 'Apto para capacitación' || item.ultimo_estado === 'Asignado a capacitación' || item.ultimo_estado === 'Alta en operación').length;
+    const assigned = scoped.filter((item) => item.training_session_id || item.ultimo_estado === 'Asignado a capacitación').length;
+    const trained = scoped.filter((item) => item.estado_capacitacion === 'Finalizó capacitación').length;
+    const high = scoped.filter((item) => item.estado_alta_operacion === 'Alta en operación' || item.ultimo_estado === 'Alta en operación').length;
+    const slaOk = scoped.filter((item) => item.cumple_sla).length;
+    const slaTimes = scoped.map((item) => Number(item.tiempo_primera_gestion_min || 0)).filter(Boolean);
+    const slaAverage = slaTimes.length ? Math.round(slaTimes.reduce((sum, value) => sum + value, 0) / slaTimes.length) : 0;
+    const required = visibleReqs.reduce((sum, req) => sum + Number(req.vacantes || 0), 0);
+    const active = visibleReqs.filter((req) => req.estado === 'Activa' || req.estado === 'En proceso').length;
+    const finished = visibleReqs.filter((req) => req.estado === 'Finalizada').length;
+    return {
+      total,
+      managed,
+      contacted,
+      interested,
+      interviewed,
+      evaluated,
+      noApt,
+      dropped,
+      pending,
+      apt,
+      assigned,
+      trained,
+      high,
+      slaOk,
+      slaAverage,
+      required,
+      active,
+      finished,
+      requisitions: visibleReqs.length,
+      coverage: percent(apt, required),
+      aptConversion: percent(apt, total),
+      trainingConversion: percent(assigned, apt),
+      highConversion: percent(high, assigned),
+      scoped,
+    };
+  }, [applicants, filterApplicantStatus, visibleReqs]);
+  const resetDashboardFilters = () => {
+    setSearch('');
+    setStatusFilter('Todos');
+    setFilterCampaign('Todos');
+    setFilterRecruiter('Todos');
+    setFilterSource('Todos');
+    setFilterApplicantStatus('Todos');
+    setFilterStartDate('');
+    setFilterEndDate('');
+  };
 
+  const syncSelection = async () => {
+    await loadData();
+    setLastSync(`${new Date().toLocaleString('es-PE', { timeZone: 'America/Lima' })} por ${currentUser.nombre}`);
+  };
+
+  const exportDashboard = (format: 'xlsx' | 'csv') => {
+    const rows = metrics.scoped.map((item) => ({
+      convocatoria: item.requisition_codigo,
+      reclutador: item.reclutador_nombre,
+      dni: item.dni,
+      postulante: item.nombre_completo,
+      fuente: item.fuente,
+      estado: item.ultimo_estado,
+      telefono: item.telefono,
+      correo: item.correo || '',
+      fecha_registro: item.fecha_registro,
+    }));
+    const worksheet = XLSX.utils.json_to_sheet(rows);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, 'Seleccion');
+    if (format === 'csv') {
+      const csv = XLSX.utils.sheet_to_csv(worksheet);
+      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const anchor = document.createElement('a');
+      anchor.href = url;
+      anchor.download = 'reporte-seleccion.csv';
+      anchor.click();
+      URL.revokeObjectURL(url);
+      return;
+    }
+    XLSX.writeFile(workbook, 'reporte-seleccion.xlsx');
+  };
   const openNewRequisition = () => {
     setEditingReq(null);
     setReqForm({
@@ -289,16 +440,38 @@ export default function Seleccion({ currentUser, users, initialView = 'dashboard
       const selectedRecruiters = recruiters.filter((user) => reqForm.reclutador_ids?.includes(user.id));
       const payload = {
         ...reqForm,
+        nombre: reqForm.nombre || `${reqForm.cuenta} ${reqForm.fecha_inicio || ''}`,
+        cuenta: reqForm.cuenta || campaignOptions[0],
+        fuente_principal: reqForm.fuente_principal || sourceOptions[0],
+        posicion: reqForm.posicion || '',
+        ciudad: reqForm.ciudad || '',
         vacantes: Number(reqForm.vacantes || 0),
         meta_leads: Number(reqForm.meta_leads || 0),
         sla_objetivo: Number(reqForm.sla_objetivo || 60),
         max_intentos_contacto: Number(reqForm.max_intentos_contacto || 3),
         seguimiento_max_horas: Number(reqForm.seguimiento_max_horas || 24),
+        estado: reqForm.estado || 'Activa',
         reclutador_nombres: selectedRecruiters.map((user) => user.nombre),
       };
-      if (!payload.nombre || !payload.cuenta || !payload.posicion || !payload.ciudad || !payload.fecha_inicio || !payload.fecha_fin) {
-        alert('Completa nombre, cuenta, posición, ciudad y fechas.');
+      if (!payload.cuenta || !payload.fuente_principal || !payload.fecha_inicio || !payload.fecha_fin) {
+        alert('Completa campaña, fuente principal y fechas.');
         return;
+      }
+      if (String(payload.fecha_fin) < String(payload.fecha_inicio)) {
+        alert('La fecha de fin no puede ser anterior a la fecha de inicio.');
+        return;
+      }
+      if (payload.vacantes <= 0 || !Number.isInteger(payload.vacantes)) {
+        alert('La cantidad de posiciones requeridas debe ser un entero mayor que cero.');
+        return;
+      }
+      if (!payload.reclutador_ids?.length) {
+        alert('Selecciona al menos un reclutador asignado.');
+        return;
+      }
+      if (!canEditRequisitionCode(currentUser.rol)) {
+        delete payload.codigo;
+        delete payload.codigo_base;
       }
       if (editingReq) {
         const response = await updateSelectionRequisition(editingReq.id, payload);
@@ -316,7 +489,6 @@ export default function Seleccion({ currentUser, users, initialView = 'dashboard
       setSaving(false);
     }
   };
-
   const removeRequisition = async () => {
     if (!deleteTarget) return;
     try {
@@ -362,10 +534,34 @@ export default function Seleccion({ currentUser, users, initialView = 'dashboard
       const recruiter = recruiters.find((user) => user.id === applicantForm.reclutador_id);
       const payload = {
         ...applicantForm,
+        dni: String(applicantForm.dni || '').replace(/\D/g, ''),
+        telefono: String(applicantForm.telefono || '').replace(/\D/g, ''),
+        cuenta: applicantForm.cuenta || selectedReq?.cuenta || '',
+        fuente: applicantForm.fuente || selectedReq?.fuente_principal || sourceOptions[0],
         reclutador_nombre: currentUser.rol === 'Reclutador' ? currentUser.nombre : recruiter?.nombre || applicantForm.reclutador_nombre,
       };
       if (!payload.dni || !payload.nombre_completo || !payload.telefono) {
         alert('DNI, nombre y teléfono son obligatorios.');
+        return;
+      }
+      if (!/^\d{8}$/.test(payload.dni)) {
+        alert('El DNI debe tener 8 dígitos.');
+        return;
+      }
+      if (!/^\d{9}$/.test(payload.telefono)) {
+        alert('El celular debe tener 9 dígitos.');
+        return;
+      }
+      if (payload.correo && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(payload.correo))) {
+        alert('El correo electrónico no tiene un formato válido.');
+        return;
+      }
+      if (requiresDropoutReason(payload.ultimo_estado) && !String(payload.motivo_caida || '').trim()) {
+        alert('Indica el motivo de no continuidad antes de guardar.');
+        return;
+      }
+      if (payload.motivo_caida === 'Otro' && !String(payload.submotivo_caida || '').trim()) {
+        alert('Detalla el motivo cuando selecciones Otro.');
         return;
       }
       if (editingApplicant) {
@@ -381,10 +577,9 @@ export default function Seleccion({ currentUser, users, initialView = 'dashboard
       setSaving(false);
     }
   };
-
   const updateApplicantStatus = async (applicant: SelectionApplicant, status: SelectionApplicantStatus) => {
-    const needsReason = ['No interesado', 'No apto', 'Caído'].includes(status);
-    const reason = needsReason ? window.prompt('Indica el motivo del cambio de estado:') : '';
+    const needsReason = requiresDropoutReason(status);
+    const reason = needsReason ? window.prompt('Indica el motivo de no continuidad:') : '';
     if (needsReason && !reason?.trim()) return;
     const nextFollowUp = status === 'No responde'
       ? new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString()
@@ -397,6 +592,21 @@ export default function Seleccion({ currentUser, users, initialView = 'dashboard
       proximo_seguimiento: nextFollowUp,
     });
     await loadData();
+  };
+
+  const removeApplicant = async () => {
+    if (!deleteApplicantTarget) return;
+    try {
+      setSaving(true);
+      await deleteSelectionApplicant(deleteApplicantTarget.id, deleteApplicantReason.trim());
+      setDeleteApplicantTarget(null);
+      setDeleteApplicantReason('');
+      await loadData();
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'No se pudo eliminar el postulante.');
+    } finally {
+      setSaving(false);
+    }
   };
 
   const handleExcel = async (file?: File) => {
@@ -509,16 +719,20 @@ export default function Seleccion({ currentUser, users, initialView = 'dashboard
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-4">
-        <div>
-          <span className="text-[10px] text-fuchsia-600 font-black uppercase tracking-widest">Selección</span>
-          <h2 className="text-3xl font-black text-slate-900 tracking-tight">Gestión Integral de Selección</h2>
-          <p className="text-slate-500 text-sm">
-            Convocatorias, postulantes, SLA, seguimiento, aptos y asignación a capacitación.
-          </p>
-        </div>
+      <div className={`flex flex-col xl:flex-row xl:items-center ${activeView === 'convocatorias' ? 'justify-end' : 'justify-between'} gap-4`}>
+        {activeView !== 'convocatorias' && (
+          <div>
+            <span className="text-[10px] text-fuchsia-600 font-black uppercase tracking-widest">Selección</span>
+            <h2 className="text-3xl font-black text-slate-900 tracking-tight">
+              {activeView === 'dashboard' ? 'Dashboard de Selección' : 'Gestión de Selección'}
+            </h2>
+            {activeView === 'dashboard' && (
+              <p className="text-slate-500 text-sm">Indicadores, conversión, SLA, cobertura, fuentes y rendimiento por reclutador.</p>
+            )}
+          </div>
+        )}
         <div className="flex flex-wrap gap-2">
-          {isManagerRole(currentUser.rol) && (
+          {canCreateRequisition(currentUser.rol) && (
             <button
               onClick={openNewRequisition}
               className="inline-flex items-center gap-2 bg-gradient-to-r from-fuchsia-600 to-indigo-600 text-white px-4 py-2.5 rounded-xl text-sm font-black shadow-md"
@@ -528,7 +742,7 @@ export default function Seleccion({ currentUser, users, initialView = 'dashboard
             </button>
           )}
           <button
-            onClick={() => void loadData()}
+            onClick={() => void syncSelection()}
             className="inline-flex items-center gap-2 bg-white border border-slate-200 text-slate-700 px-4 py-2.5 rounded-xl text-sm font-bold"
           >
             <History className="w-4 h-4" />
@@ -536,6 +750,10 @@ export default function Seleccion({ currentUser, users, initialView = 'dashboard
           </button>
         </div>
       </div>
+
+      {lastSync && activeView === 'dashboard' && (
+        <p className="text-xs text-slate-400 -mt-3">Última sincronización: {lastSync}</p>
+      )}
 
       {error && (
         <div className="rounded-2xl bg-rose-50 border border-rose-200 p-4 text-rose-800 text-sm font-semibold flex gap-2">
@@ -545,65 +763,131 @@ export default function Seleccion({ currentUser, users, initialView = 'dashboard
       )}
 
       {activeView === 'dashboard' && (
-        <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
-        {renderKpi('Leads registrados', metrics.total, <Users className="w-5 h-5" />, 'indigo')}
-        {renderKpi('Gestionados', metrics.managed, <UserCheck className="w-5 h-5" />, 'emerald')}
-        {renderKpi('Aptos capacitación', metrics.apt, <CheckCircle2 className="w-5 h-5" />, 'fuchsia')}
-        {renderKpi('Asignados', metrics.assigned, <Send className="w-5 h-5" />, 'blue')}
-        {renderKpi('Cumplimiento SLA', `${percent(metrics.slaOk, metrics.total)}%`, <BarChart3 className="w-5 h-5" />, 'amber')}
-        </div>
-      )}
-
-      {activeView === 'dashboard' && (
-        <div className="grid xl:grid-cols-3 gap-4">
-          <div className="xl:col-span-2 bg-white rounded-2xl border border-slate-200 p-5 shadow-xs">
-            <h3 className="font-black text-slate-900 mb-4 flex items-center gap-2">
-              <BarChart3 className="w-5 h-5 text-fuchsia-600" />
-              Embudo de Selección
-            </h3>
-            {[
-              ['Leads registrados', metrics.total],
-              ['Leads gestionados', metrics.managed],
-              ['Interesados', metrics.interested],
-              ['Aptos para capacitación', metrics.apt],
-              ['Asignados a capacitación', metrics.assigned],
-              ['Altas en operación', metrics.high],
-            ].map(([label, value], index) => (
-              <div key={String(label)} className="mb-3">
-                <div className="flex justify-between text-xs font-bold text-slate-500 mb-1">
-                  <span>{label}</span>
-                  <span>{value}</span>
-                </div>
-                <div className="h-3 rounded-full bg-slate-100 overflow-hidden">
-                  <div
-                    className="h-full rounded-full bg-gradient-to-r from-fuchsia-500 to-indigo-500"
-                    style={{ width: `${Math.max(5, percent(Number(value), metrics.total || Number(value) || 1) - index * 2)}%` }}
-                  />
-                </div>
-              </div>
-            ))}
+        <div className="space-y-4">
+          <div className="bg-white rounded-2xl border border-slate-200 p-4 shadow-xs grid md:grid-cols-4 xl:grid-cols-6 gap-3">
+            <select value={dashboardView} onChange={(event) => setDashboardView(event.target.value)} className="rounded-xl border border-slate-200 px-3 py-2 text-sm font-bold">
+              {dashboardViews.map((item) => <option key={item}>{item}</option>)}
+            </select>
+            <input type="date" value={filterStartDate} onChange={(event) => setFilterStartDate(event.target.value)} className="rounded-xl border border-slate-200 px-3 py-2 text-sm" />
+            <input type="date" value={filterEndDate} onChange={(event) => setFilterEndDate(event.target.value)} className="rounded-xl border border-slate-200 px-3 py-2 text-sm" />
+            <select value={filterCampaign} onChange={(event) => setFilterCampaign(event.target.value)} className="rounded-xl border border-slate-200 px-3 py-2 text-sm font-bold">
+              <option>Todos</option>
+              {campaignOptions.map((item) => <option key={item}>{item}</option>)}
+            </select>
+            <select value={filterRecruiter} onChange={(event) => setFilterRecruiter(event.target.value)} className="rounded-xl border border-slate-200 px-3 py-2 text-sm font-bold">
+              <option value="Todos">Todos los reclutadores</option>
+              {recruiters.map((item) => <option key={item.id} value={item.id}>{item.nombre}</option>)}
+            </select>
+            <select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)} className="rounded-xl border border-slate-200 px-3 py-2 text-sm font-bold">
+              <option>Todos</option>
+              {finalRequisitionStates.map((item) => <option key={item}>{item}</option>)}
+              <option>Vencida</option>
+            </select>
+            <select value={filterSource} onChange={(event) => setFilterSource(event.target.value)} className="rounded-xl border border-slate-200 px-3 py-2 text-sm font-bold">
+              <option>Todos</option>
+              {sourceOptions.map((item) => <option key={item}>{item}</option>)}
+            </select>
+            <select value={filterApplicantStatus} onChange={(event) => setFilterApplicantStatus(event.target.value)} className="rounded-xl border border-slate-200 px-3 py-2 text-sm font-bold">
+              <option>Todos</option>
+              {applicantStatuses.map((item) => <option key={item}>{item}</option>)}
+            </select>
+            <select value={selectedReqId} onChange={(event) => setSelectedReqId(event.target.value)} className="rounded-xl border border-slate-200 px-3 py-2 text-sm font-bold md:col-span-2">
+              {requisitions.map((req) => <option key={req.id} value={req.id}>{req.codigo} · {req.nombre}</option>)}
+            </select>
+            <button onClick={resetDashboardFilters} className="rounded-xl bg-slate-100 text-slate-700 px-3 py-2 text-sm font-black">Limpiar filtros</button>
+            <button onClick={() => exportDashboard('xlsx')} className="rounded-xl bg-indigo-600 text-white px-3 py-2 text-sm font-black">Excel</button>
+            <button onClick={() => exportDashboard('csv')} className="rounded-xl bg-emerald-600 text-white px-3 py-2 text-sm font-black">CSV</button>
           </div>
-          <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-xs">
-            <h3 className="font-black text-slate-900 mb-4">Ranking por reclutador</h3>
-            {recruiters.map((recruiter) => {
-              const mine = applicants.filter((item) => item.reclutador_id === recruiter.id);
-              const apt = mine.filter((item) => item.ultimo_estado === 'Apto para capacitación' || item.training_session_id).length;
-              return (
-                <div key={recruiter.id} className="flex items-center justify-between border-b border-slate-100 py-2">
-                  <div>
-                    <p className="text-sm font-bold text-slate-800">{recruiter.nombre}</p>
-                    <p className="text-[11px] text-slate-400">{mine.length} leads</p>
+
+          <div className="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-6 gap-3">
+            {renderKpi('Convocatorias', metrics.requisitions, <BriefcaseBusiness className="w-5 h-5" />, 'indigo')}
+            {renderKpi('Activas', metrics.active, <Calendar className="w-5 h-5" />, 'emerald')}
+            {renderKpi('Finalizadas', metrics.finished, <CheckCircle2 className="w-5 h-5" />, 'blue')}
+            {renderKpi('Posiciones requeridas', metrics.required, <Users className="w-5 h-5" />, 'amber')}
+            {renderKpi('Postulantes', metrics.total, <Users className="w-5 h-5" />, 'indigo')}
+            {renderKpi('Contactados', metrics.contacted, <UserCheck className="w-5 h-5" />, 'emerald')}
+            {renderKpi('Interesados', metrics.interested, <CheckCircle2 className="w-5 h-5" />, 'blue')}
+            {renderKpi('Entrevistados', metrics.interviewed, <BriefcaseBusiness className="w-5 h-5" />, 'indigo')}
+            {renderKpi('Aptos', metrics.apt, <CheckCircle2 className="w-5 h-5" />, 'fuchsia')}
+            {renderKpi('No aptos', metrics.noApt, <AlertTriangle className="w-5 h-5" />, 'amber')}
+            {renderKpi('Desistidos', metrics.dropped, <AlertTriangle className="w-5 h-5" />, 'amber')}
+            {renderKpi('Cobertura', `${metrics.coverage}%`, <BarChart3 className="w-5 h-5" />, 'emerald')}
+          </div>
+
+          <div className="grid xl:grid-cols-3 gap-4">
+            <div className="xl:col-span-2 bg-white rounded-2xl border border-slate-200 p-5 shadow-xs">
+              <h3 className="font-black text-slate-900 mb-4 flex items-center gap-2"><BarChart3 className="w-5 h-5 text-fuchsia-600" /> Embudo de selección</h3>
+              {[
+                ['Postulantes registrados', metrics.total],
+                ['Contactados', metrics.contacted],
+                ['Interesados', metrics.interested],
+                ['Entrevistados', metrics.interviewed],
+                ['Evaluados', metrics.evaluated],
+                ['Aptos', metrics.apt],
+                ['Asignados a capacitación', metrics.assigned],
+                ['Capacitados', metrics.trained],
+                ['Altas a operación', metrics.high],
+              ].map(([label, value], index, arr) => {
+                const previous = index === 0 ? Number(value) : Number(arr[index - 1][1]);
+                return (
+                  <div key={String(label)} className="mb-3">
+                    <div className="flex justify-between text-xs font-bold text-slate-500 mb-1"><span>{label}</span><span>{value} · conv. {percent(Number(value), previous || Number(value) || 1)}%</span></div>
+                    <div className="h-3 rounded-full bg-slate-100 overflow-hidden"><div className="h-full rounded-full bg-gradient-to-r from-fuchsia-500 to-indigo-500" style={{ width: `${Math.max(4, percent(Number(value), metrics.total || Number(value) || 1))}%` }} /></div>
                   </div>
-                  <span className="text-xs font-black text-emerald-700 bg-emerald-50 px-2 py-1 rounded-lg">
-                    {percent(apt, mine.length)}%
-                  </span>
-                </div>
-              );
-            })}
+                );
+              })}
+            </div>
+            <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-xs">
+              <h3 className="font-black text-slate-900 mb-4">Conversión</h3>
+              <div className="space-y-3 text-sm">
+                <p className="flex justify-between"><span>Apto / postulante</span><strong>{metrics.aptConversion}%</strong></p>
+                <p className="flex justify-between"><span>Apto / capacitación</span><strong>{metrics.trainingConversion}%</strong></p>
+                <p className="flex justify-between"><span>Capacitación / alta</span><strong>{metrics.highConversion}%</strong></p>
+                <p className="flex justify-between"><span>SLA promedio</span><strong>{metrics.slaAverage} min</strong></p>
+                <p className="flex justify-between"><span>Pendientes</span><strong>{metrics.pending}</strong></p>
+              </div>
+            </div>
+          </div>
+
+          <div className="grid xl:grid-cols-2 gap-4">
+            <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-xs">
+              <h3 className="font-black text-slate-900 mb-4">Barras por campaña</h3>
+              {campaignOptions.map((campaign) => {
+                const reqs = visibleReqs.filter((req) => req.cuenta === campaign);
+                const reqIds = new Set(reqs.map((req) => req.id));
+                const rows = metrics.scoped.filter((item) => reqIds.has(item.requisition_id));
+                const aptos = rows.filter((item) => item.ultimo_estado.includes('Apto') || item.training_session_id).length;
+                const required = reqs.reduce((sum, req) => sum + Number(req.vacantes || 0), 0);
+                return <div key={campaign} className="mb-3"><div className="flex justify-between text-xs font-bold"><span>{campaign}</span><span>{aptos}/{required || rows.length}</span></div><div className="h-3 bg-slate-100 rounded-full overflow-hidden"><div className="h-full bg-indigo-500" style={{ width: `${Math.min(100, percent(aptos, required || rows.length || 1))}%` }} /></div></div>;
+              })}
+            </div>
+            <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-xs">
+              <h3 className="font-black text-slate-900 mb-4">Fuentes de reclutamiento</h3>
+              {sourceOptions.map((source) => {
+                const rows = metrics.scoped.filter((item) => item.fuente === source);
+                const aptos = rows.filter((item) => item.ultimo_estado.includes('Apto') || item.training_session_id).length;
+                return <div key={source} className="mb-3"><div className="flex justify-between text-xs font-bold"><span>{source}</span><span>{rows.length} · {percent(aptos, rows.length)}%</span></div><div className="h-3 bg-slate-100 rounded-full overflow-hidden"><div className="h-full bg-emerald-500" style={{ width: `${Math.max(3, percent(rows.length, metrics.total || 1))}%` }} /></div></div>;
+              })}
+            </div>
+          </div>
+
+          <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-xs">
+            <div className="p-5 border-b border-slate-100"><h3 className="font-black text-slate-900">Ranking por reclutador</h3></div>
+            <div className="overflow-x-auto"><table className="w-full text-sm"><thead className="bg-slate-50 text-[10px] uppercase tracking-widest text-slate-500"><tr><th className="p-3 text-left">#</th><th className="p-3 text-left">Reclutador</th><th className="p-3">Convocatorias</th><th className="p-3">Postulantes</th><th className="p-3">Aptos</th><th className="p-3">Altas</th><th className="p-3">Conv. apto</th><th className="p-3">Cobertura</th><th className="p-3">Estado</th></tr></thead><tbody className="divide-y divide-slate-100">
+              {recruiters.map((recruiter, index) => {
+                const assignedReqs = visibleReqs.filter((req) => req.reclutador_ids?.includes(recruiter.id));
+                const reqIds = new Set(assignedReqs.map((req) => req.id));
+                const mine = metrics.scoped.filter((item) => item.reclutador_id === recruiter.id || reqIds.has(item.requisition_id));
+                const aptos = mine.filter((item) => item.ultimo_estado.includes('Apto') || item.training_session_id).length;
+                const highs = mine.filter((item) => item.estado_alta_operacion === 'Alta en operación').length;
+                const required = assignedReqs.reduce((sum, req) => sum + Number(req.vacantes || 0), 0);
+                const coverage = percent(aptos, required);
+                return <tr key={recruiter.id}><td className="p-3 font-black">{index + 1}</td><td className="p-3 font-bold text-slate-800">{recruiter.nombre}</td><td className="p-3 text-center">{assignedReqs.length}</td><td className="p-3 text-center">{mine.length}</td><td className="p-3 text-center">{aptos}</td><td className="p-3 text-center">{highs}</td><td className="p-3 text-center">{percent(aptos, mine.length)}%</td><td className="p-3 text-center">{coverage}%</td><td className="p-3 text-center"><span className={`px-2 py-1 rounded-full text-[10px] font-black ${coverage >= 80 ? 'bg-emerald-50 text-emerald-700' : coverage >= 50 ? 'bg-amber-50 text-amber-700' : 'bg-rose-50 text-rose-700'}`}>{coverage >= 80 ? 'En meta' : coverage >= 50 ? 'En avance' : 'En riesgo'}</span></td></tr>;
+              })}
+            </tbody></table></div>
           </div>
         </div>
       )}
-
       {activeView !== 'dashboard' && (
         <div className="bg-white rounded-2xl border border-slate-200 p-4 shadow-xs flex flex-col lg:flex-row gap-3 lg:items-center justify-between">
           <div className="relative max-w-md w-full">
@@ -651,24 +935,27 @@ export default function Seleccion({ currentUser, users, initialView = 'dashboard
             const reqApplicants = applicants.filter((item) => item.requisition_id === req.id);
             const apt = reqApplicants.filter((item) => item.ultimo_estado === 'Apto para capacitación' || item.training_session_id).length;
             const highs = reqApplicants.filter((item) => item.estado_alta_operacion === 'Alta en operación').length;
+            const required = Number(req.vacantes || 0);
+            const coverage = percent(apt, required);
+            const canEditThis = isManagerRole(currentUser.rol) || req.reclutador_ids?.includes(currentUser.id);
             const daysLeft = getDaysLeft(req.fecha_fin);
             return (
               <div key={req.id} className="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden">
-                <div className={`h-1 ${daysLeft < 0 ? 'bg-rose-500' : daysLeft <= 2 ? 'bg-amber-500' : 'bg-emerald-500'}`} />
+                <div className={`h-1 ${req.estado === 'Finalizada' ? 'bg-slate-400' : daysLeft < 0 ? 'bg-rose-500' : daysLeft <= 2 ? 'bg-amber-500' : 'bg-emerald-500'}`} />
                 <div className="p-5">
                   <div className="flex items-start justify-between gap-3">
                     <div>
                       <span className="text-[10px] font-black uppercase text-indigo-600 bg-indigo-50 px-2 py-1 rounded-lg">{req.codigo}</span>
-                      <h3 className="text-lg font-black text-slate-900 mt-3">{req.nombre}</h3>
-                      <p className="text-sm text-slate-500">{req.cuenta} · {req.posicion} · {req.ciudad}</p>
+                      <h3 className="text-lg font-black text-slate-900 mt-3">{req.codigo}</h3>
+                      <p className="text-sm text-slate-500">{req.cuenta} · {req.fuente_principal || 'Sin fuente'}</p>
                     </div>
                     <div className="flex gap-1">
-                      {isManagerRole(currentUser.rol) && (
+                      {canEditThis && (
                         <button onClick={() => openEditRequisition(req)} className="p-2 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg">
                           <Edit3 className="w-4 h-4" />
                         </button>
                       )}
-                      {currentUser.rol === 'Administrador' && (
+                      {canEditThis && (
                         <button onClick={() => setDeleteTarget(req)} className="p-2 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg">
                           <Trash2 className="w-4 h-4" />
                         </button>
@@ -677,8 +964,8 @@ export default function Seleccion({ currentUser, users, initialView = 'dashboard
                   </div>
                   <div className="grid grid-cols-3 gap-2 mt-4">
                     <div className="bg-slate-50 rounded-xl p-3">
-                      <p className="text-[10px] text-slate-400 font-black uppercase">Leads</p>
-                      <p className="text-xl font-black text-slate-900">{reqApplicants.length}</p>
+                      <p className="text-[10px] text-slate-400 font-black uppercase">Posiciones</p>
+                      <p className="text-xl font-black text-slate-900">{required}</p>
                     </div>
                     <div className="bg-emerald-50 rounded-xl p-3">
                       <p className="text-[10px] text-emerald-600 font-black uppercase">Aptos</p>
@@ -692,6 +979,15 @@ export default function Seleccion({ currentUser, users, initialView = 'dashboard
                   <div className="mt-4 space-y-2 text-xs text-slate-500">
                     <p className="flex items-center gap-2"><Calendar className="w-4 h-4" /> {req.fecha_inicio} al {req.fecha_fin} · {daysLeft >= 0 ? `${daysLeft} días restantes` : 'Vencida'}</p>
                     <p className="flex items-center gap-2"><Users className="w-4 h-4" /> {req.reclutador_nombres.join(', ') || 'Sin reclutadores'}</p>
+                    <div>
+                      <div className="flex justify-between text-[10px] font-black uppercase text-slate-400">
+                        <span>Cobertura</span>
+                        <span>{coverage}%</span>
+                      </div>
+                      <div className="mt-1 h-2 rounded-full bg-slate-100 overflow-hidden">
+                        <div className="h-full rounded-full bg-gradient-to-r from-fuchsia-500 to-indigo-600" style={{ width: `${Math.min(100, coverage)}%` }} />
+                      </div>
+                    </div>
                   </div>
                   <div className="mt-5 flex flex-wrap gap-2">
                     <button onClick={() => { setSelectedReqId(req.id); setActiveView('postulantes'); }} className="bg-slate-100 hover:bg-slate-200 text-slate-700 px-3 py-2 rounded-xl text-xs font-black">
@@ -823,6 +1119,9 @@ export default function Seleccion({ currentUser, users, initialView = 'dashboard
                           <button onClick={() => setSelectedApplicants((prev) => prev.includes(applicant.id) ? prev.filter((id) => id !== applicant.id) : [...prev, applicant.id])} className="p-2 rounded-lg hover:bg-emerald-50 text-slate-400 hover:text-emerald-600">
                             <CheckCircle2 className="w-4 h-4" />
                           </button>
+                          <button onClick={() => setDeleteApplicantTarget(applicant)} className="p-2 rounded-lg hover:bg-rose-50 text-slate-400 hover:text-rose-600">
+                            <Trash2 className="w-4 h-4" />
+                          </button>
                         </div>
                       </td>
                     </tr>
@@ -887,38 +1186,45 @@ export default function Seleccion({ currentUser, users, initialView = 'dashboard
 
       {showReqModal && (
         <div className="fixed inset-0 z-50 bg-slate-950/50 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl max-w-4xl w-full max-h-[90vh] overflow-y-auto shadow-2xl">
+          <div className="bg-white rounded-3xl max-w-3xl w-full max-h-[90vh] overflow-y-auto shadow-2xl">
             <div className="p-5 border-b border-slate-100 flex justify-between items-center bg-gradient-to-r from-fuchsia-600 to-indigo-600 text-white rounded-t-3xl">
               <div>
                 <h3 className="text-xl font-black">{editingReq ? 'Editar convocatoria' : 'Crear convocatoria'}</h3>
-                <p className="text-xs text-white/80">Configura responsables, fechas, SLA y datos de capacitación.</p>
+                <p className="text-xs text-white/80">Gestiona apertura, reclutadores, posiciones requeridas y estado.</p>
               </div>
               <button onClick={() => setShowReqModal(false)}><X className="w-5 h-5" /></button>
             </div>
             <div className="p-5 grid md:grid-cols-2 gap-4">
-              {[
-                ['nombre', 'Nombre de convocatoria'],
-                ['cuenta', 'Cuenta o campaña'],
-                ['posicion', 'Posición'],
-                ['ciudad', 'Ciudad'],
-                ['fuente_principal', 'Fuente principal'],
-                ['fecha_inicio', 'Fecha inicio'],
-                ['fecha_fin', 'Fecha fin'],
-                ['training_fecha_inicio', 'Inicio capacitación'],
-                ['training_fecha_fin', 'Fin capacitación'],
-                ['training_hora', 'Hora capacitación'],
-              ].map(([key, label]) => (
-                <label key={key} className="text-xs font-black text-slate-500">
-                  {label}
-                  <input
-                    type={key.includes('fecha') ? 'date' : key.includes('hora') ? 'time' : 'text'}
-                    value={String((reqForm as Record<string, unknown>)[key] || '')}
-                    onChange={(event) => setReqForm((prev) => ({ ...prev, [key]: event.target.value }))}
-                    className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-800"
-                  />
-                </label>
-              ))}
+              <label className="text-xs font-black text-slate-500 md:col-span-2">
+                Código de convocatoria
+                <input
+                  value={reqForm.codigo || 'Se generará automáticamente'}
+                  disabled={!canEditRequisitionCode(currentUser.rol) || !editingReq}
+                  onChange={(event) => setReqForm((prev) => ({ ...prev, codigo: event.target.value }))}
+                  className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-800 disabled:bg-slate-100 disabled:text-slate-500 font-mono font-bold"
+                />
+              </label>
               <label className="text-xs font-black text-slate-500">
+                Campaña
+                <select value={reqForm.cuenta || campaignOptions[0]} onChange={(event) => setReqForm((prev) => ({ ...prev, cuenta: event.target.value, nombre: prev.nombre || event.target.value }))} className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-800">
+                  {campaignOptions.map((item) => <option key={item}>{item}</option>)}
+                </select>
+              </label>
+              <label className="text-xs font-black text-slate-500">
+                Fuente principal
+                <select value={reqForm.fuente_principal || sourceOptions[0]} onChange={(event) => setReqForm((prev) => ({ ...prev, fuente_principal: event.target.value }))} className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-800">
+                  {sourceOptions.map((item) => <option key={item}>{item}</option>)}
+                </select>
+              </label>
+              <label className="text-xs font-black text-slate-500">
+                Fecha de inicio
+                <input type="date" value={reqForm.fecha_inicio || ''} onChange={(event) => setReqForm((prev) => ({ ...prev, fecha_inicio: event.target.value }))} className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-800" />
+              </label>
+              <label className="text-xs font-black text-slate-500">
+                Fecha de fin
+                <input type="date" value={reqForm.fecha_fin || ''} onChange={(event) => setReqForm((prev) => ({ ...prev, fecha_fin: event.target.value }))} className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-800" />
+              </label>
+              <label className="text-xs font-black text-slate-500 md:col-span-2">
                 Reclutadores asignados
                 <select
                   multiple
@@ -933,26 +1239,15 @@ export default function Seleccion({ currentUser, users, initialView = 'dashboard
                 </select>
               </label>
               <label className="text-xs font-black text-slate-500">
-                Formador sugerido
-                <select
-                  value={reqForm.training_formador_id || ''}
-                  onChange={(event) => {
-                    const trainer = trainers.find((user) => user.id === event.target.value);
-                    setReqForm((prev) => ({ ...prev, training_formador_id: trainer?.id, training_formador_nombre: trainer?.nombre }));
-                  }}
-                  className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-800"
-                >
-                  <option value="">Pendiente</option>
-                  {trainers.map((user) => <option key={user.id} value={user.id}>{user.nombre}</option>)}
+                Cantidad de posiciones requeridas
+                <input type="number" min={1} step={1} value={reqForm.vacantes || 1} onChange={(event) => setReqForm((prev) => ({ ...prev, vacantes: Number(event.target.value) }))} className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm" />
+              </label>
+              <label className="text-xs font-black text-slate-500">
+                Estado
+                <select value={reqForm.estado || 'Activa'} onChange={(event) => setReqForm((prev) => ({ ...prev, estado: event.target.value as SelectionRequisition['estado'] }))} className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-800">
+                  <option value="Activa">Activo</option>
+                  <option value="Finalizada">Finalizado</option>
                 </select>
-              </label>
-              <label className="text-xs font-black text-slate-500">
-                Meta leads
-                <input type="number" value={reqForm.meta_leads || 0} onChange={(event) => setReqForm((prev) => ({ ...prev, meta_leads: Number(event.target.value) }))} className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm" />
-              </label>
-              <label className="text-xs font-black text-slate-500">
-                Vacantes
-                <input type="number" value={reqForm.vacantes || 0} onChange={(event) => setReqForm((prev) => ({ ...prev, vacantes: Number(event.target.value) }))} className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm" />
               </label>
               <label className="text-xs font-black text-slate-500 md:col-span-2">
                 Observaciones
@@ -966,36 +1261,89 @@ export default function Seleccion({ currentUser, users, initialView = 'dashboard
           </div>
         </div>
       )}
-
       {showApplicantModal && (
         <div className="fixed inset-0 z-50 bg-slate-950/50 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl max-w-2xl w-full shadow-2xl">
+          <div className="bg-white rounded-3xl max-w-5xl w-full max-h-[90vh] overflow-y-auto shadow-2xl">
             <div className="p-5 border-b border-slate-100 flex justify-between items-center">
               <h3 className="text-xl font-black text-slate-900">{editingApplicant ? 'Editar postulante' : 'Registrar postulante'}</h3>
               <button onClick={() => setShowApplicantModal(false)}><X className="w-5 h-5" /></button>
             </div>
-            <div className="p-5 grid md:grid-cols-2 gap-4">
+            <div className="p-5 grid md:grid-cols-3 gap-4">
+              <label className="text-xs font-black text-slate-500">
+                Reclutador
+                <select value={applicantForm.reclutador_id || ''} onChange={(event) => {
+                  const recruiter = recruiters.find((user) => user.id === event.target.value);
+                  setApplicantForm((prev) => ({ ...prev, reclutador_id: recruiter?.id, reclutador_nombre: recruiter?.nombre }));
+                }} className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm" disabled={currentUser.rol === 'Reclutador'}>
+                  {recruiters.map((user) => <option key={user.id} value={user.id}>{user.nombre}</option>)}
+                </select>
+              </label>
+              <label className="text-xs font-black text-slate-500">
+                Coordi/Super
+                <select value={applicantForm.coordinador_excel || ''} onChange={(event) => setApplicantForm((prev) => ({ ...prev, coordinador_excel: event.target.value }))} className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm">
+                  <option value="">Seleccionar</option>
+                  {managers.map((user) => <option key={user.id}>{user.nombre}</option>)}
+                </select>
+              </label>
+              <label className="text-xs font-black text-slate-500">
+                Cuenta
+                <input disabled value={applicantForm.cuenta || selectedReq?.cuenta || ''} className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm bg-slate-100" />
+              </label>
+              <label className="text-xs font-black text-slate-500">
+                Fuente
+                <select value={applicantForm.fuente || sourceOptions[0]} onChange={(event) => setApplicantForm((prev) => ({ ...prev, fuente: event.target.value }))} className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm">
+                  {sourceOptions.map((item) => <option key={item}>{item}</option>)}
+                </select>
+              </label>
               {[
+                ['posicion', 'Posición'],
+                ['ciudad', 'Ciudad'],
+                ['fecha_nacimiento', 'F. Nacimiento'],
                 ['dni', 'DNI'],
                 ['nombre_completo', 'Nombre y apellidos'],
                 ['telefono', 'Teléfono'],
-                ['correo', 'Correo'],
-                ['fuente', 'Fuente'],
-                ['ciudad', 'Ciudad'],
+                ['correo', 'Correo electrónico'],
               ].map(([key, label]) => (
                 <label key={key} className="text-xs font-black text-slate-500">
                   {label}
-                  <input value={String((applicantForm as Record<string, unknown>)[key] || '')} onChange={(event) => setApplicantForm((prev) => ({ ...prev, [key]: event.target.value }))} className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm" />
+                  <input type={key === 'fecha_nacimiento' ? 'date' : 'text'} value={String((applicantForm as Record<string, unknown>)[key] || '')} onChange={(event) => setApplicantForm((prev) => ({ ...prev, [key]: event.target.value }))} className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm" />
+                </label>
+              ))}
+              {[
+                ['entrevista', 'Entrevista', ['Pendiente', 'Programada', 'Realizada', 'No asistió', 'Reprogramada']],
+                ['examen_teorico', 'Examen teórico', ['Pendiente', 'Aprobado', 'Desaprobado', 'No aplica']],
+                ['entrevista_rh', 'Entrevista RH', ['Pendiente', 'Aprobado', 'Desaprobado', 'No asistió', 'No aplica']],
+                ['pruebas_psic', 'Pruebas psic.', ['Pendiente', 'Aprobado', 'Desaprobado', 'No asistió', 'No aplica']],
+                ['entrevista_super_coord', 'Entrevista Super/Coord.', ['Pendiente', 'Aprobado', 'Desaprobado', 'No asistió', 'No aplica']],
+              ].map(([key, label, options]) => (
+                <label key={String(key)} className="text-xs font-black text-slate-500">
+                  {String(label)}
+                  <select value={String((applicantForm as Record<string, unknown>)[String(key)] || 'Pendiente')} onChange={(event) => setApplicantForm((prev) => ({ ...prev, [String(key)]: event.target.value }))} className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm">
+                    {(options as string[]).map((item) => <option key={item}>{item}</option>)}
+                  </select>
                 </label>
               ))}
               <label className="text-xs font-black text-slate-500">
-                Estado
+                Status
                 <select value={applicantForm.ultimo_estado || 'Pendiente de gestión'} onChange={(event) => setApplicantForm((prev) => ({ ...prev, ultimo_estado: event.target.value as SelectionApplicantStatus }))} className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm">
                   {applicantStatuses.map((status) => <option key={status}>{status}</option>)}
                 </select>
               </label>
-              <label className="text-xs font-black text-slate-500 md:col-span-2">
-                Observaciones
+              <label className="text-xs font-black text-slate-500">
+                Motivo de no continuidad
+                <select value={applicantForm.motivo_caida || ''} onChange={(event) => setApplicantForm((prev) => ({ ...prev, motivo_caida: event.target.value }))} className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm">
+                  <option value="">No aplica</option>
+                  {dropoutReasons.map((item) => <option key={item}>{item}</option>)}
+                </select>
+              </label>
+              {applicantForm.motivo_caida === 'Otro' && (
+                <label className="text-xs font-black text-slate-500 md:col-span-3">
+                  Detalle del motivo
+                  <input value={applicantForm.submotivo_caida || ''} onChange={(event) => setApplicantForm((prev) => ({ ...prev, submotivo_caida: event.target.value }))} className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm" />
+                </label>
+              )}
+              <label className="text-xs font-black text-slate-500 md:col-span-3">
+                Observaciones del postulante
                 <textarea value={applicantForm.observaciones || ''} onChange={(event) => setApplicantForm((prev) => ({ ...prev, observaciones: event.target.value }))} rows={3} className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm" />
               </label>
             </div>
@@ -1006,7 +1354,23 @@ export default function Seleccion({ currentUser, users, initialView = 'dashboard
           </div>
         </div>
       )}
-
+      {deleteApplicantTarget && (
+        <div className="fixed inset-0 z-50 bg-slate-950/50 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl max-w-md w-full shadow-2xl p-6">
+            <AlertTriangle className="w-10 h-10 text-rose-600 mb-3" />
+            <h3 className="font-black text-slate-900 text-xl">Eliminar postulante</h3>
+            <p className="text-sm text-slate-500 mt-2">
+              Postulante: <strong>{deleteApplicantTarget.nombre_completo}</strong><br />
+              DNI: <strong>{deleteApplicantTarget.dni}</strong>
+            </p>
+            <textarea value={deleteApplicantReason} onChange={(event) => setDeleteApplicantReason(event.target.value)} placeholder="Motivo obligatorio de eliminación..." className="mt-4 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm" rows={3} />
+            <div className="flex justify-end gap-2 mt-4">
+              <button onClick={() => { setDeleteApplicantTarget(null); setDeleteApplicantReason(''); }} className="px-4 py-2 rounded-xl bg-slate-100 text-slate-700 font-black text-sm">Cancelar</button>
+              <button onClick={() => void removeApplicant()} disabled={saving || deleteApplicantReason.trim().length < 8} className="px-4 py-2 rounded-xl bg-rose-600 text-white font-black text-sm disabled:opacity-50">Confirmar eliminación</button>
+            </div>
+          </div>
+        </div>
+      )}
       {deleteTarget && (
         <div className="fixed inset-0 z-50 bg-slate-950/50 backdrop-blur-sm flex items-center justify-center p-4">
           <div className="bg-white rounded-3xl max-w-md w-full shadow-2xl p-6">

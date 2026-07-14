@@ -14,6 +14,8 @@ const COLLECTIONS = {
   requisitions: 'selection_requisitions',
   applicants: 'selection_applicants',
   audit: 'selection_audit',
+  codeCounters: 'selection_requisition_code_counters',
+  codeLocks: 'selection_requisition_codes',
   sessions: 'sessions',
   surveys: 'surveys',
   participants: 'participants',
@@ -76,16 +78,79 @@ const assertRequisitionAccess = async (req: AuthenticatedRequest, requisitionId:
   return requisition;
 };
 
-const buildRequisitionCode = async () => {
-  const base = `CONV-${dateKey()}`;
-  const snapshot = await adminDb
-    .collection(COLLECTIONS.requisitions)
-    .where('codigo_base', '==', base)
-    .get();
+const requisitionCampaignPrefixes: Record<string, string> = {
+  'Entel Empresas': 'EN',
+  Culqi: 'CU',
+  Equifax: 'EQ',
+  Prosegur: 'PR',
+};
+
+const getRequisitionCampaignPrefix = (campaign: string) =>
+  requisitionCampaignPrefixes[normalize(campaign)] || campaignPrefix(campaign).slice(0, 2);
+
+const getLimaYearMonth = () => {
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'America/Lima',
+    year: 'numeric',
+    month: '2-digit',
+  }).formatToParts(new Date());
   return {
-    codigo_base: base,
-    codigo: `${base}-${String(snapshot.size + 1).padStart(3, '0')}`,
+    year: parts.find((part) => part.type === 'year')?.value || '2026',
+    month: parts.find((part) => part.type === 'month')?.value || '01',
   };
+};
+
+const buildRequisitionCode = async (campaign: string, requisitionId: string) => {
+  const prefix = getRequisitionCampaignPrefix(campaign);
+  const { year, month } = getLimaYearMonth();
+  const base = `CON-${prefix}-${year}-${month}`;
+  const counterRef = adminDb.collection(COLLECTIONS.codeCounters).doc(base);
+
+  return adminDb.runTransaction(async (transaction) => {
+    const counterDoc = await transaction.get(counterRef);
+    const next = Number(counterDoc.data()?.next || 1);
+    const codigo = `${base}-${String(next).padStart(2, '0')}`;
+    const codeRef = adminDb.collection(COLLECTIONS.codeLocks).doc(codigo);
+    const codeDoc = await transaction.get(codeRef);
+    if (codeDoc.exists) {
+      throw new Error('No se pudo generar un código único. Intenta nuevamente.');
+    }
+    transaction.set(counterRef, {
+      base,
+      next: next + 1,
+      updated_at: nowIso(),
+    }, { merge: true });
+    transaction.set(codeRef, {
+      codigo,
+      requisition_id: requisitionId,
+      created_at: nowIso(),
+    });
+    return {
+      codigo_base: base,
+      codigo,
+    };
+  });
+};
+
+const reserveManualRequisitionCode = async (codigo: string, requisitionId: string, previousCode?: string) => {
+  await adminDb.runTransaction(async (transaction) => {
+    const codeRef = adminDb.collection(COLLECTIONS.codeLocks).doc(codigo);
+    const codeDoc = await transaction.get(codeRef);
+    if (codeDoc.exists && codeDoc.data()?.requisition_id !== requisitionId) {
+      throw new Error('El código de convocatoria ya existe.');
+    }
+    transaction.set(codeRef, {
+      codigo,
+      requisition_id: requisitionId,
+      updated_at: nowIso(),
+    }, { merge: true });
+    if (previousCode && previousCode !== codigo) {
+      transaction.set(adminDb.collection(COLLECTIONS.codeLocks).doc(previousCode), {
+        released_at: nowIso(),
+        replaced_by: codigo,
+      }, { merge: true });
+    }
+  });
 };
 
 const campaignPrefix = (value: string) =>
@@ -114,14 +179,14 @@ router.get('/bootstrap', requireAuth, async (req: AuthenticatedRequest, res: Res
   const requisitions = allReqs.docs
     .map((doc) => ({ id: doc.id, ...doc.data() } as AnyDoc))
     .filter((item) => canViewRequisition(req, item))
-    .filter((item) => req.user!.rol === 'Administrador' || !item.deleted_at);
+    .filter((item) => !item.deleted_at);
 
   const ids = new Set(requisitions.map((item) => String(item.id)));
   const applicantsSnapshot = await adminDb.collection(COLLECTIONS.applicants).get();
   const applicants = applicantsSnapshot.docs
     .map((doc) => ({ id: doc.id, ...doc.data() } as AnyDoc))
     .filter((item) => ids.has(String(item.requisition_id)))
-    .filter((item) => req.user!.rol === 'Administrador' || !item.deleted_at)
+    .filter((item) => !item.deleted_at)
     .filter((item) => req.user!.rol !== 'Reclutador' || item.reclutador_id === req.user!.uid);
 
   const audit = viewAllRoles.includes(req.user!.rol)
@@ -143,8 +208,8 @@ router.post(
       return;
     }
 
-    const code = await buildRequisitionCode();
     const id = `sel-req-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+    const code = await buildRequisitionCode(normalize(parsed.data.cuenta || parsed.data.campaña), id);
     const timestamp = nowIso();
     const record: AnyDoc = {
       ...parsed.data,
@@ -169,11 +234,15 @@ router.post(
 router.patch(
   '/requisitions/:id',
   requireAuth,
-  requireRole(managerRoles),
+  requireRole(['Administrador', 'Analista', 'Coordinador', 'Reclutador']),
   async (req: AuthenticatedRequest, res: Response) => {
     const existing = await getRequisition(req.params.id);
     if (!existing || existing.deleted_at) {
       res.status(404).json({ message: 'Convocatoria no encontrada.' });
+      return;
+    }
+    if (!canViewRequisition(req, existing)) {
+      res.status(403).json({ message: 'No tienes acceso a esta convocatoria.' });
       return;
     }
     const changes = z.record(z.string(), z.unknown()).safeParse(req.body);
@@ -182,8 +251,26 @@ router.patch(
       return;
     }
     delete changes.data.id;
-    delete changes.data.codigo;
-    delete changes.data.codigo_base;
+    const requestedCode = normalize(changes.data.codigo);
+    if (requestedCode && requestedCode !== normalize(existing.codigo)) {
+      if (req.user!.rol !== 'Administrador') {
+        res.status(403).json({ message: 'Solo el Administrador puede editar el código de convocatoria.' });
+        return;
+      }
+      await reserveManualRequisitionCode(requestedCode, req.params.id, normalize(existing.codigo));
+      changes.data.codigo = requestedCode;
+      changes.data.codigo_base = 'MANUAL';
+      await writeAudit(
+        req,
+        'Modificación manual de código de convocatoria',
+        req.params.id,
+        String(existing.nombre || ''),
+        `${existing.codigo || ''} -> ${requestedCode}`,
+      );
+    } else {
+      delete changes.data.codigo;
+      delete changes.data.codigo_base;
+    }
     const payload = { ...changes.data, updated_at: nowIso(), updated_by: req.user!.uid };
     await adminDb.collection(COLLECTIONS.requisitions).doc(req.params.id).set(payload, { merge: true });
     await writeAudit(req, 'Edición de convocatoria', req.params.id, String(existing.nombre || ''));
@@ -194,11 +281,15 @@ router.patch(
 router.delete(
   '/requisitions/:id',
   requireAuth,
-  requireRole(['Administrador']),
+  requireRole(['Administrador', 'Analista', 'Coordinador', 'Reclutador']),
   async (req: AuthenticatedRequest, res: Response) => {
     const existing = await getRequisition(req.params.id);
     if (!existing) {
       res.status(404).json({ message: 'Convocatoria no encontrada.' });
+      return;
+    }
+    if (!canViewRequisition(req, existing)) {
+      res.status(403).json({ message: 'No tienes acceso a esta convocatoria.' });
       return;
     }
     const reason = normalize(req.body?.reason);
@@ -433,6 +524,44 @@ router.patch(
     };
     await adminDb.collection(COLLECTIONS.applicants).doc(req.params.id).set(payload, { merge: true });
     await writeAudit(req, 'Actualización de postulante', req.params.id, String(current.nombre_completo || ''));
+    res.json({ ok: true, changes: payload });
+  },
+);
+
+router.delete(
+  '/applicants/:id',
+  requireAuth,
+  requireRole(['Administrador', 'Analista', 'Coordinador', 'Reclutador']),
+  async (req: AuthenticatedRequest, res: Response) => {
+    const doc = await adminDb.collection(COLLECTIONS.applicants).doc(req.params.id).get();
+    if (!doc.exists) {
+      res.status(404).json({ message: 'Postulante no encontrado.' });
+      return;
+    }
+    const current = { id: doc.id, ...doc.data() } as AnyDoc;
+    if (!(await assertRequisitionAccess(req, String(current.requisition_id)))) {
+      res.status(403).json({ message: 'No tienes acceso a este postulante.' });
+      return;
+    }
+    if (req.user!.rol === 'Reclutador' && current.reclutador_id !== req.user!.uid) {
+      res.status(403).json({ message: 'Solo puedes gestionar tus propios postulantes.' });
+      return;
+    }
+    const reason = normalize(req.body?.reason);
+    if (reason.length < 8) {
+      res.status(400).json({ message: 'Indica un motivo de eliminacion de al menos 8 caracteres.' });
+      return;
+    }
+    const payload = {
+      ultimo_estado: 'Eliminado',
+      deleted_at: nowIso(),
+      deleted_by: req.user!.uid,
+      deletion_reason: reason,
+      updated_at: nowIso(),
+      updated_by: req.user!.uid,
+    };
+    await adminDb.collection(COLLECTIONS.applicants).doc(req.params.id).set(payload, { merge: true });
+    await writeAudit(req, 'Eliminacion logica de postulante', req.params.id, String(current.nombre_completo || ''), reason);
     res.json({ ok: true, changes: payload });
   },
 );
