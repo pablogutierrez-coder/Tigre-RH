@@ -544,13 +544,15 @@ export default function Seleccion({ currentUser, users, initialView = 'dashboard
         </div>
       )}
 
-      <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+      {activeView === 'dashboard' && (
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
         {renderKpi('Leads registrados', metrics.total, <Users className="w-5 h-5" />, 'indigo')}
         {renderKpi('Gestionados', metrics.managed, <UserCheck className="w-5 h-5" />, 'emerald')}
         {renderKpi('Aptos capacitación', metrics.apt, <CheckCircle2 className="w-5 h-5" />, 'fuchsia')}
         {renderKpi('Asignados', metrics.assigned, <Send className="w-5 h-5" />, 'blue')}
         {renderKpi('Cumplimiento SLA', `${percent(metrics.slaOk, metrics.total)}%`, <BarChart3 className="w-5 h-5" />, 'amber')}
-      </div>
+        </div>
+      )}
 
       {activeView === 'dashboard' && (
         <div className="grid xl:grid-cols-3 gap-4">
