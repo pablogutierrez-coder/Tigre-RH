@@ -40,7 +40,9 @@ import {
   AlertTriangle,
   HelpCircle,
   Clock3,
-  ClipboardCheck
+  ClipboardCheck,
+  BriefcaseBusiness,
+  UserCheck
 } from 'lucide-react';
 
 // Subcomponents
@@ -55,7 +57,7 @@ import Reportes from './components/Reportes';
 import Auditoria from './components/Auditoria';
 import Encuestas from './components/Encuestas';
 import PublicSurveyForm from './components/PublicSurveyForm';
-import Seleccion from './components/Seleccion';
+import Seleccion, { type SelectionViewMode } from './components/Seleccion';
 
 import { getPeruNow, formatPeruDate, isAttendanceWindowOpen } from './utils/time';
 import { permissions } from './utils/permissions';
@@ -225,6 +227,7 @@ export default function App() {
   // --- Navigation States ---
   const [currentView, setCurrentView] = useState<string>('dashboard');
   const [selectedSessionId, setSelectedSessionId] = useState<string | null>(null);
+  const [selectionView, setSelectionView] = useState<SelectionViewMode>('dashboard');
   const [platformReloadKey, setPlatformReloadKey] = useState(0);
 
   // --- Public Satisfaction Survey Router States ---
@@ -290,8 +293,9 @@ export default function App() {
     if (activeUser) {
       localStorage.setItem('fdr_active_user', JSON.stringify(activeUser));
       // Set default views based on role
-      if (activeUser.rol === 'Reclutador') {
-        setCurrentView('capacitaciones');
+      if (activeUser.rol === 'Reclutador' || activeUser.rol === 'Analista') {
+        setCurrentView('seleccion');
+        setSelectionView('dashboard');
       } else if (activeUser.rol === 'Formador') {
         setCurrentView('capacitaciones');
       } else {
@@ -1639,18 +1643,59 @@ export default function App() {
             <nav className="flex-1 p-4 space-y-1" id="sidebar-nav">
               {activeUser.rol !== 'Formador' && (
                 <>
-                  <div className="text-[10px] font-bold text-slate-500 uppercase tracking-widest px-3 mb-2 mt-2">
-                    Selección
-                  </div>
+                  <div className="text-[10px] font-bold text-slate-500 uppercase tracking-widest px-3 mb-2 mt-2">Monitoreo</div>
                   <button
-                    onClick={() => { setCurrentView('seleccion'); setSelectedSessionId(null); }}
+                    onClick={() => { setCurrentView('seleccion'); setSelectionView('dashboard'); setSelectedSessionId(null); }}
                     className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-semibold transition-all ${
-                      currentView === 'seleccion' ? 'bg-gradient-to-r from-fuchsia-600 to-indigo-600 text-white font-bold shadow-sm' : 'text-slate-600 hover:bg-slate-50 hover:text-slate-950'
+                      currentView === 'seleccion' && selectionView === 'dashboard' ? 'bg-gradient-to-r from-fuchsia-600 to-indigo-600 text-white font-bold shadow-sm' : 'text-slate-600 hover:bg-slate-50 hover:text-slate-950'
                     }`}
                   >
-                    <Users className="w-4 h-4 shrink-0" />
-                    Módulo de Selección
+                    <LayoutDashboard className="w-4 h-4 shrink-0" />
+                    Dashboard de Selección
                   </button>
+                  <div className="text-[10px] font-bold text-slate-500 uppercase tracking-widest px-3 mb-2 mt-4">Operaciones de Selección</div>
+                  {[
+                    ['convocatorias', 'Convocatorias', BriefcaseBusiness],
+                    ['postulantes', 'Postulantes', Users],
+                    ['seguimientos', 'Seguimientos', Clock],
+                    ['evaluaciones', 'Entrevistas y Evaluaciones', ClipboardCheck],
+                    ['aptos', 'Aptos para Capacitación', UserCheck],
+                    ['historial', 'Historial de Selección', FileText],
+                  ].map(([view, label, Icon]) => {
+                    const MenuIcon = Icon as typeof Users;
+                    return (
+                      <button
+                        key={String(view)}
+                        onClick={() => { setCurrentView('seleccion'); setSelectionView(view as SelectionViewMode); setSelectedSessionId(null); }}
+                        className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-semibold transition-all ${
+                          currentView === 'seleccion' && selectionView === view ? 'bg-gradient-to-r from-fuchsia-600 to-indigo-600 text-white font-bold shadow-sm' : 'text-slate-600 hover:bg-slate-50 hover:text-slate-950'
+                        }`}
+                      >
+                        <MenuIcon className="w-4 h-4 shrink-0" />
+                        {String(label)}
+                      </button>
+                    );
+                  })}
+                  <div className="text-[10px] font-bold text-slate-500 uppercase tracking-widest px-3 mb-2 mt-4">Configuración y Reportes</div>
+                  {[
+                    ['catalogos', 'Catálogos de Selección', Settings],
+                    ['reportes', 'Reportes Exportables', FileSpreadsheet],
+                    ['auditoria', 'Auditoría de Selección', FileText],
+                  ].map(([view, label, Icon]) => {
+                    const MenuIcon = Icon as typeof Users;
+                    return (
+                      <button
+                        key={String(view)}
+                        onClick={() => { setCurrentView('seleccion'); setSelectionView(view as SelectionViewMode); setSelectedSessionId(null); }}
+                        className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-semibold transition-all ${
+                          currentView === 'seleccion' && selectionView === view ? 'bg-gradient-to-r from-fuchsia-600 to-indigo-600 text-white font-bold shadow-sm' : 'text-slate-600 hover:bg-slate-50 hover:text-slate-950'
+                        }`}
+                      >
+                        <MenuIcon className="w-4 h-4 shrink-0" />
+                        {String(label)}
+                      </button>
+                    );
+                  })}
                 </>
               )}
               
@@ -1763,7 +1808,7 @@ export default function App() {
               )}
 
               {/* ANALISTA ROLE MENU */}
-              {activeUser.rol === 'Analista' && (
+              {false && activeUser.rol === 'Analista' && (
                 <>
                   <div className="text-[10px] font-bold text-slate-500 uppercase tracking-widest px-3 mb-2 mt-2">Monitoreo</div>
                   <button
@@ -1848,7 +1893,7 @@ export default function App() {
               )}
 
               {/* RECLUTADOR ROLE MENU */}
-              {activeUser.rol === 'Reclutador' && (
+              {false && activeUser.rol === 'Reclutador' && (
                 <>
                   <div className="text-[10px] font-bold text-slate-500 uppercase tracking-widest px-3 mb-2 mt-2 font-mono">Reclutamiento</div>
                   <button
@@ -2041,8 +2086,12 @@ export default function App() {
             {/* Top Navigation / Simulated Clock Controller Header */}
             <header className="glass-header px-4 sm:px-6 py-4 flex flex-col md:flex-row md:items-center md:justify-between gap-4 sticky top-0 z-40">
               <div>
-	                <span className="text-[10px] text-indigo-600 font-bold uppercase tracking-widest font-mono">Área FDR</span>
-	                <h2 className="text-slate-900 text-lg font-black leading-tight tracking-tight">{APP_NAME}</h2>
+	                <span className="text-[10px] text-indigo-600 font-bold uppercase tracking-widest font-mono">
+                    {currentView === 'seleccion' ? 'Área Selección' : 'Área FDR'}
+                  </span>
+	                <h2 className="text-slate-900 text-lg font-black leading-tight tracking-tight">
+                    {currentView === 'seleccion' ? 'Selección | Convocatorias y Postulantes' : APP_NAME}
+                  </h2>
               </div>
 
               {/* FECHA Y HORA OFICIAL */}
@@ -2090,6 +2139,7 @@ export default function App() {
                 <Seleccion
                   currentUser={activeUser}
                   users={users}
+                  initialView={selectionView}
                   onPlatformDataChanged={() => setPlatformReloadKey((value) => value + 1)}
                 />
               )}

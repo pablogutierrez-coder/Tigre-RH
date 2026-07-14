@@ -56,9 +56,12 @@ type ViewMode =
   | 'reportes'
   | 'auditoria';
 
+export type SelectionViewMode = ViewMode;
+
 interface SeleccionProps {
   currentUser: AppUser;
   users: AppUser[];
+  initialView?: ViewMode;
   onPlatformDataChanged?: () => void;
 }
 
@@ -165,8 +168,8 @@ const downloadTemplate = () => {
   XLSX.writeFile(workbook, 'plantilla-postulantes-seleccion.xlsx');
 };
 
-export default function Seleccion({ currentUser, users, onPlatformDataChanged }: SeleccionProps) {
-  const [activeView, setActiveView] = useState<ViewMode>('dashboard');
+export default function Seleccion({ currentUser, users, initialView = 'dashboard', onPlatformDataChanged }: SeleccionProps) {
+  const [activeView, setActiveView] = useState<ViewMode>(initialView);
   const [requisitions, setRequisitions] = useState<SelectionRequisition[]>([]);
   const [applicants, setApplicants] = useState<SelectionApplicant[]>([]);
   const [audit, setAudit] = useState<SelectionAuditLog[]>([]);
@@ -214,6 +217,10 @@ export default function Seleccion({ currentUser, users, onPlatformDataChanged }:
   useEffect(() => {
     void loadData();
   }, []);
+
+  useEffect(() => {
+    setActiveView(initialView);
+  }, [initialView]);
 
   const selectedReq = useMemo(
     () => requisitions.find((item) => item.id === selectedReqId) || requisitions[0],
