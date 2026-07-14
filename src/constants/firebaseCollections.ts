@@ -12,6 +12,10 @@ export const FDR_COLLECTIONS = {
   fileRecords: 'file_records',
   trainingClosures: 'training_closures',
   appSettings: 'app_settings',
+  selectionRequisitions: 'selection_requisitions',
+  selectionApplicants: 'selection_applicants',
+  selectionAudit: 'selection_audit',
+  selectionNotifications: 'selection_notifications',
 } as const;
 
 export type FdrCollectionName =

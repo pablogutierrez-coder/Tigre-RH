@@ -55,6 +55,7 @@ import Reportes from './components/Reportes';
 import Auditoria from './components/Auditoria';
 import Encuestas from './components/Encuestas';
 import PublicSurveyForm from './components/PublicSurveyForm';
+import Seleccion from './components/Seleccion';
 
 import { getPeruNow, formatPeruDate, isAttendanceWindowOpen } from './utils/time';
 import { permissions } from './utils/permissions';
@@ -224,6 +225,7 @@ export default function App() {
   // --- Navigation States ---
   const [currentView, setCurrentView] = useState<string>('dashboard');
   const [selectedSessionId, setSelectedSessionId] = useState<string | null>(null);
+  const [platformReloadKey, setPlatformReloadKey] = useState(0);
 
   // --- Public Satisfaction Survey Router States ---
   const [urlView, setUrlView] = useState<string | null>(null);
@@ -329,7 +331,7 @@ export default function App() {
       window.removeEventListener('keydown', enableAudio);
       window.removeEventListener('touchstart', enableAudio);
     };
-  }, [activeUser, authChecking]);
+  }, [activeUser, authChecking, platformReloadKey]);
 
   // --- Helper to register system audit logs ---
   const addAuditLog = (
@@ -1635,6 +1637,22 @@ export default function App() {
 
             {/* Navigation links based on Role */}
             <nav className="flex-1 p-4 space-y-1" id="sidebar-nav">
+              {activeUser.rol !== 'Formador' && (
+                <>
+                  <div className="text-[10px] font-bold text-slate-500 uppercase tracking-widest px-3 mb-2 mt-2">
+                    Selección
+                  </div>
+                  <button
+                    onClick={() => { setCurrentView('seleccion'); setSelectedSessionId(null); }}
+                    className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-semibold transition-all ${
+                      currentView === 'seleccion' ? 'bg-gradient-to-r from-fuchsia-600 to-indigo-600 text-white font-bold shadow-sm' : 'text-slate-600 hover:bg-slate-50 hover:text-slate-950'
+                    }`}
+                  >
+                    <Users className="w-4 h-4 shrink-0" />
+                    Módulo de Selección
+                  </button>
+                </>
+              )}
               
               {/* ADMIN ROLE MENU */}
               {activeUser.rol === 'Administrador' && (
@@ -2066,6 +2084,14 @@ export default function App() {
                     onAppendParticipants={handleAppendParticipants}
                   />
                 </div>
+              )}
+
+              {currentView === 'seleccion' && activeUser.rol !== 'Formador' && (
+                <Seleccion
+                  currentUser={activeUser}
+                  users={users}
+                  onPlatformDataChanged={() => setPlatformReloadKey((value) => value + 1)}
+                />
               )}
 
               {/* View 1: General Dashboard */}

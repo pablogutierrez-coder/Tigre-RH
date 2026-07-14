@@ -256,3 +256,174 @@ export interface TrainingClosure {
   validations: Record<string, unknown>;
   status: 'closed';
 }
+
+export type SelectionRequisitionStatus =
+  | 'Borrador'
+  | 'Programada'
+  | 'Activa'
+  | 'En proceso'
+  | 'Próxima a vencer'
+  | 'Vencida'
+  | 'Pendiente de cierre'
+  | 'Pendiente de asignación a capacitación'
+  | 'Parcialmente asignada a capacitación'
+  | 'Finalizada'
+  | 'Finalizada con postulantes pendientes'
+  | 'Cancelada'
+  | 'Archivada'
+  | 'Eliminada';
+
+export type SelectionApplicantStatus =
+  | 'Pendiente de gestión'
+  | 'Interesado'
+  | 'No interesado'
+  | 'No responde'
+  | 'Entrevista inicial'
+  | 'Examen teórico'
+  | 'Entrevista RH'
+  | 'Pruebas psicológicas'
+  | 'Entrevista Supervisor/Coordinador'
+  | 'Apto para capacitación'
+  | 'Asignado a capacitación'
+  | 'Alta en operación'
+  | 'Caído'
+  | 'No apto';
+
+export type SelectionEvaluationStatus =
+  | 'Pendiente'
+  | 'Programada'
+  | 'En proceso'
+  | 'Apto'
+  | 'No apto'
+  | 'No aplica';
+
+export interface SelectionRequisition {
+  id: string;
+  codigo: string;
+  nombre: string;
+  cuenta: string;
+  posicion: string;
+  ciudad: string;
+  fuente_principal: string;
+  vacantes: number;
+  meta_leads: number;
+  prioridad: 'Baja' | 'Media' | 'Alta' | 'Crítica';
+  descripcion?: string;
+  requisitos?: string;
+  observaciones?: string;
+  analista_id?: string;
+  analista_nombre?: string;
+  coordinador_id?: string;
+  coordinador_nombre?: string;
+  reclutador_ids: string[];
+  reclutador_nombres: string[];
+  fecha_creacion: string;
+  fecha_inicio: string;
+  fecha_fin: string;
+  hora_inicio?: string;
+  hora_cierre?: string;
+  sla_objetivo: number;
+  sla_unidad: 'minutos' | 'horas';
+  sla_tipo: 'Horas calendario' | 'Horas laborales';
+  max_intentos_contacto: number;
+  seguimiento_max_horas: number;
+  training_tipo?: string;
+  training_formador_id?: string;
+  training_formador_nombre?: string;
+  training_fecha_inicio?: string;
+  training_fecha_fin?: string;
+  training_hora?: string;
+  training_modalidad?: 'Presencial' | 'Virtual' | 'Híbrida';
+  training_sede?: string;
+  training_enlace?: string;
+  training_observaciones?: string;
+  training_session_id?: string;
+  estado: SelectionRequisitionStatus;
+  cierre_motivo?: string;
+  deleted_at?: string;
+  deleted_by?: string;
+  deletion_reason?: string;
+  created_at: string;
+  updated_at: string;
+  created_by: string;
+  updated_by?: string;
+}
+
+export interface SelectionApplicantEvaluation {
+  estado: SelectionEvaluationStatus;
+  fecha?: string;
+  hora?: string;
+  responsable?: string;
+  puntaje?: number;
+  observacion?: string;
+  motivo_no_apto?: string;
+}
+
+export interface SelectionApplicant {
+  id: string;
+  codigo: string;
+  requisition_id: string;
+  requisition_codigo: string;
+  reclutador_excel?: string;
+  coordinador_excel?: string;
+  cuenta: string;
+  fuente: string;
+  posicion: string;
+  ciudad: string;
+  fecha_nacimiento?: string;
+  dni: string;
+  nombre_completo: string;
+  telefono: string;
+  correo?: string;
+  entrevista?: string;
+  status_excel?: string;
+  examen_teorico?: string;
+  entrevista_rh?: string;
+  pruebas_psic?: string;
+  entrevista_super_coord?: string;
+  registrado_por: string;
+  registrado_por_nombre: string;
+  reclutador_id: string;
+  reclutador_nombre: string;
+  fecha_registro: string;
+  fecha_asignacion: string;
+  fecha_primera_gestion?: string;
+  tiempo_primera_gestion_min?: number;
+  cumple_sla?: boolean;
+  intentos_contacto: number;
+  proximo_seguimiento?: string;
+  ultimo_estado: SelectionApplicantStatus;
+  etapa_actual: string;
+  motivo_caida?: string;
+  submotivo_caida?: string;
+  observaciones?: string;
+  ultima_actualizacion: string;
+  actualizado_por?: string;
+  estado_capacitacion?: 'Pendiente' | 'Asignado a capacitación' | 'Inició capacitación' | 'Finalizó capacitación';
+  estado_alta_operacion?: 'Pendiente' | 'Alta en operación' | 'No alta';
+  convocatoria_origen: string;
+  training_session_id?: string;
+  participant_id?: string;
+  evaluaciones?: Record<string, SelectionApplicantEvaluation>;
+  deleted_at?: string;
+  created_at: string;
+  updated_at: string;
+  created_by: string;
+  updated_by?: string;
+}
+
+export interface SelectionAuditLog {
+  id: string;
+  action: string;
+  module: string;
+  entity_id?: string;
+  entity_name?: string;
+  user_id: string;
+  user_name: string;
+  user_role: UserRole;
+  created_at: string;
+  previous_value?: string;
+  new_value?: string;
+  reason?: string;
+  ip?: string;
+}
