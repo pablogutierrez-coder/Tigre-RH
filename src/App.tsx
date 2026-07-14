@@ -837,6 +837,50 @@ export default function App() {
     }));
   };
 
+  const isDropoutAttendance = (status: AttendanceStatus) => status === 'Desistió' || status === 'Baja';
+
+  const getTrainingDayDate = (session: TrainingSession | undefined, day: number) => {
+    if (!session?.fecha_inicio) return new Date().toISOString().split('T')[0];
+    try {
+      const baseDate = new Date(`${session.fecha_inicio}T12:00:00`);
+      baseDate.setDate(baseDate.getDate() + (day - 1));
+      return baseDate.toISOString().split('T')[0];
+    } catch {
+      return session.fecha_inicio;
+    }
+  };
+
+  const buildDropoutContinuationRecords = (
+    baseRecord: Omit<AttendanceRecord, 'id' | 'fecha_registro'>,
+    session: TrainingSession | undefined,
+    participantIds: string[],
+  ): AttendanceRecord[] => {
+    if (!isDropoutAttendance(baseRecord.estado_asistencia) || baseRecord.dia >= 5) return [];
+    const now = new Date().toISOString();
+    const futureDays = Array.from({ length: 5 - baseRecord.dia }, (_, index) => baseRecord.dia + index + 1);
+
+    return participantIds.flatMap((participantId) =>
+      futureDays.map((day) => {
+        const existing = attendance.find(
+          (item) =>
+            item.training_session_id === baseRecord.training_session_id &&
+            item.participant_id === participantId &&
+            item.dia === day,
+        );
+
+        return {
+          ...baseRecord,
+          id: existing?.id || `att-${Math.random().toString(36).substring(2, 11)}`,
+          participant_id: participantId,
+          dia: day,
+          fecha: getTrainingDayDate(session, day),
+          minutos_tardanza: undefined,
+          fecha_registro: now,
+        };
+      }),
+    );
+  };
+
   // 3. Mark Single Attendance Record
   const handleSaveAttendance = (rec: Omit<AttendanceRecord, 'id' | 'fecha_registro'>) => {
     const pId = rec.participant_id;
@@ -868,8 +912,29 @@ export default function App() {
       setAttendance(prev => [...prev, updatedRec]);
     }
 
+    const continuationRecords = buildDropoutContinuationRecords(rec, sess, [pId]);
+    if (continuationRecords.length > 0) {
+      continuationRecords.forEach((record) => {
+        void persistAttendance(record).catch((error) => {
+          console.error('Error persisting dropout continuation:', error);
+        });
+      });
+      setAttendance(prev => {
+        const continuationDays = continuationRecords.map(record => record.dia);
+        const filtered = prev.filter(
+          record =>
+            !(
+              record.training_session_id === rec.training_session_id &&
+              record.participant_id === pId &&
+              continuationDays.includes(record.dia)
+            ),
+        );
+        return [...filtered, ...continuationRecords];
+      });
+    }
+
     // Auto update participant final state if marked "Desistió" or completed
-    if (rec.estado_asistencia === 'Desistió' || rec.estado_asistencia === 'Baja') {
+    if (isDropoutAttendance(rec.estado_asistencia)) {
       if (part) {
         void persistParticipant({ ...part, estado_final: 'Desistió' }).catch((error) => {
           console.error('Error persisting participant desertion:', error);
@@ -927,7 +992,26 @@ export default function App() {
         fecha_registro: new Date().toISOString()
       };
     });
-    newRecords.forEach((record) => {
+    const continuationRecords = buildDropoutContinuationRecords(
+      {
+        participant_id: pIds[0] || '',
+        training_session_id: sId,
+        dia,
+        fecha: date,
+        estado_asistencia: status,
+        minutos_tardanza: undefined,
+        motivo_desercion,
+        observacion: obs,
+        evidencia_nombre,
+        evidencia_imagen,
+        registrado_por: activeUser ? activeUser.id : 'sistema',
+      },
+      sess,
+      pIds,
+    );
+    const allRecords = [...newRecords, ...continuationRecords];
+
+    allRecords.forEach((record) => {
       void persistAttendance(record).catch((error) => {
         console.error('Error persisting bulk attendance:', error);
       });
@@ -936,12 +1020,13 @@ export default function App() {
     // Update attendance state
     setAttendance(prev => {
       // Filter out those being overwritten
-      const filtered = prev.filter(a => !(a.training_session_id === sId && a.dia === dia && pIds.includes(a.participant_id)));
-      return [...filtered, ...newRecords];
+      const daysToOverwrite = [dia, ...continuationRecords.map(record => record.dia)];
+      const filtered = prev.filter(a => !(a.training_session_id === sId && daysToOverwrite.includes(a.dia) && pIds.includes(a.participant_id)));
+      return [...filtered, ...allRecords];
     });
 
     // Update participant final status
-    if (status === 'Desistió' || status === 'Baja') {
+    if (isDropoutAttendance(status)) {
       participants
         .filter(p => pIds.includes(p.id))
         .forEach((participant) => {

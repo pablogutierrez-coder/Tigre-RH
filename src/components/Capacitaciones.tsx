@@ -134,6 +134,7 @@ export default function Capacitaciones({
   const [editReclutadorId, setEditReclutadorId] = useState('');
   const [editEstado, setEditEstado] = useState<'Pendiente de inicio' | 'En curso' | 'Activa' | 'Campaña cerrada' | 'Capacitación cerrada'>('En curso');
   const [editObservaciones, setEditObservaciones] = useState('');
+  const [editManualGenerationCode, setEditManualGenerationCode] = useState('');
 
   // Closing/Reopening Training States
   const [sessionToClose, setSessionToClose] = useState<TrainingSession | null>(null);
@@ -464,12 +465,12 @@ export default function Capacitaciones({
 
   const editDisplayedCode = useMemo(() => {
     if (!editingSession) return '';
+    if (currentUser.rol === 'Administrador') return editManualGenerationCode.trim();
     const { year, month, day } = parseDateParts(editFechaInicio);
     const expectedBaseCode = `CAP-${getCampaignPrefix(editCampaña)}${year}${day}${month}`;
     const currentCode = getTrainingIdentifier(editingSession);
     return currentCode.startsWith(expectedBaseCode) ? currentCode : editGenerationCode;
-  }, [editCampaña, editFechaInicio, editGenerationCode, editingSession]);
-
+  }, [currentUser.rol, editCampaña, editFechaInicio, editGenerationCode, editManualGenerationCode, editingSession]);
   // Set default formador
   React.useEffect(() => {
     if (trainers.length > 0 && !formadorId) {
@@ -519,12 +520,17 @@ export default function Capacitaciones({
     setEditReclutadorId(s.reclutador_id || '');
     setEditEstado(s.estado as any);
     setEditObservaciones(s.observaciones || '');
+    setEditManualGenerationCode(getTrainingIdentifier(s));
   };
 
   const handleSaveEdit = () => {
     if (!editingSession) return;
+    const nextTrainingIdentifier = currentUser.rol === 'Administrador' ? editManualGenerationCode.trim() : editDisplayedCode;
+    if (!nextTrainingIdentifier) {
+      alert('El código de generación es obligatorio.');
+      return;
+    }
     if (onUpdateSession) {
-      const nextTrainingIdentifier = editDisplayedCode;
       onUpdateSession(editingSession.id, {
         campaña: editCampaña,
         nombre_generacion: nextTrainingIdentifier,
@@ -1546,6 +1552,7 @@ export default function Capacitaciones({
                   </select>
                 </div>
 
+
                 <div>
                   <label className="block text-xs font-semibold text-slate-600 mb-1">Fecha de Inicio *</label>
                   <input
@@ -2117,6 +2124,20 @@ export default function Capacitaciones({
                     <option value="Capacitación express">Capacitación express</option>
                   </select>
                 </div>
+
+                {currentUser.rol === 'Administrador' && (
+                  <div className="md:col-span-2">
+                    <label className="block text-xs font-semibold text-slate-600 mb-1">Código de generación *</label>
+                    <input
+                      type="text"
+                      value={editManualGenerationCode}
+                      onChange={(e) => setEditManualGenerationCode(e.target.value)}
+                      className="w-full text-sm bg-slate-50 text-slate-700 rounded-xl border border-slate-200 p-2.5 focus:ring-2 focus:ring-indigo-500 outline-hidden font-mono font-bold"
+                      placeholder="Ej. CAP-EN20260714-01"
+                    />
+                    <p className="text-[11px] text-slate-500 mt-1">Solo Administrador puede editar este identificador.</p>
+                  </div>
+                )}
 
                 <div>
                   <label className="block text-xs font-semibold text-slate-600 mb-1">Fecha de Inicio *</label>
