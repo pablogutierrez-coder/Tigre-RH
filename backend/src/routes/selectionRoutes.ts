@@ -44,19 +44,22 @@ const writeAudit = async (
   reason?: string,
 ) => {
   const id = `sel-audit-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-  await adminDb.collection(COLLECTIONS.audit).doc(id).set({
+  const auditRecord: AnyDoc = {
     id,
     action,
-    module: 'Selección',
-    entity_id: entityId,
-    entity_name: entityName,
+    module: 'Seleccion',
     user_id: req.user!.uid,
     user_name: req.user!.nombre,
     user_role: req.user!.rol,
-    reason,
-    ip: req.ip,
     created_at: nowIso(),
-  });
+  };
+
+  if (entityId !== undefined) auditRecord.entity_id = entityId;
+  if (entityName !== undefined) auditRecord.entity_name = entityName;
+  if (reason !== undefined) auditRecord.reason = reason;
+  if (req.ip !== undefined) auditRecord.ip = req.ip;
+
+  await adminDb.collection(COLLECTIONS.audit).doc(id).set(auditRecord);
 };
 
 const canManage = (req: AuthenticatedRequest) => managerRoles.includes(req.user!.rol);
