@@ -1705,8 +1705,8 @@ export default function App() {
           <aside className="w-full lg:w-[360px] bg-white border-r border-slate-200 text-slate-700 shrink-0 shadow-sm">
             <div className="flex h-full min-h-0 lg:min-h-screen">
               <div className="w-24 bg-slate-950 text-white flex flex-col items-center py-4 gap-4">
-                <div className="w-14 h-14 rounded-2xl bg-white flex items-center justify-center shadow-sm overflow-hidden">
-                  <BrandLogo width={54} height={54} className="max-w-full" />
+                <div className="w-14 h-14 rounded-2xl bg-white flex items-center justify-start shadow-sm overflow-hidden">
+                  <BrandLogo width={190} height={64} className="max-w-none object-left" />
                 </div>
                 <div className="flex-1 w-full px-2 space-y-2">
                   {activeUser.rol !== 'Formador' && (
@@ -1724,13 +1724,25 @@ export default function App() {
                   <button
                     onClick={() => { setCurrentView(activeUser.rol === 'Administrador' || activeUser.rol === 'Coordinador' || activeUser.rol === 'Sistemas' ? 'dashboard' : 'capacitaciones'); setSelectedSessionId(null); }}
                     className={`group w-full rounded-2xl px-2 py-3 flex flex-col items-center gap-1 text-[10px] font-black transition ${
-                      currentView !== 'seleccion' ? 'bg-white text-slate-950 shadow-lg' : 'text-white/65 hover:bg-white/10 hover:text-white'
+                      currentView !== 'seleccion' && !(activeUser.rol === 'Administrador' && ['usuarios', 'reportes', 'auditoria'].includes(currentView)) ? 'bg-white text-slate-950 shadow-lg' : 'text-white/65 hover:bg-white/10 hover:text-white'
                     }`}
                     title="Formación"
                   >
                     <BookOpen className="w-5 h-5" />
                     <span>Formación</span>
                   </button>
+                  {activeUser.rol === 'Administrador' && (
+                    <button
+                      onClick={() => { setCurrentView('usuarios'); setSelectedSessionId(null); }}
+                      className={`group w-full rounded-2xl px-2 py-3 flex flex-col items-center gap-1 text-[10px] font-black transition ${
+                        ['usuarios', 'reportes', 'auditoria'].includes(currentView) ? 'bg-white text-slate-950 shadow-lg' : 'text-white/65 hover:bg-white/10 hover:text-white'
+                      }`}
+                      title="Administrador"
+                    >
+                      <Settings className="w-5 h-5" />
+                      <span>Admin</span>
+                    </button>
+                  )}
                 </div>
                 <button
                   onClick={handleLogout}
@@ -1746,10 +1758,18 @@ export default function App() {
                   <div className="flex justify-between items-start gap-3">
                     <div className="min-w-0">
                       <p className="text-[10px] font-black uppercase tracking-widest text-fuchsia-600">
-                        {currentView === 'seleccion' ? 'Módulo Selección' : 'Módulo Formación'}
+                        {currentView === 'seleccion'
+                          ? 'Módulo Selección'
+                          : activeUser.rol === 'Administrador' && ['usuarios', 'reportes', 'auditoria'].includes(currentView)
+                            ? 'Módulo Administrador'
+                            : 'Módulo Formación'}
                       </p>
                       <h2 className="mt-1 text-lg font-black text-slate-950 truncate">
-                        {currentView === 'seleccion' ? 'Selección Masiva' : 'Formación y Desarrollo'}
+                        {currentView === 'seleccion'
+                          ? 'Selección Masiva'
+                          : activeUser.rol === 'Administrador' && ['usuarios', 'reportes', 'auditoria'].includes(currentView)
+                            ? 'Administración'
+                            : 'Formación y Desarrollo'}
                       </h2>
                     </div>
                     <span className="bg-slate-50 text-[10px] text-slate-500 px-2 py-0.5 rounded font-mono font-bold border border-slate-200">v1.1</span>
@@ -1769,6 +1789,7 @@ export default function App() {
                 <nav className="flex-1 p-4 space-y-5 overflow-y-auto" id="sidebar-nav">
                   {(() => {
                     const inSelection = currentView === 'seleccion' && activeUser.rol !== 'Formador';
+                    const inAdmin = activeUser.rol === 'Administrador' && ['usuarios', 'reportes', 'auditoria'].includes(currentView);
                     const selectionGroups = [
                       { title: 'Monitoreo', items: [['dashboard', 'Dashboard de Selección', LayoutDashboard]] },
                       {
@@ -1797,7 +1818,7 @@ export default function App() {
                       },
                     ];
                     const formationGroups = [
-                      { title: 'Monitoreo', items: [['dashboard', 'Dashboard General', LayoutDashboard, ['Administrador', 'Analista', 'Coordinador', 'Sistemas']]] },
+                      { title: 'Monitoreo', items: [['dashboard', 'Dashboard de Formación', LayoutDashboard, ['Administrador', 'Analista', 'Coordinador', 'Sistemas']]] },
                       {
                         title: activeUser.rol === 'Formador' ? 'Aula FDR' : 'Operación FDR',
                         items: [
@@ -1808,20 +1829,27 @@ export default function App() {
                         ],
                       },
                       {
-                        title: 'Administración',
+                        title: 'Encuestas',
                         items: [
-                          ['usuarios', 'Usuarios FDR', Users, ['Administrador']],
-                          ['reportes', 'Reportes Exportables', FileSpreadsheet, ['Administrador', 'Analista', 'Coordinador', 'Sistemas']],
-                          ['auditoria', 'Auditoría del Sistema', FileText, ['Administrador']],
                           ['encuestas', 'Encuestas de Satisfacción', ClipboardCheck, ['Administrador', 'Analista', 'Coordinador', 'Sistemas', 'Formador', 'Reclutador']],
                         ],
                       },
                     ];
-                    const groups = inSelection ? selectionGroups : formationGroups;
+                    const adminGroups = [
+                      {
+                        title: 'Administración',
+                        items: [
+                          ['usuarios', 'Usuarios', Users],
+                          ['reportes', 'Reportes Exportables', FileSpreadsheet],
+                          ['auditoria', 'Auditoría del Sistema', FileText],
+                        ],
+                      },
+                    ];
+                    const groups = inSelection ? selectionGroups : inAdmin ? adminGroups : formationGroups;
                     return groups.map((group) => {
                       const visibleItems = group.items.filter((item) => {
                         const roles = item[3] as string[] | undefined;
-                        return inSelection || !roles || roles.includes(activeUser.rol);
+                        return inSelection || inAdmin || !roles || roles.includes(activeUser.rol);
                       });
                       if (visibleItems.length === 0) return null;
                       return (
@@ -1872,10 +1900,18 @@ export default function App() {
             <header className="glass-header px-4 sm:px-6 py-4 flex flex-col md:flex-row md:items-center md:justify-between gap-4 sticky top-0 z-40">
               <div>
 	                <span className="text-[10px] text-indigo-600 font-bold uppercase tracking-widest font-mono">
-                    {currentView === 'seleccion' ? 'Área Selección' : 'Área FDR'}
+                    {currentView === 'seleccion'
+                      ? 'Área Selección'
+                      : activeUser.rol === 'Administrador' && ['usuarios', 'reportes', 'auditoria'].includes(currentView)
+                        ? 'Área Administrador'
+                        : 'Área Formación'}
                   </span>
 	                <h2 className="text-slate-900 text-lg font-black leading-tight tracking-tight">
-                    {currentView === 'seleccion' ? 'Selección | Convocatorias y Postulantes' : APP_NAME}
+                    {currentView === 'seleccion'
+                      ? 'Selección | Convocatorias y Postulantes'
+                      : activeUser.rol === 'Administrador' && ['usuarios', 'reportes', 'auditoria'].includes(currentView)
+                        ? 'Administrador | Gestión y Reportes'
+                        : APP_NAME}
                   </h2>
               </div>
 
