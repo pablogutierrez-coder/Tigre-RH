@@ -9,6 +9,8 @@ export interface CreatePlatformUserData {
   password: string;
   rol: UserRole;
   estado: 'Activo' | 'Inactivo';
+  areas?: User['areas'];
+  module_access?: string[];
 }
 
 type PlatformUserProfile = Omit<User, 'password'>;
@@ -74,6 +76,8 @@ export const updatePlatformUser = async (
       usuario: data.usuario,
       rol: data.rol,
       estado: data.estado,
+      areas: data.areas,
+      module_access: data.module_access,
     }),
   });
 };

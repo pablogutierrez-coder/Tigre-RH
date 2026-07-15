@@ -18,6 +18,9 @@ interface UserProfile {
   usuario_normalizado: string;
   rol: string;
   estado: string;
+  correo?: string;
+  areas?: string[];
+  module_access?: string[];
 }
 
 const genericCredentialsError = () =>
@@ -132,6 +135,9 @@ export const loginWithUsername = async (username: string, password: string) => {
       usuario_normalizado: profile.usuario_normalizado || usuarioNormalizado,
       rol: profile.rol,
       estado: profile.estado,
+      correo: profile.correo || '',
+      areas: Array.isArray(profile.areas) ? profile.areas : [],
+      module_access: Array.isArray(profile.module_access) ? profile.module_access : [],
     },
   };
 };

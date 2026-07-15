@@ -16,6 +16,8 @@ export interface CreatePlatformUserData {
   password: string;
   rol: string;
   estado: 'Activo' | 'Inactivo';
+  areas?: string[];
+  module_access?: string[];
 }
 
 export interface UpdatePlatformUserData {
@@ -24,6 +26,8 @@ export interface UpdatePlatformUserData {
   usuario?: string;
   rol?: string;
   estado?: 'Activo' | 'Inactivo';
+  areas?: string[];
+  module_access?: string[];
 }
 
 const getBcryptRounds = () => {
@@ -44,6 +48,8 @@ const userForClient = (uid: string, data: DocumentData) => ({
   fecha_creacion: data.fecha_creacion,
   creado_por: data.creado_por,
   requiere_cambio_password: data.requiere_cambio_password,
+  areas: Array.isArray(data.areas) ? data.areas : [],
+  module_access: Array.isArray(data.module_access) ? data.module_access : [],
 });
 
 const assertUsernameAvailable = async (
@@ -121,6 +127,8 @@ export const createPlatformUser = async (
     usuario_normalizado: usuarioNormalizado,
     rol: data.rol,
     estado: data.estado,
+    areas: Array.isArray(data.areas) ? data.areas : [],
+    module_access: Array.isArray(data.module_access) ? data.module_access : [],
     requiere_cambio_password: true,
     fecha_creacion: now,
     creado_por: createdBy.uid,
@@ -166,6 +174,10 @@ export const updatePlatformUser = async (
   if (data.correo !== undefined) updateData.correo = data.correo;
   if (data.rol !== undefined) updateData.rol = data.rol;
   if (data.estado !== undefined) updateData.estado = data.estado;
+  if (data.areas !== undefined) updateData.areas = Array.isArray(data.areas) ? data.areas : [];
+  if (data.module_access !== undefined) {
+    updateData.module_access = Array.isArray(data.module_access) ? data.module_access : [];
+  }
 
   if (data.usuario !== undefined) {
     const usuarioNormalizado = normalizeUsername(data.usuario);

@@ -10,6 +10,7 @@ import {
 } from './db/initialData';
 import {
   User,
+  UserArea,
   Campaign,
   TrainingSession,
   Participant,
@@ -98,6 +99,26 @@ const EMPTY_REOPENS: AttendanceReopenRequest[] = [];
 const EMPTY_LOGS: AuditLog[] = [];
 const EMPTY_SURVEYS: TrainingSurvey[] = [];
 const EMPTY_RESPONSES: SurveyResponse[] = [];
+
+const getDefaultAreasForRole = (role: User['rol']): UserArea[] => {
+  if (role === 'Administrador') return ['seleccion', 'formacion', 'administrador'];
+  if (role === 'Formador') return ['formacion'];
+  return ['seleccion', 'formacion'];
+};
+
+const hasConfiguredUserAccess = (user: User) =>
+  Boolean((user.areas && user.areas.length > 0) || (user.module_access && user.module_access.length > 0));
+
+const userHasAreaAccess = (user: User, area: UserArea) => {
+  if (!hasConfiguredUserAccess(user)) return getDefaultAreasForRole(user.rol).includes(area);
+  return Boolean(user.areas?.includes(area));
+};
+
+const userHasModuleAccess = (user: User, area: UserArea, moduleId: string) => {
+  if (!userHasAreaAccess(user, area)) return false;
+  if (!user.module_access || user.module_access.length === 0) return true;
+  return user.module_access.includes(`${area}:${moduleId}`);
+};
 
 const LOCAL_DATA_KEYS = [
   'fdr_users',
@@ -1329,6 +1350,9 @@ export default function App() {
       password: newUser.password,
       rol: newUser.rol,
       estado: newUser.estado,
+      areas: newUser.areas,
+      module_access: newUser.module_access,
+      correo: newUser.correo || '',
     });
 
     setUsers(prev => [...prev, userObj]);
@@ -1711,7 +1735,7 @@ export default function App() {
                   </div>
                 </div>
                 <div className="flex-1 w-full px-2 space-y-2">
-                  {activeUser.rol !== 'Formador' && (
+                  {activeUser.rol !== 'Formador' && userHasAreaAccess(activeUser, 'seleccion') && (
                     <button
                       onClick={() => { setCurrentView('seleccion'); setSelectionView('dashboard'); setSelectedSessionId(null); }}
                       className={`group w-full rounded-2xl px-2 py-3 flex flex-col items-center gap-1 text-[10px] font-black transition ${
@@ -1723,17 +1747,19 @@ export default function App() {
                       <span>Selección</span>
                     </button>
                   )}
-                  <button
-                    onClick={() => { setCurrentView(activeUser.rol === 'Administrador' || activeUser.rol === 'Coordinador' || activeUser.rol === 'Sistemas' ? 'dashboard' : 'capacitaciones'); setSelectedSessionId(null); }}
-                    className={`group w-full rounded-2xl px-2 py-3 flex flex-col items-center gap-1 text-[10px] font-black transition ${
-                      currentView !== 'seleccion' && !(activeUser.rol === 'Administrador' && ['usuarios', 'reportes', 'auditoria'].includes(currentView)) ? 'bg-white text-slate-950 shadow-lg' : 'text-white/65 hover:bg-white/10 hover:text-white'
-                    }`}
-                    title="Formación"
-                  >
-                    <BookOpen className="w-5 h-5" />
-                    <span>Formación</span>
-                  </button>
-                  {activeUser.rol === 'Administrador' && (
+                  {userHasAreaAccess(activeUser, 'formacion') && (
+                    <button
+                      onClick={() => { setCurrentView(activeUser.rol === 'Administrador' || activeUser.rol === 'Coordinador' || activeUser.rol === 'Sistemas' ? 'dashboard' : 'capacitaciones'); setSelectedSessionId(null); }}
+                      className={`group w-full rounded-2xl px-2 py-3 flex flex-col items-center gap-1 text-[10px] font-black transition ${
+                        currentView !== 'seleccion' && !(activeUser.rol === 'Administrador' && ['usuarios', 'reportes', 'auditoria'].includes(currentView)) ? 'bg-white text-slate-950 shadow-lg' : 'text-white/65 hover:bg-white/10 hover:text-white'
+                      }`}
+                      title="Formación"
+                    >
+                      <BookOpen className="w-5 h-5" />
+                      <span>Formación</span>
+                    </button>
+                  )}
+                  {activeUser.rol === 'Administrador' && userHasAreaAccess(activeUser, 'administrador') && (
                     <button
                       onClick={() => { setCurrentView('usuarios'); setSelectedSessionId(null); }}
                       className={`group w-full rounded-2xl px-2 py-3 flex flex-col items-center gap-1 text-[10px] font-black transition ${
@@ -1790,8 +1816,9 @@ export default function App() {
 
                 <nav className="flex-1 p-4 space-y-5 overflow-y-auto" id="sidebar-nav">
                   {(() => {
-                    const inSelection = currentView === 'seleccion' && activeUser.rol !== 'Formador';
-                    const inAdmin = activeUser.rol === 'Administrador' && ['usuarios', 'reportes', 'auditoria'].includes(currentView);
+                    const inSelection = currentView === 'seleccion' && activeUser.rol !== 'Formador' && userHasAreaAccess(activeUser, 'seleccion');
+                    const inAdmin = activeUser.rol === 'Administrador' && ['usuarios', 'reportes', 'auditoria'].includes(currentView) && userHasAreaAccess(activeUser, 'administrador');
+                    const activeArea: UserArea = inSelection ? 'seleccion' : inAdmin ? 'administrador' : 'formacion';
                     const selectionGroups = [
                       { title: 'Monitoreo', items: [['dashboard', 'Dashboard de Selección', LayoutDashboard]] },
                       {
@@ -1851,7 +1878,8 @@ export default function App() {
                     return groups.map((group) => {
                       const visibleItems = group.items.filter((item) => {
                         const roles = item[3] as string[] | undefined;
-                        return inSelection || inAdmin || !roles || roles.includes(activeUser.rol);
+                        return (inSelection || inAdmin || !roles || roles.includes(activeUser.rol)) &&
+                          userHasModuleAccess(activeUser, activeArea, String(item[0]));
                       });
                       if (visibleItems.length === 0) return null;
                       return (

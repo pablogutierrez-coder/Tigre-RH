@@ -4,6 +4,7 @@
  */
 
 export type UserRole = 'Administrador' | 'Analista' | 'Reclutador' | 'Formador' | 'Coordinador' | 'Sistemas';
+export type UserArea = 'seleccion' | 'formacion' | 'administrador';
 
 export interface User {
   id: string;
@@ -17,6 +18,8 @@ export interface User {
   fecha_creacion: string;
   creado_por?: string;
   requiere_cambio_password?: boolean;
+  areas?: UserArea[];
+  module_access?: string[];
 }
 
 export interface Campaign {

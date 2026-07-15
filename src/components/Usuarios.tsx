@@ -19,7 +19,7 @@ import {
   Calendar,
   KeyRound
 } from 'lucide-react';
-import { User, UserRole } from '../types';
+import { User, UserArea, UserRole } from '../types';
 
 interface UsuariosProps {
   users: User[];
@@ -31,6 +31,56 @@ interface UsuariosProps {
 }
 
 const MIN_PASSWORD_LENGTH = 6;
+const MULTI_AREA_ROLES: UserRole[] = ['Administrador', 'Analista', 'Coordinador', 'Sistemas'];
+
+const AREA_OPTIONS: Array<{ id: UserArea; label: string; description: string }> = [
+  { id: 'seleccion', label: 'Selección', description: 'Convocatorias, postulantes, seguimiento y asignación.' },
+  { id: 'formacion', label: 'Formación', description: 'Capacitaciones, asistencia, altas y encuestas.' },
+  { id: 'administrador', label: 'Administrador', description: 'Usuarios, reportes exportables y auditoría.' },
+];
+
+const MODULE_OPTIONS: Record<UserArea, Array<{ id: string; label: string }>> = {
+  seleccion: [
+    { id: 'seleccion:dashboard', label: 'Dashboard de Selección' },
+    { id: 'seleccion:convocatorias', label: 'Convocatorias' },
+    { id: 'seleccion:postulantes', label: 'Postulantes' },
+    { id: 'seleccion:seguimientos', label: 'Seguimientos' },
+    { id: 'seleccion:agenda', label: 'Agenda y Citaciones' },
+    { id: 'seleccion:evaluaciones', label: 'Entrevistas y Evaluaciones' },
+    { id: 'seleccion:aptos', label: 'Aptos para Capacitación' },
+    { id: 'seleccion:base', label: 'Base de Postulantes' },
+    { id: 'seleccion:asignacion', label: 'Asignación a Capacitación' },
+    { id: 'seleccion:historial', label: 'Historial de Selección' },
+    { id: 'seleccion:automatizaciones', label: 'Automatizaciones' },
+    { id: 'seleccion:catalogos', label: 'Catálogos' },
+    { id: 'seleccion:configuracion', label: 'Configuración' },
+    { id: 'seleccion:reportes', label: 'Reportes' },
+    { id: 'seleccion:auditoria', label: 'Auditoría' },
+  ],
+  formacion: [
+    { id: 'formacion:dashboard', label: 'Dashboard de Formación' },
+    { id: 'formacion:capacitaciones', label: 'Registro de Capacitaciones' },
+    { id: 'formacion:asistencia', label: 'Control de Asistencia' },
+    { id: 'formacion:altas', label: 'Confirmación de Altas' },
+    { id: 'formacion:reaperturas', label: 'Reaperturas' },
+    { id: 'formacion:encuestas', label: 'Encuestas de Satisfacción' },
+  ],
+  administrador: [
+    { id: 'administrador:usuarios', label: 'Usuarios' },
+    { id: 'administrador:reportes', label: 'Reportes Exportables' },
+    { id: 'administrador:auditoria', label: 'Auditoría del Sistema' },
+  ],
+};
+
+const defaultAreasByRole = (role: UserRole): UserArea[] => {
+  if (role === 'Administrador') return ['seleccion', 'formacion', 'administrador'];
+  if (role === 'Analista' || role === 'Coordinador' || role === 'Sistemas') return ['seleccion', 'formacion'];
+  if (role === 'Reclutador') return ['seleccion'];
+  return ['formacion'];
+};
+
+const defaultModulesForAreas = (areas: UserArea[]) =>
+  areas.flatMap((area) => MODULE_OPTIONS[area].map((item) => item.id));
 
 export default function Usuarios({ users, currentUser, onAddUser, onUpdateUser, onDeleteUser, onResetPassword }: UsuariosProps) {
   const [searchTerm, setSearchTerm] = useState('');
@@ -48,6 +98,8 @@ export default function Usuarios({ users, currentUser, onAddUser, onUpdateUser, 
   const [password, setPassword] = useState('');
   const [rol, setRol] = useState<UserRole>('Formador');
   const [estado, setEstado] = useState<'Activo' | 'Inactivo'>('Activo');
+  const [areas, setAreas] = useState<UserArea[]>(defaultAreasByRole('Formador'));
+  const [moduleAccess, setModuleAccess] = useState<string[]>(defaultModulesForAreas(defaultAreasByRole('Formador')));
 
   // Change Password Modal States
   const [newPassword, setNewPassword] = useState('');
@@ -73,6 +125,9 @@ export default function Usuarios({ users, currentUser, onAddUser, onUpdateUser, 
     setPassword('');
     setRol('Formador');
     setEstado('Activo');
+    const nextAreas = defaultAreasByRole('Formador');
+    setAreas(nextAreas);
+    setModuleAccess(defaultModulesForAreas(nextAreas));
     setShowModal(true);
   };
 
@@ -84,7 +139,43 @@ export default function Usuarios({ users, currentUser, onAddUser, onUpdateUser, 
     setPassword(''); // Empty to keep existing password unless changed
     setRol(user.rol);
     setEstado(user.estado);
+    const nextAreas = user.areas && user.areas.length > 0 ? user.areas : defaultAreasByRole(user.rol);
+    setAreas(nextAreas);
+    setModuleAccess(user.module_access && user.module_access.length > 0 ? user.module_access : defaultModulesForAreas(nextAreas));
     setShowModal(true);
+  };
+
+  const handleRoleChange = (nextRole: UserRole) => {
+    setRol(nextRole);
+    const nextAreas = defaultAreasByRole(nextRole);
+    setAreas(nextAreas);
+    setModuleAccess(defaultModulesForAreas(nextAreas));
+  };
+
+  const toggleArea = (area: UserArea) => {
+    const allowsMultiple = MULTI_AREA_ROLES.includes(rol);
+    const nextAreas = areas.includes(area)
+      ? areas.filter((item) => item !== area)
+      : allowsMultiple
+        ? [...areas, area]
+        : [area];
+    const safeAreas = nextAreas.length > 0 ? nextAreas : [area];
+    const allowedModuleIds = new Set(defaultModulesForAreas(safeAreas));
+    setAreas(safeAreas);
+    setModuleAccess((prev) => {
+      const kept = prev.filter((item) => allowedModuleIds.has(item));
+      const defaultsForNewArea = MODULE_OPTIONS[area].map((item) => item.id);
+      const next = [...new Set([...kept, ...defaultsForNewArea.filter((item) => safeAreas.includes(item.split(':')[0] as UserArea))])];
+      return next.length > 0 ? next : defaultModulesForAreas(safeAreas);
+    });
+  };
+
+  const toggleModule = (moduleId: string) => {
+    setModuleAccess((prev) =>
+      prev.includes(moduleId)
+        ? prev.filter((item) => item !== moduleId)
+        : [...prev, moduleId],
+    );
   };
 
   const handleOpenPasswordModal = (user: User) => {
@@ -100,6 +191,14 @@ export default function Usuarios({ users, currentUser, onAddUser, onUpdateUser, 
       alert('Por favor complete todos los campos obligatorios.');
       return;
     }
+    if (areas.length === 0) {
+      alert('Selecciona al menos un área de acceso.');
+      return;
+    }
+    if (moduleAccess.length === 0) {
+      alert('Selecciona al menos un apartado de acceso.');
+      return;
+    }
 
     try {
       setIsSaving(true);
@@ -110,7 +209,9 @@ export default function Usuarios({ users, currentUser, onAddUser, onUpdateUser, 
           correo: correo.trim(),
           usuario: usuario.trim(),
           rol,
-          estado
+          estado,
+          areas,
+          module_access: moduleAccess,
         });
         alert('Usuario actualizado correctamente.');
       } else {
@@ -130,7 +231,9 @@ export default function Usuarios({ users, currentUser, onAddUser, onUpdateUser, 
           usuario: usuario.trim(),
           password: trimmedPassword,
           rol,
-          estado
+          estado,
+          areas,
+          module_access: moduleAccess,
         });
         alert('Usuario creado en Firebase Authentication y Firestore correctamente.');
       }
@@ -414,7 +517,7 @@ export default function Usuarios({ users, currentUser, onAddUser, onUpdateUser, 
         <div className="fixed inset-0 z-50 bg-slate-950/40 backdrop-blur-sm flex items-center justify-center p-4">
           <form
             onSubmit={handleSaveUser}
-            className="bg-white/95 backdrop-blur-md rounded-2xl p-6 max-w-md w-full border border-slate-100 shadow-xl space-y-4 animate-in fade-in-50 animate-duration-200"
+            className="bg-white/95 backdrop-blur-md rounded-2xl p-6 max-w-3xl w-full max-h-[92vh] overflow-y-auto border border-slate-100 shadow-xl space-y-4 animate-in fade-in-50 animate-duration-200"
           >
             <div className="flex justify-between items-center border-b border-slate-100 pb-3">
               <h3 className="font-bold text-lg text-slate-800 flex items-center gap-2">
@@ -494,7 +597,7 @@ export default function Usuarios({ users, currentUser, onAddUser, onUpdateUser, 
                   <label className="block font-bold text-slate-600 mb-1">Rol Operativo *</label>
                   <select
                     value={rol}
-                    onChange={(e) => setRol(e.target.value as UserRole)}
+                    onChange={(e) => handleRoleChange(e.target.value as UserRole)}
                     disabled={editingId !== null && usuario.toLowerCase() === 'alicia.cleque'}
                     className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 outline-hidden focus:ring-1 focus:ring-fuchsia-500 text-sm font-semibold disabled:opacity-55"
                   >
@@ -518,6 +621,88 @@ export default function Usuarios({ users, currentUser, onAddUser, onUpdateUser, 
                     <option value="Activo">Activo</option>
                     <option value="Inactivo">Inactivo</option>
                   </select>
+                </div>
+              </div>
+
+              <div className="border border-slate-200 rounded-2xl p-4 bg-slate-50/70 space-y-4">
+                <div>
+                  <p className="font-black text-slate-800 text-sm">Áreas de acceso</p>
+                  <p className="text-[11px] text-slate-500 mt-0.5">
+                    {MULTI_AREA_ROLES.includes(rol)
+                      ? 'Este cargo puede operar en más de un área.'
+                      : 'Este cargo trabaja con un área principal a la vez.'}
+                  </p>
+                </div>
+
+                <div className="grid sm:grid-cols-3 gap-3">
+                  {AREA_OPTIONS.map((area) => {
+                    const checked = areas.includes(area.id);
+                    return (
+                      <button
+                        key={area.id}
+                        type="button"
+                        onClick={() => toggleArea(area.id)}
+                        className={`text-left rounded-xl border p-3 transition ${
+                          checked
+                            ? 'border-indigo-300 bg-white shadow-xs ring-1 ring-indigo-100'
+                            : 'border-slate-200 bg-white/70 hover:border-slate-300'
+                        }`}
+                      >
+                        <span className="flex items-center gap-2 text-xs font-black text-slate-800">
+                          <span className={`w-4 h-4 rounded border flex items-center justify-center ${
+                            checked ? 'bg-indigo-600 border-indigo-600' : 'border-slate-300'
+                          }`}>
+                            {checked && <span className="w-1.5 h-1.5 rounded-full bg-white" />}
+                          </span>
+                          {area.label}
+                        </span>
+                        <span className="block text-[10px] text-slate-500 mt-1 leading-snug">{area.description}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+
+                <div className="space-y-4">
+                  {areas.map((area) => (
+                    <div key={area} className="rounded-xl border border-slate-200 bg-white p-3">
+                      <div className="flex items-center justify-between gap-2 mb-3">
+                        <p className="text-xs font-black text-slate-800">
+                          Apartados de {AREA_OPTIONS.find((item) => item.id === area)?.label}
+                        </p>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const ids = MODULE_OPTIONS[area].map((item) => item.id);
+                            const allSelected = ids.every((id) => moduleAccess.includes(id));
+                            setModuleAccess((prev) =>
+                              allSelected
+                                ? prev.filter((id) => !ids.includes(id))
+                                : [...new Set([...prev, ...ids])],
+                            );
+                          }}
+                          className="text-[10px] font-black text-indigo-600 hover:text-indigo-800"
+                        >
+                          {MODULE_OPTIONS[area].every((item) => moduleAccess.includes(item.id)) ? 'Quitar todos' : 'Marcar todos'}
+                        </button>
+                      </div>
+                      <div className="grid sm:grid-cols-2 gap-2">
+                        {MODULE_OPTIONS[area].map((item) => (
+                          <label
+                            key={item.id}
+                            className="flex items-center gap-2 rounded-lg border border-slate-100 bg-slate-50 px-3 py-2 text-[11px] font-bold text-slate-600"
+                          >
+                            <input
+                              type="checkbox"
+                              checked={moduleAccess.includes(item.id)}
+                              onChange={() => toggleModule(item.id)}
+                              className="accent-indigo-600"
+                            />
+                            <span>{item.label}</span>
+                          </label>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
                 </div>
               </div>
             </div>

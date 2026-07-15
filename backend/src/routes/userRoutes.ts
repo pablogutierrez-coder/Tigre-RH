@@ -29,6 +29,8 @@ const roleSchema = z.enum([
 const stateSchema = z.enum(['Activo', 'Inactivo']);
 const normalizedRoleSchema = z.string().trim().pipe(roleSchema);
 const normalizedStateSchema = z.string().trim().pipe(stateSchema);
+const areaSchema = z.enum(['seleccion', 'formacion', 'administrador']);
+const moduleAccessSchema = z.array(z.string().trim().min(1)).default([]);
 const getValidationMessage = (fallback: string) => (error: z.ZodError) =>
   error.issues[0]?.message || fallback;
 
@@ -39,6 +41,8 @@ const createUserSchema = z.object({
   password: z.string().trim().min(6, 'La contrasena temporal debe tener al menos 6 caracteres.'),
   rol: normalizedRoleSchema,
   estado: normalizedStateSchema,
+  areas: z.array(areaSchema).default([]),
+  module_access: moduleAccessSchema,
 });
 
 const updateUserSchema = z.object({
@@ -47,6 +51,8 @@ const updateUserSchema = z.object({
   usuario: z.string().trim().min(1, 'El usuario de acceso es requerido.').optional(),
   rol: normalizedRoleSchema.optional(),
   estado: normalizedStateSchema.optional(),
+  areas: z.array(areaSchema).optional(),
+  module_access: z.array(z.string().trim().min(1)).optional(),
 });
 
 const passwordSchema = z.object({

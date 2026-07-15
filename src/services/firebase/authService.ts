@@ -21,6 +21,9 @@ interface LoginWithUsernameResponse {
     usuario_normalizado: string;
     rol: User['rol'];
     estado: User['estado'];
+    correo?: string;
+    areas?: User['areas'];
+    module_access?: string[];
   };
 }
 
