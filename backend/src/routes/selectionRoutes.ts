@@ -36,6 +36,38 @@ const dateKey = () => new Intl.DateTimeFormat('en-CA', {
 
 const normalize = (value: unknown) => String(value || '').trim();
 
+const stripUndefined = <T extends Record<string, any>>(value: T): Partial<T> =>
+  Object.fromEntries(Object.entries(value).filter(([, entryValue]) => entryValue !== undefined)) as Partial<T>;
+
+const stripSlaImportFields = (value: Record<string, unknown>) => {
+  const cleaned = { ...value };
+  [
+    'sla',
+    'cumple_sla',
+    'tiempo_primera_gestion_min',
+    'fecha_primera_gestion',
+    'sla_estado',
+    'sla_minutos',
+  ].forEach((key) => {
+    delete cleaned[key];
+  });
+  return cleaned;
+};
+
+const requiresDropoutReason = (status?: unknown) =>
+  [
+    'No apto',
+    'Desistió',
+    'Ausente',
+    'No corresponde',
+    'No interesado',
+    'Caído',
+    'Desaprobado',
+    'No continúa',
+  ].some((term) => normalize(status).toLowerCase().includes(term.toLowerCase()));
+
+const firstManagementStates = ['En gestión', 'Contactado', 'Interesado', 'No interesado', 'No responde'];
+
 const writeAudit = async (
   req: AuthenticatedRequest,
   action: string,
@@ -375,7 +407,7 @@ router.post(
     const recruiterName = req.user!.rol === 'Reclutador'
       ? req.user!.nombre
       : normalize(parsed.data.reclutador_nombre || req.user!.nombre);
-    const applicant = {
+    const applicant = stripUndefined({
       ...parsed.data,
       id,
       codigo: `POST-${dateKey()}-${Math.random().toString(36).slice(2, 6).toUpperCase()}`,
@@ -402,7 +434,7 @@ router.post(
       updated_at: timestamp,
       created_by: req.user!.uid,
       updated_by: req.user!.uid,
-    };
+    });
 
     await adminDb.collection(COLLECTIONS.applicants).doc(id).set(applicant);
     await writeAudit(req, 'Registro manual de postulante', id, nombre);
@@ -438,9 +470,10 @@ router.post(
     const skipped: Array<{ row: number; reason: string; dni?: string }> = [];
 
     parsed.data.applicants.forEach((raw, index) => {
-      const dni = normalize(raw.dni);
-      const nombre = normalize(raw.nombre_completo);
-      const telefono = normalize(raw.telefono);
+      const cleanedRaw = stripSlaImportFields(raw);
+      const dni = normalize(cleanedRaw.dni);
+      const nombre = normalize(cleanedRaw.nombre_completo);
+      const telefono = normalize(cleanedRaw.telefono);
       if (!dni || !nombre || !telefono) {
         skipped.push({ row: index + 2, reason: 'DNI, nombre y teléfono son obligatorios.', dni });
         return;
@@ -453,20 +486,20 @@ router.post(
       const id = `sel-app-${Date.now()}-${index}-${Math.random().toString(36).slice(2, 8)}`;
       const recruiterId = req.user!.rol === 'Reclutador'
         ? req.user!.uid
-        : normalize(raw.reclutador_id || req.user!.uid);
+        : normalize(cleanedRaw.reclutador_id || req.user!.uid);
       const recruiterName = req.user!.rol === 'Reclutador'
         ? req.user!.nombre
-        : normalize(raw.reclutador_nombre || req.user!.nombre);
-      const applicant = {
-        ...raw,
+        : normalize(cleanedRaw.reclutador_nombre || req.user!.nombre);
+      const applicant = stripUndefined({
+        ...cleanedRaw,
         id,
         codigo: `POST-${dateKey()}-${Math.random().toString(36).slice(2, 6).toUpperCase()}`,
         requisition_id: req.params.id,
         requisition_codigo: String(requisition.codigo || ''),
-        cuenta: normalize(raw.cuenta || requisition.cuenta),
-        posicion: normalize(raw.posicion || requisition.posicion),
-        ciudad: normalize(raw.ciudad || requisition.ciudad),
-        fuente: normalize(raw.fuente || requisition.fuente_principal),
+        cuenta: normalize(cleanedRaw.cuenta || requisition.cuenta),
+        posicion: normalize(cleanedRaw.posicion || requisition.posicion),
+        ciudad: normalize(cleanedRaw.ciudad || requisition.ciudad),
+        fuente: normalize(cleanedRaw.fuente || requisition.fuente_principal || 'Carga Excel'),
         dni,
         nombre_completo: nombre,
         telefono,
@@ -476,15 +509,15 @@ router.post(
         registrado_por_nombre: req.user!.nombre,
         fecha_registro: timestamp,
         fecha_asignacion: timestamp,
-        ultimo_estado: raw.ultimo_estado || 'Pendiente de gestión',
-        etapa_actual: raw.etapa_actual || 'Pendiente de gestión',
-        intentos_contacto: Number(raw.intentos_contacto || 0),
+        ultimo_estado: cleanedRaw.ultimo_estado || 'Pendiente de gestión',
+        etapa_actual: cleanedRaw.etapa_actual || 'Pendiente de gestión',
+        intentos_contacto: Number(cleanedRaw.intentos_contacto || 0),
         convocatoria_origen: String(requisition.codigo || ''),
         created_at: timestamp,
         updated_at: timestamp,
         created_by: req.user!.uid,
         updated_by: req.user!.uid,
-      };
+      });
       created.push(applicant);
       writer.set(adminDb.collection(COLLECTIONS.applicants).doc(id), applicant);
     });
@@ -522,27 +555,35 @@ router.patch(
     delete changes.data.id;
     delete changes.data.requisition_id;
 
+    const sanitizedChanges = stripUndefined(changes.data);
     const nextState = normalize(changes.data.ultimo_estado || current.ultimo_estado);
+    const stateChanged = sanitizedChanges.ultimo_estado !== undefined && nextState !== normalize(current.ultimo_estado);
+    if (stateChanged && requiresDropoutReason(nextState) && !normalize(sanitizedChanges.motivo_caida || current.motivo_caida)) {
+      res.status(400).json({ message: 'Indica el motivo de no continuidad antes de guardar.' });
+      return;
+    }
+
     const now = nowIso();
     if (
+      stateChanged &&
       !current.fecha_primera_gestion &&
-      ['Interesado', 'No interesado', 'No responde'].includes(nextState)
+      firstManagementStates.includes(nextState)
     ) {
       const start = new Date(String(current.fecha_asignacion || current.fecha_registro || now)).getTime();
       const elapsed = Math.max(0, Math.round((new Date(now).getTime() - start) / 60000));
-      changes.data.fecha_primera_gestion = now;
-      changes.data.tiempo_primera_gestion_min = elapsed;
-      changes.data.cumple_sla = elapsed <= 60;
+      sanitizedChanges.fecha_primera_gestion = now;
+      sanitizedChanges.tiempo_primera_gestion_min = elapsed;
+      sanitizedChanges.cumple_sla = elapsed <= 60;
     }
 
-    const payload = {
-      ...changes.data,
-      etapa_actual: changes.data.etapa_actual || changes.data.ultimo_estado || current.etapa_actual,
+    const payload = stripUndefined({
+      ...sanitizedChanges,
+      etapa_actual: sanitizedChanges.etapa_actual || sanitizedChanges.ultimo_estado || current.etapa_actual,
       updated_at: now,
       ultima_actualizacion: now,
       updated_by: req.user!.uid,
       actualizado_por: req.user!.uid,
-    };
+    });
     await adminDb.collection(COLLECTIONS.applicants).doc(req.params.id).set(payload, { merge: true });
     await writeAudit(req, 'Actualización de postulante', req.params.id, String(current.nombre_completo || ''));
     res.json({ ok: true, changes: payload });

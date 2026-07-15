@@ -146,6 +146,16 @@ const normalizeHeader = (value: string) =>
     .replace(/[\u0300-\u036f]/g, '')
     .replace(/[^a-z0-9]/g, '');
 
+const normalizeTextKey = (value: unknown) =>
+  String(value || '')
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .trim();
+
+const cleanPayload = <T extends Record<string, unknown>>(payload: T): Partial<T> =>
+  Object.fromEntries(Object.entries(payload).filter(([, value]) => value !== undefined)) as Partial<T>;
+
 const headerMap: Record<string, string> = {
   reclutador: 'reclutador_excel',
   coordisuper: 'coordinador_excel',
@@ -180,7 +190,7 @@ const canCreateRequisition = (role: string) => ['Administrador', 'Analista', 'Co
 const canEditRequisitionCode = (role: string) => role === 'Administrador';
 
 const campaignOptions = ['Entel Empresas', 'Culqi', 'Equifax', 'Prosegur'];
-const sourceOptions = ['Pandapé', 'Computrabajo', 'Boomerang', 'LinkedIn', 'Redes sociales'];
+const sourceOptions = ['Pandapé', 'Computrabajo', 'Boomerang', 'LinkedIn', 'Redes sociales', 'Registro manual', 'Carga Excel', 'Referido', 'Otro'];
 const finalRequisitionStates = ['Activa', 'Finalizada'];
 const dashboardViews = ['Vista general', 'Vista por campaña', 'Vista individual por reclutador', 'Vista por convocatoria'];
 const enableDataPolicyModule = false;
@@ -346,6 +356,10 @@ export default function Seleccion({ currentUser, users, initialView = 'dashboard
   const managers = users.filter((user) =>
     ['Administrador', 'Analista', 'Coordinador'].includes(user.rol) && user.estado === 'Activo',
   );
+  const coordiSuperAllowed = new Set(['estefano zambrano', 'rosel guevara', 'augusto tello']);
+  const coordiSuperUsers = users.filter((user) =>
+    user.estado === 'Activo' && coordiSuperAllowed.has(normalizeTextKey(user.nombre)),
+  );
 
   const loadData = async () => {
     try {
@@ -474,11 +488,11 @@ export default function Seleccion({ currentUser, users, initialView = 'dashboard
     setSaving(true);
     try {
       await Promise.all(selectedApplicants.map((id) =>
-        updateSelectionApplicant(id, {
+        updateSelectionApplicant(id, cleanPayload({
           ultimo_estado: status,
           etapa_actual: status,
           motivo_caida: reason || undefined,
-        }),
+        })),
       ));
       setSelectedApplicants([]);
       await loadData();
@@ -680,14 +694,14 @@ export default function Seleccion({ currentUser, users, initialView = 'dashboard
     try {
       setSaving(true);
       const recruiter = recruiters.find((user) => user.id === applicantForm.reclutador_id);
-      const payload = {
+      const payload = cleanPayload({
         ...applicantForm,
         dni: String(applicantForm.dni || '').replace(/\D/g, ''),
         telefono: String(applicantForm.telefono || '').replace(/\D/g, ''),
         cuenta: applicantForm.cuenta || selectedReq?.cuenta || '',
         fuente: applicantForm.fuente || selectedReq?.fuente_principal || sourceOptions[0],
         reclutador_nombre: currentUser.rol === 'Reclutador' ? currentUser.nombre : recruiter?.nombre || applicantForm.reclutador_nombre,
-      };
+      });
       if (!payload.dni || !payload.nombre_completo || !payload.telefono) {
         alert('DNI, nombre y teléfono son obligatorios.');
         return;
@@ -732,13 +746,13 @@ export default function Seleccion({ currentUser, users, initialView = 'dashboard
     const nextFollowUp = status === 'No responde'
       ? new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString()
       : applicant.proximo_seguimiento;
-    await updateSelectionApplicant(applicant.id, {
+    await updateSelectionApplicant(applicant.id, cleanPayload({
       ultimo_estado: status,
       etapa_actual: status,
       motivo_caida: reason || applicant.motivo_caida,
       intentos_contacto: status === 'No responde' ? (applicant.intentos_contacto || 0) + 1 : applicant.intentos_contacto,
       proximo_seguimiento: nextFollowUp,
-    });
+    }));
     await loadData();
   };
 
@@ -1741,7 +1755,7 @@ export default function Seleccion({ currentUser, users, initialView = 'dashboard
                 Coordi/Super
                 <select value={applicantForm.coordinador_excel || ''} onChange={(event) => setApplicantForm((prev) => ({ ...prev, coordinador_excel: event.target.value }))} className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm">
                   <option value="">Seleccionar</option>
-                  {managers.map((user) => <option key={user.id}>{user.nombre}</option>)}
+                  {coordiSuperUsers.map((user) => <option key={user.id}>{user.nombre}</option>)}
                 </select>
               </label>
               <label className="text-xs font-black text-slate-500">

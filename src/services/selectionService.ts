@@ -20,8 +20,16 @@ const request = async <T>(path: string, options: RequestInit = {}): Promise<T> =
       ...options.headers,
     },
   });
-  const payload = await response.json().catch(() => null);
-  if (!response.ok) throw new Error(payload?.message || 'No se pudo completar la operacion.');
+  const rawBody = await response.text();
+  let payload: any = null;
+  try {
+    payload = rawBody ? JSON.parse(rawBody) : null;
+  } catch {
+    payload = null;
+  }
+  if (!response.ok) {
+    throw new Error(payload?.message || payload?.error || 'No se pudo completar la operacion.');
+  }
   return payload as T;
 };
 
