@@ -108,13 +108,24 @@ const buildRequisitionCode = async (campaign: string, requisitionId: string) => 
 
   return adminDb.runTransaction(async (transaction) => {
     const counterDoc = await transaction.get(counterRef);
-    const next = Number(counterDoc.data()?.next || 1);
-    const codigo = `${base}-${String(next).padStart(2, '0')}`;
-    const codeRef = adminDb.collection(COLLECTIONS.codeLocks).doc(codigo);
-    const codeDoc = await transaction.get(codeRef);
-    if (codeDoc.exists) {
-      throw new Error('No se pudo generar un código único. Intenta nuevamente.');
+    const initialNext = Number(counterDoc.data()?.next || 1);
+    let next = Number.isFinite(initialNext) && initialNext > 0 ? initialNext : 1;
+    let codigo = '';
+    let codeRef = adminDb.collection(COLLECTIONS.codeLocks).doc(`${base}-${String(next).padStart(2, '0')}`);
+
+    for (let attempt = 0; attempt < 100; attempt += 1) {
+      codigo = `${base}-${String(next).padStart(2, '0')}`;
+      codeRef = adminDb.collection(COLLECTIONS.codeLocks).doc(codigo);
+      const codeDoc = await transaction.get(codeRef);
+      if (!codeDoc.exists) break;
+      next += 1;
+      codigo = '';
     }
+
+    if (!codigo) {
+      throw new Error('No se pudo generar un codigo unico. Intenta nuevamente.');
+    }
+
     transaction.set(counterRef, {
       base,
       next: next + 1,
@@ -208,26 +219,33 @@ router.post(
       return;
     }
 
-    const id = `sel-req-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-    const code = await buildRequisitionCode(normalize(parsed.data.cuenta || parsed.data.campaña), id);
-    const timestamp = nowIso();
-    const record: AnyDoc = {
-      ...parsed.data,
-      ...code,
-      id,
-      estado: parsed.data.estado || 'Activa',
-      reclutador_ids: Array.isArray(parsed.data.reclutador_ids) ? parsed.data.reclutador_ids : [],
-      reclutador_nombres: Array.isArray(parsed.data.reclutador_nombres) ? parsed.data.reclutador_nombres : [],
-      fecha_creacion: timestamp,
-      created_at: timestamp,
-      updated_at: timestamp,
-      created_by: req.user!.uid,
-      updated_by: req.user!.uid,
-    };
+    try {
+      const id = `sel-req-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+      const code = await buildRequisitionCode(normalize(parsed.data.cuenta), id);
+      const timestamp = nowIso();
+      const record: AnyDoc = {
+        ...parsed.data,
+        ...code,
+        id,
+        estado: parsed.data.estado || 'Activa',
+        reclutador_ids: Array.isArray(parsed.data.reclutador_ids) ? parsed.data.reclutador_ids : [],
+        reclutador_nombres: Array.isArray(parsed.data.reclutador_nombres) ? parsed.data.reclutador_nombres : [],
+        fecha_creacion: timestamp,
+        created_at: timestamp,
+        updated_at: timestamp,
+        created_by: req.user!.uid,
+        updated_by: req.user!.uid,
+      };
 
-    await adminDb.collection(COLLECTIONS.requisitions).doc(id).set(record);
-    await writeAudit(req, 'Creación de convocatoria', id, record.nombre);
-    res.status(201).json({ requisition: record });
+      await adminDb.collection(COLLECTIONS.requisitions).doc(id).set(record);
+      await writeAudit(req, 'Creacion de convocatoria', id, record.nombre);
+      res.status(201).json({ requisition: record });
+    } catch (error) {
+      console.error('Selection requisition create error:', error);
+      res.status(500).json({
+        message: error instanceof Error ? error.message : 'No se pudo crear la convocatoria.',
+      });
+    }
   },
 );
 
