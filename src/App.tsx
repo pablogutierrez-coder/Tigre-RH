@@ -1702,474 +1702,169 @@ export default function App() {
         <div className="min-h-screen flex flex-col lg:flex-row" id="app-layout">
           
           {/* Sidebar */}
-          <aside className="w-full lg:w-72 bg-white/96 backdrop-blur-md border-r border-slate-200 text-slate-700 flex flex-col shrink-0 shadow-sm">
-            {/* Sidebar Brand Header */}
-            <div className="p-5 border-b border-slate-200 flex justify-between items-center">
-              <div className="flex items-center min-w-0">
-                <BrandLogo width={150} height={50} className="max-w-full" />
+          <aside className="w-full lg:w-[360px] bg-white border-r border-slate-200 text-slate-700 shrink-0 shadow-sm">
+            <div className="flex h-full min-h-0 lg:min-h-screen">
+              <div className="w-24 bg-slate-950 text-white flex flex-col items-center py-4 gap-4">
+                <div className="w-14 h-14 rounded-2xl bg-white flex items-center justify-center shadow-sm overflow-hidden">
+                  <BrandLogo width={54} height={54} className="max-w-full" />
+                </div>
+                <div className="flex-1 w-full px-2 space-y-2">
+                  {activeUser.rol !== 'Formador' && (
+                    <button
+                      onClick={() => { setCurrentView('seleccion'); setSelectionView('dashboard'); setSelectedSessionId(null); }}
+                      className={`group w-full rounded-2xl px-2 py-3 flex flex-col items-center gap-1 text-[10px] font-black transition ${
+                        currentView === 'seleccion' ? 'bg-white text-slate-950 shadow-lg' : 'text-white/65 hover:bg-white/10 hover:text-white'
+                      }`}
+                      title="Selección"
+                    >
+                      <BriefcaseBusiness className="w-5 h-5" />
+                      <span>Selección</span>
+                    </button>
+                  )}
+                  <button
+                    onClick={() => { setCurrentView(activeUser.rol === 'Administrador' || activeUser.rol === 'Coordinador' || activeUser.rol === 'Sistemas' ? 'dashboard' : 'capacitaciones'); setSelectedSessionId(null); }}
+                    className={`group w-full rounded-2xl px-2 py-3 flex flex-col items-center gap-1 text-[10px] font-black transition ${
+                      currentView !== 'seleccion' ? 'bg-white text-slate-950 shadow-lg' : 'text-white/65 hover:bg-white/10 hover:text-white'
+                    }`}
+                    title="Formación"
+                  >
+                    <BookOpen className="w-5 h-5" />
+                    <span>Formación</span>
+                  </button>
+                </div>
+                <button
+                  onClick={handleLogout}
+                  className="w-12 h-12 rounded-2xl bg-white/10 hover:bg-rose-500/90 text-white flex items-center justify-center transition"
+                  title="Cerrar sesión"
+                >
+                  <LogOut className="w-5 h-5" />
+                </button>
               </div>
-              <span className="bg-slate-50 text-[10px] text-slate-500 px-2 py-0.5 rounded font-mono font-bold border border-slate-200">
-                v1.1
-              </span>
-            </div>
 
-            {/* Sidebar User profile Info */}
-            <div className="p-5 border-b border-slate-200 bg-slate-50/75 flex items-center gap-3">
-              <div className="bg-gradient-to-r from-indigo-600 to-violet-600 w-10 h-10 rounded-xl flex items-center justify-center font-bold text-white text-sm shadow-sm">
-                {activeUser.nombre.substring(0, 2).toUpperCase()}
-              </div>
-              <div className="truncate text-xs">
-                <p className="font-bold text-slate-900 truncate">{activeUser.nombre}</p>
-                <p className="text-[10px] text-slate-500 truncate mt-0.5">{activeUser.rol}</p>
-              </div>
-            </div>
-
-            {/* Navigation links based on Role */}
-            <nav className="flex-1 p-4 space-y-1" id="sidebar-nav">
-              {activeUser.rol !== 'Formador' && (
-                <>
-                  <div className="text-[10px] font-bold text-slate-500 uppercase tracking-widest px-3 mb-2 mt-2">Monitoreo</div>
-                  <button
-                    onClick={() => { setCurrentView('seleccion'); setSelectionView('dashboard'); setSelectedSessionId(null); }}
-                    className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-semibold transition-all ${
-                      currentView === 'seleccion' && selectionView === 'dashboard' ? 'bg-gradient-to-r from-fuchsia-600 to-indigo-600 text-white font-bold shadow-sm' : 'text-slate-600 hover:bg-slate-50 hover:text-slate-950'
-                    }`}
-                  >
-                    <LayoutDashboard className="w-4 h-4 shrink-0" />
-                    Dashboard de Selección
-                  </button>
-                  <div className="text-[10px] font-bold text-slate-500 uppercase tracking-widest px-3 mb-2 mt-4">Operaciones de Selección</div>
-                  {[
-                    ['convocatorias', 'Convocatorias', BriefcaseBusiness],
-                    ['postulantes', 'Postulantes', Users],
-                    ['seguimientos', 'Seguimientos', Clock],
-                    ['agenda', 'Agenda y Citaciones', CalendarCheck],
-                    ['evaluaciones', 'Entrevistas y Evaluaciones', ClipboardCheck],
-                    ['aptos', 'Aptos para Capacitación', UserCheck],
-                    ['base', 'Base de Postulantes', Users],
-                    ['asignacion', 'Asignacion a Capacitacion', BookOpen],
-                    ['historial', 'Historial de Selección', FileText],
-                  ].map(([view, label, Icon]) => {
-                    const MenuIcon = Icon as typeof Users;
-                    return (
-                      <button
-                        key={String(view)}
-                        onClick={() => { setCurrentView('seleccion'); setSelectionView(view as SelectionViewMode); setSelectedSessionId(null); }}
-                        className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-semibold transition-all ${
-                          currentView === 'seleccion' && selectionView === view ? 'bg-gradient-to-r from-fuchsia-600 to-indigo-600 text-white font-bold shadow-sm' : 'text-slate-600 hover:bg-slate-50 hover:text-slate-950'
-                        }`}
-                      >
-                        <MenuIcon className="w-4 h-4 shrink-0" />
-                        {String(label)}
-                      </button>
-                    );
-                  })}
-                  <div className="text-[10px] font-bold text-slate-500 uppercase tracking-widest px-3 mb-2 mt-4">Configuración y Reportes</div>
-                  {[
-                    ['automatizaciones', 'Automatizaciones', Settings],
-                    ['catalogos', 'Catálogos de Selección', Settings],
-                    ['configuracion', 'Configuracion de Seleccion', Settings],
-                    ['reportes', 'Reportes Exportables', FileSpreadsheet],
-                    ['auditoria', 'Auditoría de Selección', FileText],
-                  ].map(([view, label, Icon]) => {
-                    const MenuIcon = Icon as typeof Users;
-                    return (
-                      <button
-                        key={String(view)}
-                        onClick={() => { setCurrentView('seleccion'); setSelectionView(view as SelectionViewMode); setSelectedSessionId(null); }}
-                        className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-semibold transition-all ${
-                          currentView === 'seleccion' && selectionView === view ? 'bg-gradient-to-r from-fuchsia-600 to-indigo-600 text-white font-bold shadow-sm' : 'text-slate-600 hover:bg-slate-50 hover:text-slate-950'
-                        }`}
-                      >
-                        <MenuIcon className="w-4 h-4 shrink-0" />
-                        {String(label)}
-                      </button>
-                    );
-                  })}
-                </>
-              )}
-              
-              {/* ADMIN ROLE MENU */}
-              {activeUser.rol === 'Administrador' && (
-                <>
-                  <div className="text-[10px] font-bold text-slate-500 uppercase tracking-widest px-3 mb-2 mt-2">Monitoreo</div>
-                  <button
-                    onClick={() => { setCurrentView('dashboard'); setSelectedSessionId(null); }}
-                    className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-semibold transition-all ${
-                      currentView === 'dashboard' ? 'bg-gradient-to-r from-fuchsia-600 to-indigo-600 text-white font-bold shadow-sm' : 'text-slate-600 hover:bg-slate-50 hover:text-slate-950'
-                    }`}
-                  >
-                    <LayoutDashboard className="w-4 h-4 shrink-0" />
-                    Dashboard General
-                  </button>
-
-                  <div className="text-[10px] font-bold text-slate-500 uppercase tracking-widest px-3 mb-2 mt-4">Operaciones FDR</div>
-                  <button
-                    onClick={() => { setCurrentView('capacitaciones'); setSelectedSessionId(null); }}
-                    className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-semibold transition-all ${
-                      currentView === 'capacitaciones' && !selectedSessionId ? 'bg-gradient-to-r from-fuchsia-600 to-indigo-600 text-white font-bold shadow-sm' : 'text-slate-600 hover:bg-slate-50 hover:text-slate-950'
-                    }`}
-                  >
-                    <BookOpen className="w-4 h-4 shrink-0" />
-                    Registro de Capacitaciones
-                  </button>
-
-                  <button
-                    onClick={() => {
-                      // Lead to active list if no session selected, otherwise keep selected
-                      setCurrentView('asistencia');
-                    }}
-                    className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-semibold transition-all ${
-                      currentView === 'asistencia' ? 'bg-gradient-to-r from-fuchsia-600 to-indigo-600 text-white font-bold shadow-sm' : 'text-slate-600 hover:bg-slate-50 hover:text-slate-950'
-                    }`}
-                  >
-                    <CalendarCheck className="w-4 h-4 shrink-0" />
-                    Control de Asistencia
-                  </button>
-
-                  <button
-                    onClick={() => { setCurrentView('altas'); setSelectedSessionId(null); }}
-                    className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-semibold transition-all ${
-                      currentView === 'altas' ? 'bg-gradient-to-r from-fuchsia-600 to-indigo-600 text-white font-bold shadow-sm' : 'text-slate-600 hover:bg-slate-50 hover:text-slate-950'
-                    }`}
-                  >
-                    <Award className="w-4 h-4 shrink-0" />
-                    Confirmación de Altas
-                  </button>
-
-                  <button
-                    onClick={() => { setCurrentView('reaperturas'); setSelectedSessionId(null); }}
-                    className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-semibold transition-all ${
-                      currentView === 'reaperturas' ? 'bg-gradient-to-r from-fuchsia-600 to-indigo-600 text-white font-bold shadow-sm' : 'text-slate-600 hover:bg-slate-50 hover:text-slate-950'
-                    }`}
-                  >
-                    <div className="flex items-center gap-3">
-                      <Clock className="w-4 h-4 shrink-0" />
-                      Reaperturas
+              <div className="flex-1 min-w-0 bg-white flex flex-col">
+                <div className="p-5 border-b border-slate-200">
+                  <div className="flex justify-between items-start gap-3">
+                    <div className="min-w-0">
+                      <p className="text-[10px] font-black uppercase tracking-widest text-fuchsia-600">
+                        {currentView === 'seleccion' ? 'Módulo Selección' : 'Módulo Formación'}
+                      </p>
+                      <h2 className="mt-1 text-lg font-black text-slate-950 truncate">
+                        {currentView === 'seleccion' ? 'Selección Masiva' : 'Formación y Desarrollo'}
+                      </h2>
                     </div>
-                    {reopens.filter(r => r.estado === 'pendiente').length > 0 && (
-                      <span className="bg-amber-600 text-white font-bold px-1.5 py-0.5 rounded-md text-[9px]">
-                        {reopens.filter(r => r.estado === 'pendiente').length}
-                      </span>
-                    )}
-                  </button>
-
-                  <div className="text-[10px] font-bold text-slate-500 uppercase tracking-widest px-3 mb-2 mt-4">Configuración y Reportes</div>
-                  <button
-                    onClick={() => { setCurrentView('usuarios'); setSelectedSessionId(null); }}
-                    className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-semibold transition-all ${
-                      currentView === 'usuarios' ? 'bg-gradient-to-r from-fuchsia-600 to-indigo-600 text-white font-bold shadow-sm' : 'text-slate-600 hover:bg-slate-50 hover:text-slate-950'
-                    }`}
-                  >
-                    <Users className="w-4 h-4 shrink-0" />
-                    Usuarios FDR
-                  </button>
-
-                  <button
-                    onClick={() => { setCurrentView('reportes'); setSelectedSessionId(null); }}
-                    className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-semibold transition-all ${
-                      currentView === 'reportes' ? 'bg-gradient-to-r from-fuchsia-600 to-indigo-600 text-white font-bold shadow-sm' : 'text-slate-600 hover:bg-slate-50 hover:text-slate-950'
-                    }`}
-                  >
-                    <FileSpreadsheet className="w-4 h-4 shrink-0" />
-                    Reportes Exportables
-                  </button>
-
-                  <button
-                    onClick={() => { setCurrentView('auditoria'); setSelectedSessionId(null); }}
-                    className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-semibold transition-all ${
-                      currentView === 'auditoria' ? 'bg-gradient-to-r from-fuchsia-600 to-indigo-600 text-white font-bold shadow-sm' : 'text-slate-600 hover:bg-slate-50 hover:text-slate-950'
-                    }`}
-                  >
-                    <FileText className="w-4 h-4 shrink-0" />
-                    Auditoría del Sistema
-                  </button>
-
-                  <button
-                    onClick={() => { setCurrentView('encuestas'); setSelectedSessionId(null); }}
-                    className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-semibold transition-all ${
-                      currentView === 'encuestas' ? 'bg-gradient-to-r from-fuchsia-600 to-indigo-600 text-white font-bold shadow-sm' : 'text-slate-600 hover:bg-slate-50 hover:text-slate-950'
-                    }`}
-                  >
-                    <ClipboardCheck className="w-4 h-4 shrink-0" />
-                    Encuestas de Satisfacción
-                  </button>
-                </>
-              )}
-
-              {/* ANALISTA ROLE MENU */}
-              {false && activeUser.rol === 'Analista' && (
-                <>
-                  <div className="text-[10px] font-bold text-slate-500 uppercase tracking-widest px-3 mb-2 mt-2">Monitoreo</div>
-                  <button
-                    onClick={() => { setCurrentView('dashboard'); setSelectedSessionId(null); }}
-                    className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-semibold transition-all ${
-                      currentView === 'dashboard' ? 'bg-gradient-to-r from-fuchsia-600 to-indigo-600 text-white font-bold shadow-sm' : 'text-slate-600 hover:bg-slate-50 hover:text-slate-950'
-                    }`}
-                  >
-                    <LayoutDashboard className="w-4 h-4 shrink-0" />
-                    Dashboard General
-                  </button>
-
-                  <div className="text-[10px] font-bold text-slate-500 uppercase tracking-widest px-3 mb-2 mt-4">Operaciones FDR</div>
-                  <button
-                    onClick={() => { setCurrentView('capacitaciones'); setSelectedSessionId(null); }}
-                    className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-semibold transition-all ${
-                      currentView === 'capacitaciones' && !selectedSessionId ? 'bg-gradient-to-r from-fuchsia-600 to-indigo-600 text-white font-bold shadow-sm' : 'text-slate-600 hover:bg-slate-50 hover:text-slate-950'
-                    }`}
-                  >
-                    <BookOpen className="w-4 h-4 shrink-0" />
-                    Registro de Capacitaciones
-                  </button>
-
-                  <button
-                    onClick={() => { setCurrentView('asistencia'); }}
-                    className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-semibold transition-all ${
-                      currentView === 'capacitaciones' ? 'bg-gradient-to-r from-fuchsia-600 to-indigo-600 text-white font-bold shadow-sm' : 'text-slate-600 hover:bg-slate-50 hover:text-slate-950'
-                    }`}
-                  >
-                    <CalendarCheck className="w-4 h-4 shrink-0" />
-                    Control de Asistencia
-                  </button>
-
-                  <button
-                    onClick={() => { setCurrentView('altas'); setSelectedSessionId(null); }}
-                    className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-semibold transition-all ${
-                      currentView === 'altas' ? 'bg-gradient-to-r from-fuchsia-600 to-indigo-600 text-white font-bold shadow-sm' : 'text-slate-600 hover:bg-slate-50 hover:text-slate-950'
-                    }`}
-                  >
-                    <Award className="w-4 h-4 shrink-0" />
-                    ConfirmaciÃ³n de Altas
-                  </button>
-
-                  <button
-                    onClick={() => { setCurrentView('reaperturas'); setSelectedSessionId(null); }}
-                    className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-semibold transition-all ${
-                      currentView === 'reaperturas' ? 'bg-gradient-to-r from-fuchsia-600 to-indigo-600 text-white font-bold shadow-sm' : 'text-slate-600 hover:bg-slate-50 hover:text-slate-950'
-                    }`}
-                  >
-                    <div className="flex items-center gap-3">
-                      <Clock className="w-4 h-4 shrink-0" />
-                      Reaperturas
-                    </div>
-                    {reopens.filter(r => r.estado === 'pendiente').length > 0 && (
-                      <span className="bg-amber-600 text-white font-bold px-1.5 py-0.5 rounded-md text-[9px]">
-                        {reopens.filter(r => r.estado === 'pendiente').length}
-                      </span>
-                    )}
-                  </button>
-
-                  <div className="text-[10px] font-bold text-slate-500 uppercase tracking-widest px-3 mb-2 mt-4">Reportes</div>
-                  <button
-                    onClick={() => { setCurrentView('reportes'); setSelectedSessionId(null); }}
-                    className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-semibold transition-all ${
-                      currentView === 'reportes' ? 'bg-gradient-to-r from-fuchsia-600 to-indigo-600 text-white font-bold shadow-sm' : 'text-slate-600 hover:bg-slate-50 hover:text-slate-950'
-                    }`}
-                  >
-                    <FileSpreadsheet className="w-4 h-4 shrink-0" />
-                    Reportes Exportables
-                  </button>
-
-                  <button
-                    onClick={() => { setCurrentView('encuestas'); setSelectedSessionId(null); }}
-                    className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-semibold transition-all ${
-                      currentView === 'encuestas' ? 'bg-gradient-to-r from-fuchsia-600 to-indigo-600 text-white font-bold shadow-sm' : 'text-slate-600 hover:bg-slate-50 hover:text-slate-950'
-                    }`}
-                  >
-                    <ClipboardCheck className="w-4 h-4 shrink-0" />
-                    Encuestas de SatisfacciÃ³n
-                  </button>
-                </>
-              )}
-
-              {/* RECLUTADOR ROLE MENU */}
-              {false && activeUser.rol === 'Reclutador' && (
-                <>
-                  <div className="text-[10px] font-bold text-slate-500 uppercase tracking-widest px-3 mb-2 mt-2 font-mono">Reclutamiento</div>
-                  <button
-                    onClick={() => { setCurrentView('capacitaciones'); setSelectedSessionId(null); }}
-                    className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-semibold transition-all ${
-                      currentView === 'capacitaciones' ? 'bg-gradient-to-r from-fuchsia-600 to-indigo-600 text-white font-bold shadow-sm' : 'text-slate-600 hover:bg-slate-50 hover:text-slate-950'
-                    }`}
-                  >
-                    <BookOpen className="w-4 h-4 shrink-0" />
-                    Registro de Capacitaciones
-                  </button>
-
-                  <button
-                    onClick={() => { setCurrentView('altas'); setSelectedSessionId(null); }}
-                    className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-semibold transition-all ${
-                      currentView === 'altas' ? 'bg-gradient-to-r from-fuchsia-600 to-indigo-600 text-white font-bold shadow-sm' : 'text-slate-600 hover:bg-slate-50 hover:text-slate-950'
-                    }`}
-                  >
-                    <Award className="w-4 h-4 shrink-0" />
-                    Confirmación de Altas
-                  </button>
-
-                  <button
-                    onClick={() => { setCurrentView('capacitaciones'); setSelectedSessionId(null); }}
-                    className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-semibold transition-all ${
-                      currentView === 'asistencia' ? 'bg-gradient-to-r from-fuchsia-600 to-indigo-600 text-white font-bold shadow-sm' : 'text-slate-600 hover:bg-slate-50 hover:text-slate-950'
-                    }`}
-                  >
-                    <CalendarCheck className="w-4 h-4 shrink-0" />
-                    Asistencias (solo lectura)
-                  </button>
-
-                  <button
-                    onClick={() => { setCurrentView('encuestas'); setSelectedSessionId(null); }}
-                    className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-semibold transition-all ${
-                      currentView === 'encuestas' ? 'bg-gradient-to-r from-fuchsia-600 to-indigo-600 text-white font-bold shadow-sm' : 'text-slate-600 hover:bg-slate-50 hover:text-slate-950'
-                    }`}
-                  >
-                    <ClipboardCheck className="w-4 h-4 shrink-0" />
-                    Encuestas de Satisfacción
-                  </button>
-                </>
-              )}
-
-              {/* COORDINADOR / SISTEMAS ROLE MENU */}
-              {(activeUser.rol === 'Coordinador' || activeUser.rol === 'Sistemas') && (
-                <>
-                  <div className="text-[10px] font-bold text-slate-500 uppercase tracking-widest px-3 mb-2 mt-2 font-mono">
-                    Consulta {activeUser.rol}
+                    <span className="bg-slate-50 text-[10px] text-slate-500 px-2 py-0.5 rounded font-mono font-bold border border-slate-200">v1.1</span>
                   </div>
-                  <button
-                    onClick={() => { setCurrentView('dashboard'); setSelectedSessionId(null); }}
-                    className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-semibold transition-all ${
-                      currentView === 'dashboard' ? 'bg-gradient-to-r from-fuchsia-600 to-indigo-600 text-white font-bold shadow-sm' : 'text-slate-600 hover:bg-slate-50 hover:text-slate-950'
-                    }`}
-                  >
-                    <LayoutDashboard className="w-4 h-4 shrink-0" />
-                    Dashboard General
-                  </button>
+                </div>
 
-                  <button
-                    onClick={() => { setCurrentView('capacitaciones'); setSelectedSessionId(null); }}
-                    className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-semibold transition-all ${
-                      currentView === 'capacitaciones' && !selectedSessionId ? 'bg-gradient-to-r from-fuchsia-600 to-indigo-600 text-white font-bold shadow-sm' : 'text-slate-600 hover:bg-slate-50 hover:text-slate-950'
-                    }`}
-                  >
-                    <BookOpen className="w-4 h-4 shrink-0" />
-                    Registro de Capacitaciones
-                  </button>
+                <div className="p-4 border-b border-slate-200 bg-slate-50/75 flex items-center gap-3">
+                  <div className="bg-gradient-to-r from-indigo-600 to-violet-600 w-10 h-10 rounded-xl flex items-center justify-center font-bold text-white text-sm shadow-sm">
+                    {activeUser.nombre.substring(0, 2).toUpperCase()}
+                  </div>
+                  <div className="truncate text-xs">
+                    <p className="font-bold text-slate-900 truncate">{activeUser.nombre}</p>
+                    <p className="text-[10px] text-slate-500 truncate mt-0.5">{activeUser.rol}</p>
+                  </div>
+                </div>
 
-                  <button
-                    onClick={() => {
-                      setCurrentView('asistencia');
-                    }}
-                    className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-semibold transition-all ${
-                      currentView === 'asistencia' ? 'bg-gradient-to-r from-fuchsia-600 to-indigo-600 text-white font-bold shadow-sm' : 'text-slate-600 hover:bg-slate-50 hover:text-slate-950'
-                    }`}
-                  >
-                    <CalendarCheck className="w-4 h-4 shrink-0" />
-                    Control de Asistencia
-                  </button>
-
-                  <button
-                    onClick={() => { setCurrentView('altas'); setSelectedSessionId(null); }}
-                    className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-semibold transition-all ${
-                      currentView === 'altas' ? 'bg-gradient-to-r from-fuchsia-600 to-indigo-600 text-white font-bold shadow-sm' : 'text-slate-600 hover:bg-slate-50 hover:text-slate-950'
-                    }`}
-                  >
-                    <Award className="w-4 h-4 shrink-0" />
-                    Confirmación de Altas
-                  </button>
-
-                  <button
-                    onClick={() => { setCurrentView('reportes'); setSelectedSessionId(null); }}
-                    className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-semibold transition-all ${
-                      currentView === 'reportes' ? 'bg-gradient-to-r from-fuchsia-600 to-indigo-600 text-white font-bold shadow-sm' : 'text-slate-600 hover:bg-slate-50 hover:text-slate-950'
-                    }`}
-                  >
-                    <FileSpreadsheet className="w-4 h-4 shrink-0" />
-                    Reportes Exportables
-                  </button>
-
-                  <button
-                    onClick={() => { setCurrentView('encuestas'); setSelectedSessionId(null); }}
-                    className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-semibold transition-all ${
-                      currentView === 'encuestas' ? 'bg-gradient-to-r from-fuchsia-600 to-indigo-600 text-white font-bold shadow-sm' : 'text-slate-600 hover:bg-slate-50 hover:text-slate-950'
-                    }`}
-                  >
-                    <ClipboardCheck className="w-4 h-4 shrink-0" />
-                    Encuestas de Satisfacción
-                  </button>
-                </>
-              )}
-
-              {/* FORMADOR ROLE MENU */}
-              {activeUser.rol === 'Formador' && (
-                <>
-                  <div className="text-[10px] font-bold text-slate-500 uppercase tracking-widest px-3 mb-2 mt-2 font-mono">Aula FDR</div>
-                  <button
-                    onClick={() => { setCurrentView('capacitaciones'); setSelectedSessionId(null); }}
-                    className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-semibold transition-all ${
-                      currentView === 'capacitaciones' && !selectedSessionId ? 'bg-gradient-to-r from-fuchsia-600 to-indigo-600 text-white font-bold shadow-sm' : 'text-slate-600 hover:bg-slate-50 hover:text-slate-950'
-                    }`}
-                  >
-                    <BookOpen className="w-4 h-4 shrink-0" />
-                    Mis Capacitaciones
-                  </button>
-
-                  <button
-                    onClick={() => {
-                      // Lead to active list if no session selected, otherwise keep selected
-                      setCurrentView('asistencia');
-                    }}
-                    className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-semibold transition-all ${
-                      currentView === 'asistencia' ? 'bg-gradient-to-r from-fuchsia-600 to-indigo-600 text-white font-bold shadow-sm' : 'text-slate-600 hover:bg-slate-50 hover:text-slate-950'
-                    }`}
-                  >
-                    <CalendarCheck className="w-4 h-4 shrink-0" />
-                    Control de Asistencia
-                  </button>
-
-                  <button
-                    onClick={() => { setCurrentView('altas'); setSelectedSessionId(null); }}
-                    className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-semibold transition-all ${
-                      currentView === 'altas' ? 'bg-gradient-to-r from-fuchsia-600 to-indigo-600 text-white font-bold shadow-sm' : 'text-slate-600 hover:bg-slate-50 hover:text-slate-950'
-                    }`}
-                  >
-                    <Award className="w-4 h-4 shrink-0" />
-                    Confirmación de Altas
-                  </button>
-
-                  <button
-                    onClick={() => { setCurrentView('reaperturas'); setSelectedSessionId(null); }}
-                    className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-semibold transition-all ${
-                      currentView === 'reaperturas' ? 'bg-gradient-to-r from-fuchsia-600 to-indigo-600 text-white font-bold shadow-sm' : 'text-slate-600 hover:bg-slate-50 hover:text-slate-950'
-                    }`}
-                  >
-                    <Clock className="w-4 h-4 shrink-0" />
-                    Solicitudes enviadas
-                  </button>
-
-                  <button
-                    onClick={() => { setCurrentView('encuestas'); setSelectedSessionId(null); }}
-                    className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-semibold transition-all ${
-                      currentView === 'encuestas' ? 'bg-gradient-to-r from-fuchsia-600 to-indigo-600 text-white font-bold shadow-sm' : 'text-slate-600 hover:bg-slate-50 hover:text-slate-950'
-                    }`}
-                  >
-                    <ClipboardCheck className="w-4 h-4 shrink-0" />
-                    Encuestas de Satisfacción
-                  </button>
-                </>
-              )}
-            </nav>
-
-            {/* Logout button */}
-            <div className="p-4 border-t border-slate-200 space-y-2">
-              <button
-                onClick={handleLogout}
-                className="w-full bg-slate-50 hover:bg-rose-50 hover:text-rose-700 text-slate-700 font-bold px-3.5 py-2.5 rounded-xl text-xs flex items-center justify-center gap-2 border border-slate-200 hover:border-rose-200 transition-all cursor-pointer"
-              >
-                <LogOut className="w-4 h-4 shrink-0" />
-                Cerrar Sesión
-              </button>
+                <nav className="flex-1 p-4 space-y-5 overflow-y-auto" id="sidebar-nav">
+                  {(() => {
+                    const inSelection = currentView === 'seleccion' && activeUser.rol !== 'Formador';
+                    const selectionGroups = [
+                      { title: 'Monitoreo', items: [['dashboard', 'Dashboard de Selección', LayoutDashboard]] },
+                      {
+                        title: 'Operación',
+                        items: [
+                          ['convocatorias', 'Convocatorias', BriefcaseBusiness],
+                          ['postulantes', 'Postulantes', Users],
+                          ['seguimientos', 'Seguimientos', Clock],
+                          ['agenda', 'Agenda y Citaciones', CalendarCheck],
+                          ['evaluaciones', 'Entrevistas y Evaluaciones', ClipboardCheck],
+                          ['aptos', 'Aptos para Capacitación', UserCheck],
+                          ['base', 'Base de Postulantes', Users],
+                          ['asignacion', 'Asignación a Capacitación', BookOpen],
+                          ['historial', 'Historial de Selección', FileText],
+                        ],
+                      },
+                      {
+                        title: 'Configuración y reportes',
+                        items: [
+                          ['automatizaciones', 'Automatizaciones', Settings],
+                          ['catalogos', 'Catálogos', Settings],
+                          ['configuracion', 'Configuración', Settings],
+                          ['reportes', 'Reportes', FileSpreadsheet],
+                          ['auditoria', 'Auditoría', FileText],
+                        ],
+                      },
+                    ];
+                    const formationGroups = [
+                      { title: 'Monitoreo', items: [['dashboard', 'Dashboard General', LayoutDashboard, ['Administrador', 'Analista', 'Coordinador', 'Sistemas']]] },
+                      {
+                        title: activeUser.rol === 'Formador' ? 'Aula FDR' : 'Operación FDR',
+                        items: [
+                          ['capacitaciones', activeUser.rol === 'Formador' ? 'Mis Capacitaciones' : 'Registro de Capacitaciones', BookOpen, ['Administrador', 'Analista', 'Coordinador', 'Sistemas', 'Formador', 'Reclutador']],
+                          ['asistencia', 'Control de Asistencia', CalendarCheck, ['Administrador', 'Analista', 'Coordinador', 'Sistemas', 'Formador', 'Reclutador']],
+                          ['altas', 'Confirmación de Altas', Award, ['Administrador', 'Analista', 'Coordinador', 'Sistemas', 'Formador', 'Reclutador']],
+                          ['reaperturas', activeUser.rol === 'Formador' ? 'Solicitudes enviadas' : 'Reaperturas', Clock, ['Administrador', 'Analista', 'Formador']],
+                        ],
+                      },
+                      {
+                        title: 'Administración',
+                        items: [
+                          ['usuarios', 'Usuarios FDR', Users, ['Administrador']],
+                          ['reportes', 'Reportes Exportables', FileSpreadsheet, ['Administrador', 'Analista', 'Coordinador', 'Sistemas']],
+                          ['auditoria', 'Auditoría del Sistema', FileText, ['Administrador']],
+                          ['encuestas', 'Encuestas de Satisfacción', ClipboardCheck, ['Administrador', 'Analista', 'Coordinador', 'Sistemas', 'Formador', 'Reclutador']],
+                        ],
+                      },
+                    ];
+                    const groups = inSelection ? selectionGroups : formationGroups;
+                    return groups.map((group) => {
+                      const visibleItems = group.items.filter((item) => {
+                        const roles = item[3] as string[] | undefined;
+                        return inSelection || !roles || roles.includes(activeUser.rol);
+                      });
+                      if (visibleItems.length === 0) return null;
+                      return (
+                        <div key={group.title}>
+                          <p className="px-3 mb-2 text-[10px] font-black uppercase tracking-widest text-slate-400">{group.title}</p>
+                          <div className="space-y-1">
+                            {visibleItems.map(([view, label, Icon]) => {
+                              const MenuIcon = Icon as typeof Users;
+                              const isActive = inSelection ? currentView === 'seleccion' && selectionView === view : currentView === view;
+                              const pendingReopens = view === 'reaperturas' ? reopens.filter(r => r.estado === 'pendiente').length : 0;
+                              return (
+                                <button
+                                  key={String(view)}
+                                  onClick={() => {
+                                    if (inSelection) {
+                                      setCurrentView('seleccion');
+                                      setSelectionView(view as SelectionViewMode);
+                                    } else {
+                                      setCurrentView(String(view));
+                                    }
+                                    setSelectedSessionId(null);
+                                  }}
+                                  className={`w-full flex items-center justify-between gap-3 px-3.5 py-2.5 rounded-xl text-xs font-semibold transition-all ${
+                                    isActive ? 'bg-gradient-to-r from-fuchsia-600 to-indigo-600 text-white font-bold shadow-sm' : 'text-slate-600 hover:bg-slate-50 hover:text-slate-950'
+                                  }`}
+                                >
+                                  <span className="flex items-center gap-3 min-w-0">
+                                    <MenuIcon className="w-4 h-4 shrink-0" />
+                                    <span className="truncate">{String(label)}</span>
+                                  </span>
+                                  {pendingReopens > 0 && <span className="bg-amber-600 text-white font-bold px-1.5 py-0.5 rounded-md text-[9px]">{pendingReopens}</span>}
+                                </button>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      );
+                    });
+                  })()}
+                </nav>
+              </div>
             </div>
           </aside>
-
           {/* Main content viewport */}
           <main className="flex-1 flex flex-col min-w-0 overflow-y-auto">
             
