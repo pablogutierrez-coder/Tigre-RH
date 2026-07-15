@@ -1743,8 +1743,11 @@ export default function App() {
                     ['convocatorias', 'Convocatorias', BriefcaseBusiness],
                     ['postulantes', 'Postulantes', Users],
                     ['seguimientos', 'Seguimientos', Clock],
+                    ['agenda', 'Agenda y Citaciones', CalendarCheck],
                     ['evaluaciones', 'Entrevistas y Evaluaciones', ClipboardCheck],
                     ['aptos', 'Aptos para Capacitación', UserCheck],
+                    ['base', 'Base de Postulantes', Users],
+                    ['asignacion', 'Asignacion a Capacitacion', BookOpen],
                     ['historial', 'Historial de Selección', FileText],
                   ].map(([view, label, Icon]) => {
                     const MenuIcon = Icon as typeof Users;
@@ -1763,7 +1766,9 @@ export default function App() {
                   })}
                   <div className="text-[10px] font-bold text-slate-500 uppercase tracking-widest px-3 mb-2 mt-4">Configuración y Reportes</div>
                   {[
+                    ['automatizaciones', 'Automatizaciones', Settings],
                     ['catalogos', 'Catálogos de Selección', Settings],
+                    ['configuracion', 'Configuracion de Seleccion', Settings],
                     ['reportes', 'Reportes Exportables', FileSpreadsheet],
                     ['auditoria', 'Auditoría de Selección', FileText],
                   ].map(([view, label, Icon]) => {

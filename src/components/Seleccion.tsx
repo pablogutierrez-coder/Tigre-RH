@@ -52,8 +52,13 @@ type ViewMode =
   | 'seguimientos'
   | 'evaluaciones'
   | 'aptos'
+  | 'agenda'
+  | 'base'
+  | 'automatizaciones'
+  | 'asignacion'
   | 'historial'
   | 'catalogos'
+  | 'configuracion'
   | 'reportes'
   | 'auditoria';
 
@@ -178,6 +183,85 @@ const campaignOptions = ['Entel Empresas', 'Culqi', 'Equifax', 'Prosegur'];
 const sourceOptions = ['Pandapé', 'Computrabajo', 'Boomerang', 'LinkedIn', 'Redes sociales'];
 const finalRequisitionStates = ['Activa', 'Finalizada'];
 const dashboardViews = ['Vista general', 'Vista por campaña', 'Vista individual por reclutador', 'Vista por convocatoria'];
+const enableDataPolicyModule = false;
+
+const selectionViewMeta: Record<ViewMode, { eyebrow: string; title: string; description: string }> = {
+  dashboard: {
+    eyebrow: 'Selección',
+    title: 'Dashboard de Selección',
+    description: 'Indicadores, conversión, SLA, cobertura, fuentes y rendimiento por reclutador.',
+  },
+  convocatorias: {
+    eyebrow: 'Procesos',
+    title: 'Procesos y convocatorias',
+    description: 'Administra campañas activas, vacantes, cobertura, reclutadores y avance del proceso.',
+  },
+  postulantes: {
+    eyebrow: 'Postulantes',
+    title: 'Gestión de postulantes',
+    description: 'Registra, importa, depura y gestiona postulantes por convocatoria.',
+  },
+  seguimientos: {
+    eyebrow: 'Pipeline',
+    title: 'Seguimiento Kanban',
+    description: 'Visualiza el avance por etapa y mueve candidatos con control de estado persistente.',
+  },
+  evaluaciones: {
+    eyebrow: 'Evaluaciones',
+    title: 'Entrevistas y evaluaciones',
+    description: 'Controla filtros, entrevistas, pruebas y resultado final de selección.',
+  },
+  aptos: {
+    eyebrow: 'Aptos',
+    title: 'Aptos para capacitación',
+    description: 'Prepara candidatos validados para enviarlos al módulo de capacitación.',
+  },
+  agenda: {
+    eyebrow: 'Agenda',
+    title: 'Agenda y citaciones',
+    description: 'Organiza entrevistas, citaciones y próximas acciones del equipo.',
+  },
+  base: {
+    eyebrow: 'Base',
+    title: 'Base general de postulantes',
+    description: 'Consulta el historial consolidado de postulantes y sus últimas postulaciones.',
+  },
+  automatizaciones: {
+    eyebrow: 'Automatización',
+    title: 'Automatizaciones por etapa',
+    description: 'Define reglas, alertas y acciones futuras por evento de selección.',
+  },
+  asignacion: {
+    eyebrow: 'Capacitación',
+    title: 'Asignación a capacitación',
+    description: 'Consolida aptos no asignados y crea capacitaciones conectadas al flujo FDR.',
+  },
+  historial: {
+    eyebrow: 'Historial',
+    title: 'Historial de selección',
+    description: 'Revisa actividad, cambios de estado y trazabilidad del proceso.',
+  },
+  catalogos: {
+    eyebrow: 'Catálogos',
+    title: 'Catálogos de Selección',
+    description: 'Estados, etapas, fuentes y motivos base del proceso.',
+  },
+  configuracion: {
+    eyebrow: 'Configuración',
+    title: 'Configuración de Selección',
+    description: 'Plantillas, etapas, SLA, scorecards, comunicaciones y permisos del módulo.',
+  },
+  reportes: {
+    eyebrow: 'Reportes',
+    title: 'Reportes de selección',
+    description: 'Exporta convocatorias, postulantes, productividad, fuentes, SLA y auditoría.',
+  },
+  auditoria: {
+    eyebrow: 'Auditoría',
+    title: 'Auditoría de Selección',
+    description: 'Consulta eventos críticos y trazabilidad de cambios.',
+  },
+};
 
 const dropoutReasons = [
   'No aprobó entrevista de Recursos Humanos',
@@ -241,6 +325,8 @@ export default function Seleccion({ currentUser, users, initialView = 'dashboard
   const [editingApplicant, setEditingApplicant] = useState<SelectionApplicant | null>(null);
   const [deleteApplicantTarget, setDeleteApplicantTarget] = useState<SelectionApplicant | null>(null);
   const [deleteApplicantReason, setDeleteApplicantReason] = useState('');
+  const [detailApplicant, setDetailApplicant] = useState<SelectionApplicant | null>(null);
+  const [detailTab, setDetailTab] = useState('Resumen');
   const [importPreview, setImportPreview] = useState<Partial<SelectionApplicant>[]>([]);
   const [importErrors, setImportErrors] = useState<string[]>([]);
   const [selectedApplicants, setSelectedApplicants] = useState<string[]>([]);
@@ -372,6 +458,37 @@ export default function Seleccion({ currentUser, users, initialView = 'dashboard
       scoped,
     };
   }, [applicants, filterApplicantStatus, visibleReqs]);
+
+  const viewMeta = selectionViewMeta[activeView] || selectionViewMeta.dashboard;
+  const kanbanStages = ['Pendiente de gestión', 'Contactado', 'Citado', 'En evaluación', 'Apto para capacitación', 'Asignado a capacitación'];
+  const aptosForTraining = metrics.scoped.filter((item) =>
+    (item.ultimo_estado === 'Apto para capacitación' || item.ultimo_estado === 'Asignado a capacitación') &&
+    !item.training_session_id &&
+    !item.deleted_at,
+  );
+
+  const bulkUpdateApplicants = async (status: SelectionApplicantStatus) => {
+    if (selectedApplicants.length === 0) return;
+    const reason = requiresDropoutReason(status) ? window.prompt('Indica el motivo de no continuidad:') : '';
+    if (requiresDropoutReason(status) && !reason?.trim()) return;
+    setSaving(true);
+    try {
+      await Promise.all(selectedApplicants.map((id) =>
+        updateSelectionApplicant(id, {
+          ultimo_estado: status,
+          etapa_actual: status,
+          motivo_caida: reason || undefined,
+        }),
+      ));
+      setSelectedApplicants([]);
+      await loadData();
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'No se pudo aplicar la acción masiva.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
   const resetDashboardFilters = () => {
     setSearch('');
     setStatusFilter('Todos');
@@ -722,13 +839,11 @@ export default function Seleccion({ currentUser, users, initialView = 'dashboard
       <div className={`flex flex-col xl:flex-row xl:items-center ${activeView === 'convocatorias' ? 'justify-end' : 'justify-between'} gap-4`}>
         {activeView !== 'convocatorias' && (
           <div>
-            <span className="text-[10px] text-fuchsia-600 font-black uppercase tracking-widest">Selección</span>
+            <span className="text-[10px] text-fuchsia-600 font-black uppercase tracking-widest">{viewMeta.eyebrow}</span>
             <h2 className="text-3xl font-black text-slate-900 tracking-tight">
-              {activeView === 'dashboard' ? 'Dashboard de Selección' : 'Gestión de Selección'}
+              {viewMeta.title}
             </h2>
-            {activeView === 'dashboard' && (
-              <p className="text-slate-500 text-sm">Indicadores, conversión, SLA, cobertura, fuentes y rendimiento por reclutador.</p>
-            )}
+            <p className="text-slate-500 text-sm">{viewMeta.description}</p>
           </div>
         )}
         <div className="flex flex-wrap gap-2">
@@ -929,6 +1044,18 @@ export default function Seleccion({ currentUser, users, initialView = 'dashboard
         </div>
       )}
 
+      {selectedApplicants.length > 0 && (
+        <div className="sticky top-3 z-30 bg-slate-950 text-white rounded-2xl shadow-xl px-4 py-3 flex flex-wrap items-center justify-between gap-3">
+          <p className="text-sm font-black">{selectedApplicants.length} postulantes seleccionados</p>
+          <div className="flex flex-wrap gap-2">
+            <button onClick={() => void bulkUpdateApplicants('Contactado')} disabled={saving} className="px-3 py-2 rounded-xl bg-white/10 hover:bg-white/20 text-xs font-black">Marcar contactado</button>
+            <button onClick={() => void bulkUpdateApplicants('Citado')} disabled={saving} className="px-3 py-2 rounded-xl bg-white/10 hover:bg-white/20 text-xs font-black">Citar</button>
+            <button onClick={() => void bulkUpdateApplicants('No apto')} disabled={saving} className="px-3 py-2 rounded-xl bg-rose-500 hover:bg-rose-600 text-xs font-black">Descartar</button>
+            <button onClick={() => setSelectedApplicants([])} className="px-3 py-2 rounded-xl bg-white text-slate-900 text-xs font-black">Limpiar</button>
+          </div>
+        </div>
+      )}
+
       {activeView === 'convocatorias' && (
         <div className="grid md:grid-cols-2 xl:grid-cols-3 gap-4">
           {visibleReqs.map((req) => {
@@ -1006,7 +1133,45 @@ export default function Seleccion({ currentUser, users, initialView = 'dashboard
         </div>
       )}
 
-      {['postulantes', 'seguimientos', 'evaluaciones', 'aptos', 'historial'].includes(activeView) && selectedReq && (
+      {activeView === 'seguimientos' && (
+        <div className="grid md:grid-cols-2 xl:grid-cols-6 gap-4 items-start">
+          {kanbanStages.map((stage) => {
+            const rows = metrics.scoped.filter((item) => item.ultimo_estado === stage || item.etapa_actual === stage);
+            return (
+              <section key={stage} className="bg-white rounded-2xl border border-slate-200 shadow-xs min-h-80">
+                <div className="p-4 border-b border-slate-100 flex items-center justify-between">
+                  <h3 className="font-black text-slate-800 text-sm">{stage}</h3>
+                  <span className="text-[10px] font-black px-2 py-1 rounded-full bg-slate-100 text-slate-500">{rows.length}</span>
+                </div>
+                <div className="p-3 space-y-3">
+                  {rows.length === 0 && <p className="text-xs text-slate-400 italic p-3">Sin postulantes en esta etapa.</p>}
+                  {rows.map((applicant) => (
+                    <article key={applicant.id} className="rounded-2xl border border-slate-200 bg-slate-50/70 p-3 hover:bg-white hover:shadow-md transition">
+                      <div className="flex items-start justify-between gap-2">
+                        <div>
+                          <p className="font-black text-slate-900 text-sm">{applicant.nombre_completo}</p>
+                          <p className="text-[11px] text-slate-500 font-mono">DNI {applicant.dni}</p>
+                        </div>
+                        <button onClick={() => { setDetailApplicant(applicant); setDetailTab('Resumen'); }} className="text-slate-400 hover:text-indigo-600">
+                          <ChevronRight className="w-4 h-4" />
+                        </button>
+                      </div>
+                      <p className="text-xs text-slate-500 mt-2">{applicant.reclutador_nombre}</p>
+                      <div className="mt-3">
+                        <select value={applicant.ultimo_estado} onChange={(event) => void updateApplicantStatus(applicant, event.target.value as SelectionApplicantStatus)} className="w-full rounded-xl border border-slate-200 bg-white px-2 py-2 text-xs font-bold">
+                          {applicantStatuses.map((status) => <option key={status}>{status}</option>)}
+                        </select>
+                      </div>
+                    </article>
+                  ))}
+                </div>
+              </section>
+            );
+          })}
+        </div>
+      )}
+
+      {['postulantes', 'evaluaciones', 'aptos', 'historial'].includes(activeView) && selectedReq && (
         <div className="space-y-4">
           <div className="bg-white rounded-2xl border border-slate-200 p-4 shadow-xs flex flex-wrap gap-2 items-center justify-between">
             <div>
@@ -1113,6 +1278,9 @@ export default function Seleccion({ currentUser, users, initialView = 'dashboard
                       </td>
                       <td className="p-3">
                         <div className="flex justify-center gap-1">
+                          <button onClick={() => { setDetailApplicant(applicant); setDetailTab('Resumen'); }} className="p-2 rounded-lg hover:bg-slate-100 text-slate-400 hover:text-slate-700">
+                            <ChevronRight className="w-4 h-4" />
+                          </button>
                           <button onClick={() => openEditApplicant(applicant)} className="p-2 rounded-lg hover:bg-indigo-50 text-slate-400 hover:text-indigo-600">
                             <Edit3 className="w-4 h-4" />
                           </button>
@@ -1130,6 +1298,134 @@ export default function Seleccion({ currentUser, users, initialView = 'dashboard
               </table>
             </div>
           </div>
+        </div>
+      )}
+
+      {activeView === 'agenda' && (
+        <div className="grid lg:grid-cols-3 gap-4">
+          <div className="lg:col-span-2 bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden">
+            <div className="p-5 border-b border-slate-100 flex items-center justify-between">
+              <h3 className="font-black text-slate-900">Próximas citaciones y seguimientos</h3>
+              <span className="text-xs font-black text-slate-400">{metrics.scoped.filter((item) => item.proximo_seguimiento).length} programados</span>
+            </div>
+            <div className="divide-y divide-slate-100">
+              {metrics.scoped.filter((item) => item.proximo_seguimiento || item.ultimo_estado === 'Citado').slice(0, 30).map((item) => (
+                <button key={item.id} onClick={() => { setDetailApplicant(item); setDetailTab('Citaciones'); }} className="w-full p-4 text-left hover:bg-slate-50 flex items-center justify-between gap-3">
+                  <div>
+                    <p className="font-black text-slate-900">{item.nombre_completo}</p>
+                    <p className="text-xs text-slate-500">{item.requisition_codigo} · {item.reclutador_nombre}</p>
+                  </div>
+                  <span className="text-xs font-black text-indigo-600">{item.proximo_seguimiento ? new Date(item.proximo_seguimiento).toLocaleString('es-PE') : 'Citado'}</span>
+                </button>
+              ))}
+              {metrics.scoped.filter((item) => item.proximo_seguimiento || item.ultimo_estado === 'Citado').length === 0 && (
+                <p className="p-8 text-center text-sm text-slate-400 italic">No hay citaciones o próximos seguimientos registrados.</p>
+              )}
+            </div>
+          </div>
+          <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-xs">
+            <h3 className="font-black text-slate-900">Estados de agenda</h3>
+            {['Programada', 'Confirmada', 'Reprogramada', 'Asistió', 'Ausente', 'Cancelada'].map((item) => (
+              <div key={item} className="mt-3 flex items-center justify-between rounded-xl bg-slate-50 p-3">
+                <span className="text-sm font-bold text-slate-700">{item}</span>
+                <span className="text-xs font-black text-slate-400">0</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {activeView === 'base' && (
+        <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-xs">
+          <div className="p-5 border-b border-slate-100 flex items-center justify-between">
+            <h3 className="font-black text-slate-900">Base consolidada</h3>
+            <button onClick={() => exportDashboard('xlsx')} className="rounded-xl bg-indigo-600 text-white px-3 py-2 text-xs font-black">Exportar</button>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead className="bg-slate-50 text-[10px] uppercase tracking-widest text-slate-500">
+                <tr><th className="p-3 text-left">Postulante</th><th className="p-3 text-left">Contacto</th><th className="p-3 text-left">Última convocatoria</th><th className="p-3 text-left">Fuente</th><th className="p-3 text-left">Estado</th><th className="p-3 text-center">Acciones</th></tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {metrics.scoped.map((item) => (
+                  <tr key={item.id} className="hover:bg-slate-50">
+                    <td className="p-3 font-black text-slate-900">{item.nombre_completo}<p className="text-xs text-slate-400 font-mono">DNI {item.dni}</p></td>
+                    <td className="p-3 text-xs text-slate-500">{item.telefono}<br />{item.correo || '-'}</td>
+                    <td className="p-3 text-xs font-bold text-slate-600">{item.requisition_codigo}</td>
+                    <td className="p-3 text-xs text-slate-500">{item.fuente}</td>
+                    <td className="p-3"><span className="px-2 py-1 rounded-full bg-indigo-50 text-indigo-700 text-[10px] font-black">{item.ultimo_estado}</span></td>
+                    <td className="p-3 text-center"><button onClick={() => { setDetailApplicant(item); setDetailTab('Historial'); }} className="text-indigo-600 text-xs font-black">Abrir ficha</button></td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {activeView === 'automatizaciones' && (
+        <div className="grid lg:grid-cols-3 gap-4">
+          {[
+            ['Distribución', 'Reparto equitativo, cuotas, campaña, ciudad y carga de trabajo.'],
+            ['SLA', 'Alertas por próximo vencimiento, vencido y escalamiento.'],
+            ['Contactabilidad', 'Intentos, próximos contactos y detección de no respuesta.'],
+            ['Citaciones', 'Recordatorios, confirmaciones y ausencias.'],
+            ['Evaluación', 'Cálculo de aptitud, scorecard y criterios críticos.'],
+            ['Capacitación', 'Aptos sin asignar, creación de capa y notificación.'],
+          ].map(([title, text]) => (
+            <section key={title} className="bg-white rounded-2xl border border-slate-200 p-5 shadow-xs">
+              <div className="flex items-center justify-between">
+                <h3 className="font-black text-slate-900">{title}</h3>
+                <span className="text-[10px] font-black bg-slate-100 text-slate-500 px-2 py-1 rounded-full">Preparado</span>
+              </div>
+              <p className="text-sm text-slate-500 mt-2">{text}</p>
+              <button disabled className="mt-4 rounded-xl bg-slate-100 text-slate-400 px-3 py-2 text-xs font-black cursor-not-allowed">Configurar en siguiente fase</button>
+            </section>
+          ))}
+        </div>
+      )}
+
+      {activeView === 'asignacion' && (
+        <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-xs">
+          <div className="flex flex-wrap justify-between gap-3 mb-4">
+            <div>
+              <h3 className="font-black text-slate-900">Aptos pendientes de asignación</h3>
+              <p className="text-sm text-slate-500">Selecciona postulantes aptos y usa “Asignar capacitación” desde la convocatoria correspondiente.</p>
+            </div>
+            <span className="rounded-xl bg-emerald-50 text-emerald-700 px-3 py-2 text-sm font-black">{aptosForTraining.length} disponibles</span>
+          </div>
+          <div className="grid md:grid-cols-2 xl:grid-cols-3 gap-3">
+            {aptosForTraining.map((item) => (
+              <article key={item.id} className="rounded-2xl border border-slate-200 p-4">
+                <p className="font-black text-slate-900">{item.nombre_completo}</p>
+                <p className="text-xs text-slate-500 mt-1">DNI {item.dni} · {item.requisition_codigo}</p>
+                <p className="text-xs text-slate-500">{item.reclutador_nombre}</p>
+                <button onClick={() => setSelectedApplicants((prev) => prev.includes(item.id) ? prev : [...prev, item.id])} className="mt-3 rounded-xl bg-indigo-600 text-white px-3 py-2 text-xs font-black">Seleccionar</button>
+              </article>
+            ))}
+          </div>
+          {aptosForTraining.length === 0 && <p className="text-sm text-slate-400 italic">No hay aptos pendientes de asignación con los filtros actuales.</p>}
+        </div>
+      )}
+
+      {(activeView === 'configuracion' || activeView === 'catalogos') && (
+        <div className="grid lg:grid-cols-2 gap-4">
+          {[
+            ['Plantillas de convocatorias', 'Crear desde plantillas por campaña o convocatoria anterior.'],
+            ['Etapas y estados', 'Orden, colores, SLA y campos obligatorios por etapa.'],
+            ['Scorecards', 'Criterios de call center, ventas, comunicación y disponibilidad.'],
+            ['Fuentes y motivos de caída', 'Catálogos base para datos consistentes.'],
+            ['Comunicaciones', 'Plantillas de correo, citación, recordatorio y resultado.'],
+            ['Políticas y tratamiento de datos', enableDataPolicyModule ? 'Módulo habilitado.' : 'Cascarón técnico creado y deshabilitado por feature flag.'],
+          ].map(([title, text]) => (
+            <section key={title} className="bg-white rounded-2xl border border-slate-200 p-5 shadow-xs">
+              <div className="flex items-center justify-between">
+                <h3 className="font-black text-slate-900">{title}</h3>
+                <span className={`text-[10px] font-black px-2 py-1 rounded-full ${title.includes('Políticas') ? 'bg-slate-100 text-slate-500' : 'bg-indigo-50 text-indigo-700'}`}>{title.includes('Políticas') ? 'Oculto' : 'Base'}</span>
+              </div>
+              <p className="text-sm text-slate-500 mt-2">{text}</p>
+            </section>
+          ))}
         </div>
       )}
 
@@ -1172,15 +1468,69 @@ export default function Seleccion({ currentUser, users, initialView = 'dashboard
         </div>
       )}
 
-      {['catalogos'].includes(activeView) && (
-        <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-xs">
-          <h3 className="font-black text-slate-900">Catálogos de Selección</h3>
-          <p className="text-sm text-slate-500 mt-1">Estados, fuentes, motivos de caída y etapas se operan con catálogos base del módulo. La edición avanzada queda preparada para una siguiente iteración.</p>
-          <div className="grid md:grid-cols-3 gap-3 mt-4">
-            {['Pendiente de gestión', 'Interesado', 'No interesado', 'No responde', 'Apto para capacitación'].map((item) => (
-              <div key={item} className="rounded-xl bg-slate-50 p-3 text-sm font-bold text-slate-700">{item}</div>
-            ))}
-          </div>
+      {detailApplicant && (
+        <div className="fixed inset-0 z-50 bg-slate-950/40 backdrop-blur-sm flex justify-end">
+          <aside className="w-full max-w-2xl bg-white h-full shadow-2xl overflow-y-auto">
+            <div className="sticky top-0 bg-white border-b border-slate-100 p-5 z-10">
+              <div className="flex items-start justify-between gap-4">
+                <div className="flex items-center gap-3">
+                  <div className="w-12 h-12 rounded-2xl bg-gradient-to-r from-fuchsia-600 to-indigo-600 text-white flex items-center justify-center font-black">
+                    {detailApplicant.nombre_completo.slice(0, 2).toUpperCase()}
+                  </div>
+                  <div>
+                    <h3 className="font-black text-slate-900 text-xl">{detailApplicant.nombre_completo}</h3>
+                    <p className="text-xs text-slate-500">DNI {detailApplicant.dni} · {detailApplicant.requisition_codigo}</p>
+                  </div>
+                </div>
+                <button onClick={() => setDetailApplicant(null)} className="p-2 rounded-xl hover:bg-slate-100 text-slate-400">
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+              <div className="mt-4 flex flex-wrap gap-2">
+                {['Resumen', 'Gestiones', 'Evaluaciones', 'Citaciones', 'Comunicaciones', 'Documentos', 'Historial', 'Auditoría'].map((tab) => (
+                  <button key={tab} onClick={() => setDetailTab(tab)} className={`px-3 py-2 rounded-xl text-xs font-black ${detailTab === tab ? 'bg-indigo-600 text-white' : 'bg-slate-100 text-slate-600'}`}>
+                    {tab}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div className="p-5 space-y-4">
+              <div className="grid md:grid-cols-3 gap-3">
+                <div className="rounded-2xl bg-slate-50 p-4"><p className="text-[10px] font-black text-slate-400 uppercase">Estado</p><p className="font-black text-slate-900">{detailApplicant.ultimo_estado}</p></div>
+                <div className="rounded-2xl bg-slate-50 p-4"><p className="text-[10px] font-black text-slate-400 uppercase">Reclutador</p><p className="font-black text-slate-900">{detailApplicant.reclutador_nombre}</p></div>
+                <div className="rounded-2xl bg-slate-50 p-4"><p className="text-[10px] font-black text-slate-400 uppercase">SLA</p><p className="font-black text-slate-900">{detailApplicant.fecha_primera_gestion ? detailApplicant.cumple_sla ? 'Cumple' : 'Fuera SLA' : 'Sin gestión'}</p></div>
+              </div>
+              {detailTab === 'Resumen' && (
+                <div className="grid md:grid-cols-2 gap-3 text-sm">
+                  {[
+                    ['Celular', detailApplicant.telefono],
+                    ['Correo', detailApplicant.correo || '-'],
+                    ['Fuente', detailApplicant.fuente],
+                    ['Campaña', detailApplicant.cuenta],
+                    ['Ciudad', detailApplicant.ciudad || '-'],
+                    ['Fecha de carga', new Date(detailApplicant.fecha_registro).toLocaleString('es-PE')],
+                    ['Motivo', detailApplicant.motivo_caida || '-'],
+                    ['Observaciones', detailApplicant.observaciones || '-'],
+                  ].map(([label, value]) => (
+                    <div key={label} className="rounded-2xl border border-slate-200 p-4">
+                      <p className="text-[10px] font-black uppercase text-slate-400">{label}</p>
+                      <p className="font-bold text-slate-800 mt-1">{value}</p>
+                    </div>
+                  ))}
+                </div>
+              )}
+              {detailTab !== 'Resumen' && (
+                <div className="rounded-2xl border border-dashed border-slate-300 p-8 text-center">
+                  <p className="font-black text-slate-800">{detailTab}</p>
+                  <p className="text-sm text-slate-500 mt-2">La estructura de esta pestaña está lista para recibir registros específicos en la siguiente fase.</p>
+                </div>
+              )}
+              <div className="flex flex-wrap gap-2 pt-2">
+                <button onClick={() => openEditApplicant(detailApplicant)} className="rounded-xl bg-indigo-600 text-white px-4 py-2 text-sm font-black">Editar</button>
+                <button onClick={() => void updateApplicantStatus(detailApplicant, 'Contactado')} className="rounded-xl bg-slate-100 text-slate-700 px-4 py-2 text-sm font-black">Registrar gestión</button>
+              </div>
+            </div>
+          </aside>
         </div>
       )}
 
