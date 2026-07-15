@@ -551,20 +551,51 @@ export default function Seleccion({ currentUser, users, initialView = 'dashboard
     setShowReqModal(true);
   };
 
+  const toggleRequisitionRecruiter = (user: AppUser) => {
+    setReqForm((prev) => {
+      const currentIds = prev.reclutador_ids || [];
+      const currentNames = prev.reclutador_nombres || [];
+      const exists = currentIds.includes(user.id);
+      return {
+        ...prev,
+        reclutador_ids: exists
+          ? currentIds.filter((id) => id !== user.id)
+          : [...currentIds, user.id],
+        reclutador_nombres: exists
+          ? currentNames.filter((name) => name !== user.nombre)
+          : [...currentNames, user.nombre],
+      };
+    });
+  };
+
   const saveRequisition = async () => {
     try {
       setSaving(true);
       const selectedRecruiters = recruiters.filter((user) => reqForm.reclutador_ids?.includes(user.id));
       const payload = {
-        ...reqForm,
+        codigo: reqForm.codigo,
+        codigo_base: reqForm.codigo_base,
         nombre: reqForm.nombre || `${reqForm.cuenta} ${reqForm.fecha_inicio || ''}`,
         cuenta: reqForm.cuenta || campaignOptions[0],
         fuente_principal: reqForm.fuente_principal || sourceOptions[0],
         posicion: reqForm.posicion || '',
         ciudad: reqForm.ciudad || '',
+        fecha_inicio: reqForm.fecha_inicio || '',
+        fecha_fin: reqForm.fecha_fin || '',
         vacantes: Number(reqForm.vacantes || 0),
         meta_leads: Number(reqForm.meta_leads || 0),
+        prioridad: reqForm.prioridad || 'Media',
+        descripcion: reqForm.descripcion || '',
+        requisitos: reqForm.requisitos || '',
+        observaciones: reqForm.observaciones || '',
+        analista_id: reqForm.analista_id || currentUser.id,
+        analista_nombre: reqForm.analista_nombre || currentUser.nombre,
+        coordinador_id: reqForm.coordinador_id || '',
+        coordinador_nombre: reqForm.coordinador_nombre || '',
+        reclutador_ids: reqForm.reclutador_ids || [],
         sla_objetivo: Number(reqForm.sla_objetivo || 60),
+        sla_unidad: reqForm.sla_unidad || 'minutos',
+        sla_tipo: reqForm.sla_tipo || 'Horas calendario',
         max_intentos_contacto: Number(reqForm.max_intentos_contacto || 3),
         seguimiento_max_horas: Number(reqForm.seguimiento_max_horas || 24),
         estado: reqForm.estado || 'Activa',
@@ -1615,20 +1646,57 @@ export default function Seleccion({ currentUser, users, initialView = 'dashboard
                 Fecha de fin
                 <input type="date" value={reqForm.fecha_fin || ''} onChange={(event) => setReqForm((prev) => ({ ...prev, fecha_fin: event.target.value }))} className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-800" />
               </label>
-              <label className="text-xs font-black text-slate-500 md:col-span-2">
-                Reclutadores asignados
-                <select
-                  multiple
-                  value={reqForm.reclutador_ids || []}
-                  onChange={(event) => setReqForm((prev) => ({
-                    ...prev,
-                    reclutador_ids: Array.from(event.target.selectedOptions).map((option) => option.value),
-                  }))}
-                  className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-800 min-h-28"
-                >
-                  {recruiters.map((user) => <option key={user.id} value={user.id}>{user.nombre}</option>)}
-                </select>
-              </label>
+              <div className="text-xs font-black text-slate-500 md:col-span-2">
+                <div className="flex items-center justify-between gap-3">
+                  <span>Reclutadores asignados</span>
+                  <div className="flex items-center gap-3">
+                    <span className="text-[10px] text-slate-400">
+                      {(reqForm.reclutador_ids || []).length} seleccionados
+                    </span>
+                    {(reqForm.reclutador_ids || []).length > 0 && (
+                      <button
+                        type="button"
+                        onClick={() => setReqForm((prev) => ({ ...prev, reclutador_ids: [], reclutador_nombres: [] }))}
+                        className="text-[10px] font-black text-rose-500 hover:text-rose-700"
+                      >
+                        Limpiar
+                      </button>
+                    )}
+                  </div>
+                </div>
+                <div className="mt-1 max-h-44 overflow-y-auto rounded-xl border border-slate-200 bg-slate-50 p-2 grid sm:grid-cols-2 gap-2">
+                  {recruiters.map((user) => {
+                    const checked = Boolean(reqForm.reclutador_ids?.includes(user.id));
+                    return (
+                      <button
+                        key={user.id}
+                        type="button"
+                        onClick={() => toggleRequisitionRecruiter(user)}
+                        className={`flex items-center gap-2 rounded-lg border px-3 py-2 text-left transition ${
+                          checked
+                            ? 'border-indigo-300 bg-white text-slate-900 shadow-xs'
+                            : 'border-slate-100 bg-white/70 text-slate-600 hover:border-slate-300'
+                        }`}
+                      >
+                        <span className={`w-5 h-5 rounded-md border flex items-center justify-center shrink-0 ${
+                          checked ? 'bg-indigo-600 border-indigo-600 text-white' : 'border-slate-300'
+                        }`}>
+                          {checked && <CheckCircle2 className="w-3.5 h-3.5" />}
+                        </span>
+                        <span className="min-w-0">
+                          <span className="block truncate text-xs font-black">{user.nombre}</span>
+                          <span className="block truncate text-[10px] font-semibold text-slate-400">{user.usuario}</span>
+                        </span>
+                      </button>
+                    );
+                  })}
+                  {recruiters.length === 0 && (
+                    <div className="sm:col-span-2 rounded-lg bg-white p-3 text-xs text-slate-400">
+                      No hay reclutadores activos disponibles.
+                    </div>
+                  )}
+                </div>
+              </div>
               <label className="text-xs font-black text-slate-500">
                 Cantidad de posiciones requeridas
                 <input type="number" min={1} step={1} value={reqForm.vacantes || 1} onChange={(event) => setReqForm((prev) => ({ ...prev, vacantes: Number(event.target.value) }))} className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm" />
