@@ -911,10 +911,10 @@ export default function AttendanceControl({
                 onChange={(e) => setBulkStatus(e.target.value as AttendanceStatus)}
                 className="bg-white border rounded-lg p-1.5 text-xs text-slate-700 font-semibold"
               >
-                <option value="Asistió">Marcar Asistió</option>
+                <option value="Asistió">Marcar Asistencia</option>
                 <option value="Tardanza">Marcar Tardanza</option>
                 <option value="Faltó">Marcar Faltó</option>
-                <option value="Desistió">Marcar Desistió</option>
+                <option value="Desistió">Marcar Desistencia</option>
                 <option value="Baja">Marcar Baja</option>
               </select>
 

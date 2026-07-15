@@ -156,24 +156,61 @@ const normalizeTextKey = (value: unknown) =>
 const cleanPayload = <T extends Record<string, unknown>>(payload: T): Partial<T> =>
   Object.fromEntries(Object.entries(payload).filter(([, value]) => value !== undefined)) as Partial<T>;
 
+const getMappedHeader = (header: unknown) => headerMap[normalizeHeader(String(header || ''))];
+
+const looksLikeHeaderRow = (row: unknown[]) => {
+  const mappedKeys = new Set(row.map(getMappedHeader).filter(Boolean));
+  return mappedKeys.has('dni') && mappedKeys.has('nombre_completo') && mappedKeys.has('telefono');
+};
+
 const headerMap: Record<string, string> = {
   reclutador: 'reclutador_excel',
+  reclutadornombre: 'reclutador_excel',
+  reclutadorasignado: 'reclutador_excel',
   coordisuper: 'coordinador_excel',
+  coordinador: 'coordinador_excel',
+  coordinadorsupervisor: 'coordinador_excel',
+  supervisorcoordinador: 'coordinador_excel',
+  supercoord: 'coordinador_excel',
   cuenta: 'cuenta',
+  campana: 'cuenta',
+  campaña: 'cuenta',
   fuente: 'fuente',
+  fuentereclutamiento: 'fuente',
+  fuentedecontacto: 'fuente',
+  fuenteprincipal: 'fuente',
   posicion: 'posicion',
+  puesto: 'posicion',
+  cargo: 'posicion',
   ciudad: 'ciudad',
   fnacimiento: 'fecha_nacimiento',
+  fechanacimiento: 'fecha_nacimiento',
+  fechadenacimiento: 'fecha_nacimiento',
   dni: 'dni',
+  documento: 'dni',
+  numerodocumento: 'dni',
   nombreyapellidos: 'nombre_completo',
+  nombrecompleto: 'nombre_completo',
+  nombresapellidos: 'nombre_completo',
+  apellidosynombres: 'nombre_completo',
+  candidato: 'nombre_completo',
+  postulante: 'nombre_completo',
   telefono: 'telefono',
+  celular: 'telefono',
+  telefono1: 'telefono',
+  numerocelular: 'telefono',
   correoelectronico: 'correo',
+  correo: 'correo',
+  email: 'correo',
   entrevista: 'entrevista',
   status: 'status_excel',
+  estado: 'status_excel',
   examenteorico: 'examen_teorico',
   entrevistarh: 'entrevista_rh',
   pruebaspsic: 'pruebas_psic',
+  pruebaspsicologicas: 'pruebas_psic',
   entrevistasupercoord: 'entrevista_super_coord',
+  entrevistasupervisorcoordinador: 'entrevista_super_coord',
 };
 
 const getDaysLeft = (endDate?: string) => {
@@ -356,10 +393,19 @@ export default function Seleccion({ currentUser, users, initialView = 'dashboard
   const managers = users.filter((user) =>
     ['Administrador', 'Analista', 'Coordinador'].includes(user.rol) && user.estado === 'Activo',
   );
-  const coordiSuperAllowed = new Set(['estefano zambrano', 'rosel guevara', 'augusto tello']);
-  const coordiSuperUsers = users.filter((user) =>
-    user.estado === 'Activo' && coordiSuperAllowed.has(normalizeTextKey(user.nombre)),
-  );
+  const coordiSuperNames = ['Estefano Zambrano', 'Rosel Guevara', 'Augusto Tello'];
+  const coordiSuperUsers = coordiSuperNames.map((name) => {
+    const nameKey = normalizeTextKey(name);
+    const user = users.find((item) => {
+      const currentName = normalizeTextKey(item.nombre);
+      const requiredTokens = nameKey.split(/\s+/).filter(Boolean);
+      return item.estado === 'Activo' && (
+        currentName === nameKey ||
+        requiredTokens.every((token) => currentName.includes(token))
+      );
+    });
+    return { id: user?.id || nameKey, nombre: user?.nombre || name };
+  });
 
   const loadData = async () => {
     try {
@@ -776,18 +822,23 @@ export default function Seleccion({ currentUser, users, initialView = 'dashboard
     const buffer = await file.arrayBuffer();
     const workbook = XLSX.read(buffer);
     const sheet = workbook.Sheets[workbook.SheetNames[0]];
-    const rows = XLSX.utils.sheet_to_json<Record<string, unknown>>(sheet, { defval: '' });
+    const matrix = XLSX.utils.sheet_to_json<unknown[]>(sheet, { header: 1, defval: '', raw: false });
+    const headerIndex = matrix.findIndex((row) => Array.isArray(row) && looksLikeHeaderRow(row));
+    const headers = headerIndex >= 0 ? matrix[headerIndex] : excelHeaders;
+    const dataRows = headerIndex >= 0 ? matrix.slice(headerIndex + 1) : matrix;
     const parsed: Partial<SelectionApplicant>[] = [];
     const errors: string[] = [];
 
-    rows.forEach((row, index) => {
+    dataRows.forEach((row, index) => {
+      if (!Array.isArray(row) || row.every((value) => !String(value || '').trim())) return;
       const mapped: Record<string, unknown> = {};
-      Object.entries(row).forEach(([key, value]) => {
-        const mappedKey = headerMap[normalizeHeader(key)];
+      headers.forEach((header, columnIndex) => {
+        const mappedKey = getMappedHeader(header);
+        const value = row[columnIndex];
         if (mappedKey) mapped[mappedKey] = value;
       });
       if (!mapped.dni || !mapped.nombre_completo || !mapped.telefono) {
-        errors.push(`Fila ${index + 2}: faltan DNI, nombre o teléfono.`);
+        errors.push(`Fila ${index + (headerIndex >= 0 ? headerIndex + 2 : 1)}: faltan DNI, nombre o teléfono.`);
       }
       parsed.push({
         ...mapped,
