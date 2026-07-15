@@ -1705,8 +1705,10 @@ export default function App() {
           <aside className="w-full lg:w-[360px] bg-white border-r border-slate-200 text-slate-700 shrink-0 shadow-sm">
             <div className="flex h-full min-h-0 lg:min-h-screen">
               <div className="w-24 bg-slate-950 text-white flex flex-col items-center py-4 gap-4">
-                <div className="w-14 h-14 rounded-2xl bg-white flex items-center justify-start shadow-sm overflow-hidden">
-                  <BrandLogo width={190} height={64} className="max-w-none object-left" />
+                <div className="w-14 h-14 rounded-2xl bg-white flex items-center justify-center shadow-sm overflow-hidden">
+                  <div className="w-12 h-12 overflow-hidden flex items-center justify-start">
+                    <BrandLogo width={144} height={48} className="max-w-none object-left" />
+                  </div>
                 </div>
                 <div className="flex-1 w-full px-2 space-y-2">
                   {activeUser.rol !== 'Formador' && (
