@@ -1,4 +1,4 @@
-﻿/**
+/**
  * @license
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -878,132 +878,173 @@ export default function Seleccion({ currentUser, users, initialView = 'dashboard
       )}
 
       {activeView === 'dashboard' && (
-        <div className="space-y-4">
-          <div className="bg-white rounded-2xl border border-slate-200 p-4 shadow-xs grid md:grid-cols-4 xl:grid-cols-6 gap-3">
-            <select value={dashboardView} onChange={(event) => setDashboardView(event.target.value)} className="rounded-xl border border-slate-200 px-3 py-2 text-sm font-bold">
-              {dashboardViews.map((item) => <option key={item}>{item}</option>)}
-            </select>
-            <input type="date" value={filterStartDate} onChange={(event) => setFilterStartDate(event.target.value)} className="rounded-xl border border-slate-200 px-3 py-2 text-sm" />
-            <input type="date" value={filterEndDate} onChange={(event) => setFilterEndDate(event.target.value)} className="rounded-xl border border-slate-200 px-3 py-2 text-sm" />
-            <select value={filterCampaign} onChange={(event) => setFilterCampaign(event.target.value)} className="rounded-xl border border-slate-200 px-3 py-2 text-sm font-bold">
-              <option>Todos</option>
-              {campaignOptions.map((item) => <option key={item}>{item}</option>)}
-            </select>
-            <select value={filterRecruiter} onChange={(event) => setFilterRecruiter(event.target.value)} className="rounded-xl border border-slate-200 px-3 py-2 text-sm font-bold">
-              <option value="Todos">Todos los reclutadores</option>
-              {recruiters.map((item) => <option key={item.id} value={item.id}>{item.nombre}</option>)}
-            </select>
-            <select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)} className="rounded-xl border border-slate-200 px-3 py-2 text-sm font-bold">
-              <option>Todos</option>
-              {finalRequisitionStates.map((item) => <option key={item}>{item}</option>)}
-              <option>Vencida</option>
-            </select>
-            <select value={filterSource} onChange={(event) => setFilterSource(event.target.value)} className="rounded-xl border border-slate-200 px-3 py-2 text-sm font-bold">
-              <option>Todos</option>
-              {sourceOptions.map((item) => <option key={item}>{item}</option>)}
-            </select>
-            <select value={filterApplicantStatus} onChange={(event) => setFilterApplicantStatus(event.target.value)} className="rounded-xl border border-slate-200 px-3 py-2 text-sm font-bold">
-              <option>Todos</option>
-              {applicantStatuses.map((item) => <option key={item}>{item}</option>)}
-            </select>
-            <select value={selectedReqId} onChange={(event) => setSelectedReqId(event.target.value)} className="rounded-xl border border-slate-200 px-3 py-2 text-sm font-bold md:col-span-2">
-              {requisitions.map((req) => <option key={req.id} value={req.id}>{req.codigo} · {req.nombre}</option>)}
-            </select>
-            <button onClick={resetDashboardFilters} className="rounded-xl bg-slate-100 text-slate-700 px-3 py-2 text-sm font-black">Limpiar filtros</button>
-            <button onClick={() => exportDashboard('xlsx')} className="rounded-xl bg-indigo-600 text-white px-3 py-2 text-sm font-black">Excel</button>
-            <button onClick={() => exportDashboard('csv')} className="rounded-xl bg-emerald-600 text-white px-3 py-2 text-sm font-black">CSV</button>
-          </div>
-
-          <div className="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-6 gap-3">
-            {renderKpi('Convocatorias', metrics.requisitions, <BriefcaseBusiness className="w-5 h-5" />, 'indigo')}
-            {renderKpi('Activas', metrics.active, <Calendar className="w-5 h-5" />, 'emerald')}
-            {renderKpi('Finalizadas', metrics.finished, <CheckCircle2 className="w-5 h-5" />, 'blue')}
-            {renderKpi('Posiciones requeridas', metrics.required, <Users className="w-5 h-5" />, 'amber')}
-            {renderKpi('Postulantes', metrics.total, <Users className="w-5 h-5" />, 'indigo')}
-            {renderKpi('Contactados', metrics.contacted, <UserCheck className="w-5 h-5" />, 'emerald')}
-            {renderKpi('Interesados', metrics.interested, <CheckCircle2 className="w-5 h-5" />, 'blue')}
-            {renderKpi('Entrevistados', metrics.interviewed, <BriefcaseBusiness className="w-5 h-5" />, 'indigo')}
-            {renderKpi('Aptos', metrics.apt, <CheckCircle2 className="w-5 h-5" />, 'fuchsia')}
-            {renderKpi('No aptos', metrics.noApt, <AlertTriangle className="w-5 h-5" />, 'amber')}
-            {renderKpi('Desistidos', metrics.dropped, <AlertTriangle className="w-5 h-5" />, 'amber')}
-            {renderKpi('Cobertura', `${metrics.coverage}%`, <BarChart3 className="w-5 h-5" />, 'emerald')}
-          </div>
-
-          <div className="grid xl:grid-cols-3 gap-4">
-            <div className="xl:col-span-2 bg-white rounded-2xl border border-slate-200 p-5 shadow-xs">
-              <h3 className="font-black text-slate-900 mb-4 flex items-center gap-2"><BarChart3 className="w-5 h-5 text-fuchsia-600" /> Embudo de selección</h3>
-              {[
-                ['Postulantes registrados', metrics.total],
-                ['Contactados', metrics.contacted],
-                ['Interesados', metrics.interested],
-                ['Entrevistados', metrics.interviewed],
-                ['Evaluados', metrics.evaluated],
-                ['Aptos', metrics.apt],
-                ['Asignados a capacitación', metrics.assigned],
-                ['Capacitados', metrics.trained],
-                ['Altas a operación', metrics.high],
-              ].map(([label, value], index, arr) => {
-                const previous = index === 0 ? Number(value) : Number(arr[index - 1][1]);
-                return (
-                  <div key={String(label)} className="mb-3">
-                    <div className="flex justify-between text-xs font-bold text-slate-500 mb-1"><span>{label}</span><span>{value} · conv. {percent(Number(value), previous || Number(value) || 1)}%</span></div>
-                    <div className="h-3 rounded-full bg-slate-100 overflow-hidden"><div className="h-full rounded-full bg-gradient-to-r from-fuchsia-500 to-indigo-500" style={{ width: `${Math.max(4, percent(Number(value), metrics.total || Number(value) || 1))}%` }} /></div>
+        <div className="space-y-5">
+          <section className="rounded-[2rem] border border-slate-200 bg-white shadow-sm overflow-hidden">
+            <div className="grid xl:grid-cols-[1.5fr_0.9fr] gap-0">
+              <div className="p-6 lg:p-8 bg-linear-to-br from-white via-slate-50 to-indigo-50/60">
+                <div className="flex flex-wrap items-center gap-2 mb-5">
+                  <span className="rounded-full bg-fuchsia-50 text-fuchsia-700 px-3 py-1 text-[11px] font-black uppercase tracking-widest">Centro de mando</span>
+                  <span className="rounded-full bg-white border border-slate-200 text-slate-500 px-3 py-1 text-[11px] font-bold">America/Lima</span>
+                  {lastSync && <span className="rounded-full bg-emerald-50 text-emerald-700 px-3 py-1 text-[11px] font-bold">Actualizado {lastSync}</span>}
+                </div>
+                <div className="grid sm:grid-cols-3 gap-3">
+                  <div className="rounded-3xl bg-white border border-slate-200 p-5 shadow-xs">
+                    <p className="text-[11px] font-black uppercase tracking-widest text-slate-400">Cobertura</p>
+                    <p className="mt-2 text-5xl font-black text-slate-950">{metrics.coverage}%</p>
+                    <div className="mt-4 h-2 rounded-full bg-slate-100 overflow-hidden">
+                      <div className="h-full rounded-full bg-gradient-to-r from-fuchsia-500 to-indigo-600" style={{ width: `${Math.min(100, metrics.coverage)}%` }} />
+                    </div>
                   </div>
-                );
-              })}
-            </div>
-            <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-xs">
-              <h3 className="font-black text-slate-900 mb-4">Conversión</h3>
-              <div className="space-y-3 text-sm">
-                <p className="flex justify-between"><span>Apto / postulante</span><strong>{metrics.aptConversion}%</strong></p>
-                <p className="flex justify-between"><span>Apto / capacitación</span><strong>{metrics.trainingConversion}%</strong></p>
-                <p className="flex justify-between"><span>Capacitación / alta</span><strong>{metrics.highConversion}%</strong></p>
-                <p className="flex justify-between"><span>SLA promedio</span><strong>{metrics.slaAverage} min</strong></p>
-                <p className="flex justify-between"><span>Pendientes</span><strong>{metrics.pending}</strong></p>
+                  <div className="rounded-3xl bg-slate-950 text-white p-5 shadow-xs">
+                    <p className="text-[11px] font-black uppercase tracking-widest text-white/50">Vacantes</p>
+                    <p className="mt-2 text-5xl font-black">{metrics.required}</p>
+                    <p className="mt-3 text-xs text-white/60">{metrics.apt} aptos disponibles</p>
+                  </div>
+                  <div className="rounded-3xl bg-white border border-slate-200 p-5 shadow-xs">
+                    <p className="text-[11px] font-black uppercase tracking-widest text-slate-400">Postulantes</p>
+                    <p className="mt-2 text-5xl font-black text-slate-950">{metrics.total}</p>
+                    <p className="mt-3 text-xs text-slate-500">{metrics.pending} sin primera gestión</p>
+                  </div>
+                </div>
+                <div className="mt-5 grid md:grid-cols-5 gap-2">
+                  {[
+                    ['Activas', metrics.active, 'bg-emerald-50 text-emerald-700'],
+                    ['Contactados', metrics.contacted, 'bg-sky-50 text-sky-700'],
+                    ['Entrevistados', metrics.interviewed, 'bg-indigo-50 text-indigo-700'],
+                    ['No aptos', metrics.noApt, 'bg-amber-50 text-amber-700'],
+                    ['Altas', metrics.high, 'bg-fuchsia-50 text-fuchsia-700'],
+                  ].map(([label, value, tone]) => (
+                    <div key={String(label)} className={`rounded-2xl px-4 py-3 ${tone}`}>
+                      <p className="text-[10px] font-black uppercase tracking-widest opacity-70">{label}</p>
+                      <p className="text-2xl font-black">{value}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+              <div className="p-6 bg-slate-950 text-white flex flex-col justify-between">
+                <div>
+                  <p className="text-[11px] font-black uppercase tracking-widest text-white/40">Filtros rápidos</p>
+                  <div className="mt-4 space-y-3">
+                    <select value={filterCampaign} onChange={(event) => setFilterCampaign(event.target.value)} className="w-full rounded-2xl bg-white/10 border border-white/10 px-4 py-3 text-sm font-bold outline-hidden">
+                      <option>Todos</option>
+                      {campaignOptions.map((item) => <option key={item}>{item}</option>)}
+                    </select>
+                    <select value={filterRecruiter} onChange={(event) => setFilterRecruiter(event.target.value)} className="w-full rounded-2xl bg-white/10 border border-white/10 px-4 py-3 text-sm font-bold outline-hidden">
+                      <option value="Todos">Todos los reclutadores</option>
+                      {recruiters.map((item) => <option key={item.id} value={item.id}>{item.nombre}</option>)}
+                    </select>
+                    <select value={selectedReqId} onChange={(event) => setSelectedReqId(event.target.value)} className="w-full rounded-2xl bg-white/10 border border-white/10 px-4 py-3 text-sm font-bold outline-hidden">
+                      {requisitions.map((req) => <option key={req.id} value={req.id}>{req.codigo}</option>)}
+                    </select>
+                  </div>
+                </div>
+                <div className="mt-6 grid grid-cols-2 gap-2">
+                  <button onClick={resetDashboardFilters} className="rounded-2xl bg-white/10 hover:bg-white/15 px-4 py-3 text-sm font-black">Limpiar</button>
+                  <button onClick={() => exportDashboard('xlsx')} className="rounded-2xl bg-white text-slate-950 px-4 py-3 text-sm font-black">Exportar</button>
+                </div>
               </div>
             </div>
-          </div>
+          </section>
 
-          <div className="grid xl:grid-cols-2 gap-4">
-            <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-xs">
-              <h3 className="font-black text-slate-900 mb-4">Barras por campaña</h3>
-              {campaignOptions.map((campaign) => {
-                const reqs = visibleReqs.filter((req) => req.cuenta === campaign);
-                const reqIds = new Set(reqs.map((req) => req.id));
-                const rows = metrics.scoped.filter((item) => reqIds.has(item.requisition_id));
-                const aptos = rows.filter((item) => item.ultimo_estado.includes('Apto') || item.training_session_id).length;
-                const required = reqs.reduce((sum, req) => sum + Number(req.vacantes || 0), 0);
-                return <div key={campaign} className="mb-3"><div className="flex justify-between text-xs font-bold"><span>{campaign}</span><span>{aptos}/{required || rows.length}</span></div><div className="h-3 bg-slate-100 rounded-full overflow-hidden"><div className="h-full bg-indigo-500" style={{ width: `${Math.min(100, percent(aptos, required || rows.length || 1))}%` }} /></div></div>;
-              })}
+          <section className="grid xl:grid-cols-[1.15fr_0.85fr] gap-5">
+            <div className="rounded-[2rem] border border-slate-200 bg-white p-5 shadow-sm">
+              <div className="flex items-center justify-between gap-3 mb-5">
+                <div>
+                  <p className="text-[10px] font-black uppercase tracking-widest text-fuchsia-600">Pipeline</p>
+                  <h3 className="text-xl font-black text-slate-950">Embudo de selección masiva</h3>
+                </div>
+                <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-black text-slate-500">{metrics.total} registros</span>
+              </div>
+              <div className="space-y-3">
+                {[
+                  ['Cargados', metrics.total, 'from-slate-500 to-slate-700'],
+                  ['Gestionados', metrics.managed, 'from-blue-500 to-indigo-500'],
+                  ['Contactados', metrics.contacted, 'from-cyan-500 to-sky-500'],
+                  ['Interesados', metrics.interested, 'from-violet-500 to-fuchsia-500'],
+                  ['Evaluados', metrics.evaluated, 'from-purple-500 to-indigo-500'],
+                  ['Aptos para capacitación', metrics.apt, 'from-emerald-500 to-teal-500'],
+                  ['Altas', metrics.high, 'from-fuchsia-500 to-indigo-600'],
+                ].map(([label, value, color], index, arr) => {
+                  const previous = index === 0 ? Number(value) : Number(arr[index - 1][1]);
+                  const width = Math.max(5, percent(Number(value), metrics.total || Number(value) || 1));
+                  return (
+                    <div key={String(label)} className="grid grid-cols-[160px_1fr_88px] items-center gap-3">
+                      <p className="text-sm font-bold text-slate-600 truncate">{label}</p>
+                      <div className="h-9 rounded-2xl bg-slate-100 overflow-hidden">
+                        <div className={`h-full rounded-2xl bg-gradient-to-r ${color} flex items-center justify-end pr-3 text-white text-xs font-black`} style={{ width: `${width}%` }}>
+                          {value}
+                        </div>
+                      </div>
+                      <p className="text-right text-xs font-black text-slate-400">{percent(Number(value), previous || Number(value) || 1)}%</p>
+                    </div>
+                  );
+                })}
+              </div>
             </div>
-            <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-xs">
-              <h3 className="font-black text-slate-900 mb-4">Fuentes de reclutamiento</h3>
+
+            <div className="rounded-[2rem] border border-slate-200 bg-white p-5 shadow-sm">
+              <div className="flex items-center justify-between mb-5">
+                <div>
+                  <p className="text-[10px] font-black uppercase tracking-widest text-indigo-600">Convocatorias</p>
+                  <h3 className="text-xl font-black text-slate-950">Procesos en curso</h3>
+                </div>
+                <button onClick={() => setActiveView('convocatorias')} className="text-xs font-black text-indigo-600">Ver todas</button>
+              </div>
+              <div className="space-y-3 max-h-[420px] overflow-y-auto pr-1">
+                {visibleReqs.slice(0, 6).map((req) => {
+                  const rows = applicants.filter((item) => item.requisition_id === req.id);
+                  const apt = rows.filter((item) => item.ultimo_estado === 'Apto para capacitación' || item.training_session_id).length;
+                  const cov = percent(apt, Number(req.vacantes || 0));
+                  return (
+                    <button key={req.id} onClick={() => { setSelectedReqId(req.id); setActiveView('postulantes'); }} className="w-full text-left rounded-3xl border border-slate-200 p-4 hover:border-indigo-200 hover:bg-indigo-50/30 transition">
+                      <div className="flex items-start justify-between gap-3">
+                        <div>
+                          <p className="font-black text-slate-950">{req.codigo}</p>
+                          <p className="text-xs text-slate-500">{req.cuenta} · {req.fuente_principal || 'Sin fuente'}</p>
+                        </div>
+                        <span className="rounded-full bg-emerald-50 text-emerald-700 px-2 py-1 text-[10px] font-black">{req.estado}</span>
+                      </div>
+                      <div className="mt-3 flex items-center gap-3">
+                        <div className="flex-1 h-2 rounded-full bg-slate-100 overflow-hidden"><div className="h-full bg-gradient-to-r from-fuchsia-500 to-indigo-600" style={{ width: `${Math.min(100, cov)}%` }} /></div>
+                        <span className="text-xs font-black text-slate-500">{cov}%</span>
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          </section>
+
+          <section className="grid xl:grid-cols-3 gap-5">
+            <div className="rounded-[2rem] border border-slate-200 bg-white p-5 shadow-sm xl:col-span-2">
+              <h3 className="text-xl font-black text-slate-950 mb-4">Productividad por reclutador</h3>
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead className="text-[10px] uppercase tracking-widest text-slate-400"><tr><th className="py-3 text-left">Reclutador</th><th>Postulantes</th><th>Aptos</th><th>Cobertura</th><th>Estado</th></tr></thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {recruiters.map((recruiter) => {
+                      const assignedReqs = visibleReqs.filter((req) => req.reclutador_ids?.includes(recruiter.id));
+                      const reqIds = new Set(assignedReqs.map((req) => req.id));
+                      const mine = metrics.scoped.filter((item) => item.reclutador_id === recruiter.id || reqIds.has(item.requisition_id));
+                      const aptos = mine.filter((item) => item.ultimo_estado.includes('Apto') || item.training_session_id).length;
+                      const required = assignedReqs.reduce((sum, req) => sum + Number(req.vacantes || 0), 0);
+                      const coverage = percent(aptos, required);
+                      return <tr key={recruiter.id}><td className="py-3 font-black text-slate-800">{recruiter.nombre}</td><td className="text-center">{mine.length}</td><td className="text-center">{aptos}</td><td className="text-center font-black">{coverage}%</td><td className="text-center"><span className={`px-2 py-1 rounded-full text-[10px] font-black ${coverage >= 80 ? 'bg-emerald-50 text-emerald-700' : coverage >= 50 ? 'bg-amber-50 text-amber-700' : 'bg-rose-50 text-rose-700'}`}>{coverage >= 80 ? 'En meta' : coverage >= 50 ? 'En avance' : 'En riesgo'}</span></td></tr>;
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+            <div className="rounded-[2rem] border border-slate-200 bg-white p-5 shadow-sm">
+              <h3 className="text-xl font-black text-slate-950 mb-4">Fuentes</h3>
               {sourceOptions.map((source) => {
                 const rows = metrics.scoped.filter((item) => item.fuente === source);
-                const aptos = rows.filter((item) => item.ultimo_estado.includes('Apto') || item.training_session_id).length;
-                return <div key={source} className="mb-3"><div className="flex justify-between text-xs font-bold"><span>{source}</span><span>{rows.length} · {percent(aptos, rows.length)}%</span></div><div className="h-3 bg-slate-100 rounded-full overflow-hidden"><div className="h-full bg-emerald-500" style={{ width: `${Math.max(3, percent(rows.length, metrics.total || 1))}%` }} /></div></div>;
+                return <div key={source} className="mb-4"><div className="flex justify-between text-xs font-black text-slate-500"><span>{source}</span><span>{rows.length}</span></div><div className="mt-1 h-2 rounded-full bg-slate-100 overflow-hidden"><div className="h-full bg-emerald-500" style={{ width: `${Math.max(3, percent(rows.length, metrics.total || 1))}%` }} /></div></div>;
               })}
             </div>
-          </div>
-
-          <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-xs">
-            <div className="p-5 border-b border-slate-100"><h3 className="font-black text-slate-900">Ranking por reclutador</h3></div>
-            <div className="overflow-x-auto"><table className="w-full text-sm"><thead className="bg-slate-50 text-[10px] uppercase tracking-widest text-slate-500"><tr><th className="p-3 text-left">#</th><th className="p-3 text-left">Reclutador</th><th className="p-3">Convocatorias</th><th className="p-3">Postulantes</th><th className="p-3">Aptos</th><th className="p-3">Altas</th><th className="p-3">Conv. apto</th><th className="p-3">Cobertura</th><th className="p-3">Estado</th></tr></thead><tbody className="divide-y divide-slate-100">
-              {recruiters.map((recruiter, index) => {
-                const assignedReqs = visibleReqs.filter((req) => req.reclutador_ids?.includes(recruiter.id));
-                const reqIds = new Set(assignedReqs.map((req) => req.id));
-                const mine = metrics.scoped.filter((item) => item.reclutador_id === recruiter.id || reqIds.has(item.requisition_id));
-                const aptos = mine.filter((item) => item.ultimo_estado.includes('Apto') || item.training_session_id).length;
-                const highs = mine.filter((item) => item.estado_alta_operacion === 'Alta en operación').length;
-                const required = assignedReqs.reduce((sum, req) => sum + Number(req.vacantes || 0), 0);
-                const coverage = percent(aptos, required);
-                return <tr key={recruiter.id}><td className="p-3 font-black">{index + 1}</td><td className="p-3 font-bold text-slate-800">{recruiter.nombre}</td><td className="p-3 text-center">{assignedReqs.length}</td><td className="p-3 text-center">{mine.length}</td><td className="p-3 text-center">{aptos}</td><td className="p-3 text-center">{highs}</td><td className="p-3 text-center">{percent(aptos, mine.length)}%</td><td className="p-3 text-center">{coverage}%</td><td className="p-3 text-center"><span className={`px-2 py-1 rounded-full text-[10px] font-black ${coverage >= 80 ? 'bg-emerald-50 text-emerald-700' : coverage >= 50 ? 'bg-amber-50 text-amber-700' : 'bg-rose-50 text-rose-700'}`}>{coverage >= 80 ? 'En meta' : coverage >= 50 ? 'En avance' : 'En riesgo'}</span></td></tr>;
-              })}
-            </tbody></table></div>
-          </div>
+          </section>
         </div>
-      )}
-      {activeView !== 'dashboard' && (
+      )}      {activeView !== 'dashboard' && (
         <div className="bg-white rounded-2xl border border-slate-200 p-4 shadow-xs flex flex-col lg:flex-row gap-3 lg:items-center justify-between">
           <div className="relative max-w-md w-full">
             <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
