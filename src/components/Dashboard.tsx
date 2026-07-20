@@ -53,22 +53,36 @@ export default function Dashboard({
   confirmations,
   reopens,
   trainers,
-  recruiters
 }: DashboardProps) {
   // Filters state
   const [filterCampaña, setFilterCampaña] = useState<string>('todos');
   const [filterFormador, setFilterFormador] = useState<string>('todos');
-  const [filterReclutador, setFilterReclutador] = useState<string>('todos');
-  const [filterTipo, setFilterTipo] = useState<string>('todos');
-  const [filterRango, setFilterRango] = useState<string>('todos'); // 'todos', 'junio', 'julio'
+  const [filterConvocatoria, setFilterConvocatoria] = useState<string>('todos');
+  const [filterGeneracion, setFilterGeneracion] = useState<string>('todos');
+  const [filterFecha, setFilterFecha] = useState<string>('');
+
+  const getSessionConvocatoria = (session: TrainingSession) =>
+    String(
+      (session as TrainingSession & { requisition_codigo?: string; convocatoria_origen?: string }).requisition_codigo ||
+      (session as TrainingSession & { requisition_codigo?: string; convocatoria_origen?: string }).convocatoria_origen ||
+      session.generation_code ||
+      session.nombre_generacion ||
+      session.id,
+    );
+
+  const filterOptions = useMemo(() => ({
+    campañas: Array.from(new Set(sessions.map((session) => session.campaña).filter(Boolean))).sort(),
+    convocatorias: Array.from(new Set(sessions.map(getSessionConvocatoria).filter(Boolean))).sort(),
+    generaciones: Array.from(new Set(sessions.map((session) => session.nombre_generacion).filter(Boolean))).sort(),
+  }), [sessions]);
 
   // Reset Filters
   const handleResetFilters = () => {
     setFilterCampaña('todos');
     setFilterFormador('todos');
-    setFilterReclutador('todos');
-    setFilterTipo('todos');
-    setFilterRango('todos');
+    setFilterConvocatoria('todos');
+    setFilterGeneracion('todos');
+    setFilterFecha('');
   };
 
   // Filtered Sessions
@@ -76,13 +90,12 @@ export default function Dashboard({
     return sessions.filter(s => {
       if (filterCampaña !== 'todos' && s.campaña !== filterCampaña) return false;
       if (filterFormador !== 'todos' && s.formador_id !== filterFormador) return false;
-      if (filterReclutador !== 'todos' && s.reclutador_id !== filterReclutador) return false;
-      if (filterTipo !== 'todos' && s.tipo_capacitacion !== filterTipo) return false;
-      if (filterRango === 'junio' && !s.fecha_inicio.includes('-06-')) return false;
-      if (filterRango === 'julio' && !s.fecha_inicio.includes('-07-')) return false;
+      if (filterConvocatoria !== 'todos' && getSessionConvocatoria(s) !== filterConvocatoria) return false;
+      if (filterGeneracion !== 'todos' && s.nombre_generacion !== filterGeneracion) return false;
+      if (filterFecha && (filterFecha < s.fecha_inicio || filterFecha > s.fecha_fin)) return false;
       return true;
     });
-  }, [sessions, filterCampaña, filterFormador, filterReclutador, filterTipo, filterRango]);
+  }, [sessions, filterCampaña, filterFormador, filterConvocatoria, filterGeneracion, filterFecha]);
 
   const filteredSessionIds = useMemo(() => new Set(filteredSessions.map(s => s.id)), [filteredSessions]);
 
@@ -274,12 +287,18 @@ export default function Dashboard({
   // 4. Deserciones por Motivo
   const desercionesPorMotivo = useMemo(() => {
     const motivosCounts: { [key: string]: number } = {};
+    const motivoPorParticipante = new Map<string, string>();
 
-    // Check attendance for motivo_desercion
     filteredAttendance.forEach(a => {
-      if (a.estado_asistencia === 'Desistió' && a.motivo_desercion) {
-        motivosCounts[a.motivo_desercion] = (motivosCounts[a.motivo_desercion] || 0) + 1;
+      if ((a.estado_asistencia === 'Desistió' || a.estado_asistencia === 'Baja') && a.motivo_desercion && !motivoPorParticipante.has(a.participant_id)) {
+        motivoPorParticipante.set(a.participant_id, a.motivo_desercion);
       }
+    });
+
+    filteredParticipants.forEach((participant) => {
+      if (participant.estado_final !== 'Desistió') return;
+      const motivo = participant.motivo_desercion || motivoPorParticipante.get(participant.id) || 'Sin motivo registrado';
+      motivosCounts[motivo] = (motivosCounts[motivo] || 0) + 1;
     });
 
     const colors = ['#f43f5e', '#ec4899', '#a855f7', '#6366f1', '#3b82f6', '#06b6d4', '#14b8a6', '#10b981', '#f59e0b', '#ef4444'];
@@ -289,7 +308,12 @@ export default function Dashboard({
       value: motivosCounts[motivo],
       color: colors[index % colors.length]
     })).sort((a, b) => b.value - a.value);
-  }, [filteredAttendance]);
+  }, [filteredAttendance, filteredParticipants]);
+
+  const desercionesPorMotivoTotal = useMemo(
+    () => desercionesPorMotivo.reduce((sum, item) => sum + item.value, 0),
+    [desercionesPorMotivo],
+  );
 
   // 5. Evolucion mensual / semanal calculada con datos reales.
   const evolutionData = useMemo(() => {
@@ -382,9 +406,39 @@ export default function Dashboard({
                 className="w-full text-xs glass-input text-slate-700 rounded-lg p-2 outline-hidden"
               >
                 <option value="todos">Todas las Campañas</option>
-                <option value="Entel Empresas">Entel Empresas</option>
-                <option value="Prosegur">Prosegur</option>
-                <option value="Culqi">Culqi</option>
+                {filterOptions.campañas.map((campaña) => (
+                  <option key={campaña} value={campaña}>{campaña}</option>
+                ))}
+              </select>
+            </div>
+
+            {/* Convocatoria */}
+            <div>
+              <label className="block text-xs font-medium text-slate-500 mb-1">Convocatoria</label>
+              <select
+                value={filterConvocatoria}
+                onChange={(e) => setFilterConvocatoria(e.target.value)}
+                className="w-full text-xs glass-input text-slate-700 rounded-lg p-2 outline-hidden"
+              >
+                <option value="todos">Todas las Convocatorias</option>
+                {filterOptions.convocatorias.map((convocatoria) => (
+                  <option key={convocatoria} value={convocatoria}>{convocatoria}</option>
+                ))}
+              </select>
+            </div>
+
+            {/* Generación */}
+            <div>
+              <label className="block text-xs font-medium text-slate-500 mb-1">Generación</label>
+              <select
+                value={filterGeneracion}
+                onChange={(e) => setFilterGeneracion(e.target.value)}
+                className="w-full text-xs glass-input text-slate-700 rounded-lg p-2 outline-hidden"
+              >
+                <option value="todos">Todas las Generaciones</option>
+                {filterOptions.generaciones.map((generacion) => (
+                  <option key={generacion} value={generacion}>{generacion}</option>
+                ))}
               </select>
             </div>
 
@@ -403,52 +457,15 @@ export default function Dashboard({
               </select>
             </div>
 
-            {/* Reclutador */}
+            {/* Fecha */}
             <div>
-              <label className="block text-xs font-medium text-slate-500 mb-1">Reclutador</label>
-              <select
-                value={filterReclutador}
-                onChange={(e) => setFilterReclutador(e.target.value)}
+              <label className="block text-xs font-medium text-slate-500 mb-1">Fecha</label>
+              <input
+                type="date"
+                value={filterFecha}
+                onChange={(e) => setFilterFecha(e.target.value)}
                 className="w-full text-xs glass-input text-slate-700 rounded-lg p-2 outline-hidden"
-              >
-                <option value="todos">Todos los Reclutadores</option>
-                {recruiters.map(r => (
-                  <option key={r.id} value={r.id}>{r.nombre}</option>
-                ))}
-              </select>
-            </div>
-
-            {/* Tipo Capacitación */}
-            <div>
-              <label className="block text-xs font-medium text-slate-500 mb-1">Tipo de Capacit.</label>
-              <select
-                value={filterTipo}
-                onChange={(e) => setFilterTipo(e.target.value)}
-                className="w-full text-xs glass-input text-slate-700 rounded-lg p-2 outline-hidden"
-              >
-                <option value="todos">Todos los Tipos</option>
-                <option value="Capacitación regular">Regular</option>
-                <option value="Capacitación flash">Flash</option>
-                <option value="Capacitación de producto">De Producto</option>
-                <option value="Capacitación de ficha">De Ficha</option>
-                <option value="Capacitación de equipo">De Equipo</option>
-                <option value="Inyección de campaña">Inyección</option>
-                <option value="RUC 20">RUC 20</option>
-              </select>
-            </div>
-
-            {/* Rango / Mes */}
-            <div>
-              <label className="block text-xs font-medium text-slate-500 mb-1">Temporalidad</label>
-              <select
-                value={filterRango}
-                onChange={(e) => setFilterRango(e.target.value)}
-                className="w-full text-xs glass-input text-slate-700 rounded-lg p-2 outline-hidden"
-              >
-                <option value="todos">Histórico General</option>
-                <option value="junio">Junio 2026</option>
-                <option value="julio">Julio 2026</option>
-              </select>
+              />
             </div>
 
             {/* Reset */}
@@ -700,7 +717,7 @@ export default function Dashboard({
                     <span className="w-2.5 h-2.5 rounded-full inline-block shrink-0" style={{ backgroundColor: item.color }}></span>
                     <span className="truncate">{item.name}</span>
                   </div>
-                  <span className="font-bold font-mono">{item.value} ({Math.round((item.value / metrics.desistidos) * 100)}%)</span>
+                  <span className="font-bold font-mono">{item.value} ({desercionesPorMotivoTotal > 0 ? Math.round((item.value / desercionesPorMotivoTotal) * 100) : 0}%)</span>
                 </div>
               ))}
             </div>
