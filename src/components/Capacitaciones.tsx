@@ -1222,6 +1222,14 @@ export default function Capacitaciones({
     });
   }, [sessions, searchTerm, filterCampaña, filterEstado, currentUser]);
 
+  const closeRequirementsMet =
+    validationDetails.isAttendanceComplete &&
+    validationDetails.isResultadoFormacionCompleto &&
+    validationDetails.isCommentsComplete &&
+    validationDetails.isSurveyComplete &&
+    validationDetails.isAptosDefined;
+  const canForceCloseAsAdmin = currentUser.rol === 'Administrador';
+
   return (
     <div className="space-y-6">
       {/* Top action header */}
@@ -2451,16 +2459,20 @@ export default function Capacitaciones({
               </div>
 
               {/* Final Resolution Banner */}
-              {validationDetails.isAttendanceComplete && 
-               validationDetails.isResultadoFormacionCompleto && 
-               validationDetails.isCommentsComplete && 
-               validationDetails.isSurveyComplete && 
-               validationDetails.isAptosDefined ? (
+              {closeRequirementsMet ? (
                 <div className="bg-emerald-50 border border-emerald-200 rounded-2xl p-4 flex gap-3 text-emerald-800 text-xs">
                   <div className="text-base">🎉</div>
                   <div>
                     <h5 className="font-extrabold">¡Todo en orden!</h5>
                     <p className="text-emerald-700 mt-0.5 font-medium">Todos los controles de calidad han sido superados con éxito. Puede proceder a realizar el cierre de la capacitación.</p>
+                  </div>
+                </div>
+              ) : canForceCloseAsAdmin ? (
+                <div className="bg-indigo-50 border border-indigo-200 rounded-2xl p-4 flex gap-3 text-indigo-800 text-xs">
+                  <div className="text-base">!</div>
+                  <div>
+                    <h5 className="font-extrabold">Cierre administrativo permitido</h5>
+                    <p className="text-indigo-700 mt-0.5 font-medium">Hay requisitos pendientes, pero el perfil Administrador puede cerrar la capacitacion bajo criterio operativo. Los pendientes quedaran visibles en auditoria y reportes.</p>
                   </div>
                 </div>
               ) : (
@@ -2484,13 +2496,7 @@ export default function Capacitaciones({
               </button>
               <button
                 type="button"
-                disabled={!(
-                  validationDetails.isAttendanceComplete && 
-                  validationDetails.isResultadoFormacionCompleto && 
-                  validationDetails.isCommentsComplete && 
-                  validationDetails.isSurveyComplete && 
-                  validationDetails.isAptosDefined
-                )}
+                disabled={!(closeRequirementsMet || canForceCloseAsAdmin)}
                 onClick={() => {
                   if (onCloseCampaign && sessionToClose) {
                     onCloseCampaign(sessionToClose.id);
@@ -2498,11 +2504,7 @@ export default function Capacitaciones({
                   }
                 }}
                 className={`text-white text-xs font-bold px-5 py-2 rounded-xl transition-all ${
-                  (validationDetails.isAttendanceComplete && 
-                   validationDetails.isResultadoFormacionCompleto && 
-                   validationDetails.isCommentsComplete && 
-                   validationDetails.isSurveyComplete && 
-                   validationDetails.isAptosDefined)
+                  (closeRequirementsMet || canForceCloseAsAdmin)
                     ? 'bg-purple-600 hover:bg-purple-700 cursor-pointer shadow-md'
                     : 'bg-slate-300 text-slate-500 cursor-not-allowed'
                 }`}

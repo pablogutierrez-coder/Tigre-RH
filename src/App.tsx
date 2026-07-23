@@ -769,7 +769,7 @@ export default function App() {
       return hasDesistio || pAtts.length === 5;
     });
 
-    if (!isAsistenciaCompleta) {
+    if (!isAsistenciaCompleta && userRol !== 'Administrador') {
       alert('No se puede cerrar la capacitación: Falta completar el registro de asistencia de los 5 días para todos los participantes activos.');
       return;
     }
@@ -785,7 +785,7 @@ export default function App() {
       return !!motive?.trim() && !!obs?.trim();
     });
 
-    if (!isDesercionesValidas) {
+    if (!isDesercionesValidas && userRol !== 'Administrador') {
       alert('No se puede cerrar la capacitación: Existen participantes desistidos sin motivo de deserción u observación registrado.');
       return;
     }
