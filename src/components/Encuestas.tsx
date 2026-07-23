@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { TrainingSurvey, SurveyResponse, Participant, TrainingSession, User, UserRole, SurveyStatus } from '../types';
+import { TrainingSurvey, SurveyResponse, Participant, TrainingSession, User, UserRole, SurveyStatus, AttendanceRecord } from '../types';
 import {
   ClipboardCheck,
   Plus,
@@ -51,12 +51,14 @@ import {
 import * as XLSX from 'xlsx';
 import { sendSurveyInvitations } from '../services/surveyEmailService';
 import { permissions } from '../utils/permissions';
+import { isSurveyEligibleParticipant } from '../utils/trainingProgress';
 
 interface EncuestasProps {
   surveys: TrainingSurvey[];
   responses: SurveyResponse[];
   sessions: TrainingSession[];
   participants: Participant[];
+  attendance: AttendanceRecord[];
   currentUser: User;
   onUpdateSurveyStatus: (surveyId: string, status: SurveyStatus) => void;
   onAddSurvey?: (survey: TrainingSurvey) => void;
@@ -80,6 +82,7 @@ export default function Encuestas({
   responses,
   sessions,
   participants,
+  attendance,
   currentUser,
   onUpdateSurveyStatus,
   onAddSurvey,
@@ -143,6 +146,25 @@ export default function Encuestas({
       return `Formador-${1000 + (hash % 9000)}`;
     }
     return trainerName;
+  };
+
+  const getSurveySession = (survey: TrainingSurvey) =>
+    sessions.find((session) => session.id === survey.training_session_id);
+
+  const getSurveyGenerationCode = (survey: TrainingSurvey) => {
+    const session = getSurveySession(survey);
+    return session?.generation_code || session?.nombre_generacion || survey.codigo_generacion;
+  };
+
+  const getSurveyEligibleParticipants = (survey: TrainingSurvey) => {
+    const sessionAttendance = attendance.filter(
+      (record) => record.training_session_id === survey.training_session_id,
+    );
+    return participants.filter(
+      (participant) =>
+        participant.training_session_id === survey.training_session_id &&
+        isSurveyEligibleParticipant(participant, sessionAttendance),
+    );
   };
 
   const obfuscateDni = (dniVal: string) => {
@@ -639,10 +661,8 @@ export default function Encuestas({
   const monitoreoData = useMemo(() => {
     if (!currentMonitoreoSurvey) return null;
 
-    // Get all loaded participants in this training session
-    const classParticipants = participants.filter(
-      p => p.training_session_id === currentMonitoreoSurvey.training_session_id
-    );
+    // Get only participants allowed to answer this survey.
+    const classParticipants = getSurveyEligibleParticipants(currentMonitoreoSurvey);
 
     // Get responses registered for this specific survey
     const surveyResponses = normalizedResponses.filter(
@@ -668,7 +688,7 @@ export default function Encuestas({
       respondedCount,
       percentage
     };
-  }, [currentMonitoreoSurvey, participants, normalizedResponses]);
+  }, [currentMonitoreoSurvey, participants, attendance, normalizedResponses]);
 
   const handleCopyPersonalLink = (token: string, dniVal: string, pId: string) => {
     const origin = window.location.origin + window.location.pathname;
@@ -692,7 +712,7 @@ export default function Encuestas({
   const buildSurveyEmailInfo = (survey: TrainingSurvey) => ({
     id: survey.id,
     campana: survey.campaña,
-    codigo_generacion: survey.codigo_generacion,
+    codigo_generacion: getSurveyGenerationCode(survey),
     formador_nombre: survey.formador_nombre,
   });
 
@@ -1481,7 +1501,7 @@ export default function Encuestas({
                 <option value="">Selecciona una campaña / generación...</option>
                 {visibleSurveys.filter(s => s.estado === 'Habilitada' || s.estado === 'Cerrada').map(s => (
                   <option key={s.id} value={s.id}>
-                    [{s.campaña}] {s.codigo_generacion} - Formador: {getTrainerDisplayName(s.formador_id, s.formador_nombre)}
+                    [{s.campaña}] {getSurveyGenerationCode(s)} - Formador: {getTrainerDisplayName(s.formador_id, s.formador_nombre)}
                   </option>
                 ))}
               </select>
@@ -1503,7 +1523,7 @@ export default function Encuestas({
                     <span className="text-[9px] bg-fuchsia-600 text-white font-mono px-2 py-0.5 rounded font-bold uppercase tracking-wide">
                       MÉTRICA DE RESPUESTAS
                     </span>
-                    <h4 className="font-extrabold text-sm mt-1">{currentMonitoreoSurvey.campaña} - {currentMonitoreoSurvey.codigo_generacion}</h4>
+                    <h4 className="font-extrabold text-sm mt-1">{currentMonitoreoSurvey.campaña} - {getSurveyGenerationCode(currentMonitoreoSurvey)}</h4>
                     <p className="text-xs text-slate-400">Formador asignado: <strong className="text-white">{getTrainerDisplayName(currentMonitoreoSurvey.formador_id, currentMonitoreoSurvey.formador_nombre)}</strong></p>
                     {emailFeedback && (
                       <p className="text-[11px] text-emerald-300 font-bold mt-2">{emailFeedback}</p>
@@ -1650,7 +1670,7 @@ export default function Encuestas({
 
                     return (
                       <tr key={s.id} className="hover:bg-slate-50/40 font-medium text-slate-700">
-                        <td className="p-3 font-extrabold text-slate-800 whitespace-nowrap">{s.codigo_generacion}</td>
+                        <td className="p-3 font-extrabold text-slate-800 whitespace-nowrap">{getSurveyGenerationCode(s)}</td>
                         <td className="p-3 whitespace-nowrap">{s.campaña}</td>
                         <td className="p-3 whitespace-nowrap">{getTrainerDisplayName(s.formador_id, s.formador_nombre)}</td>
                         <td className="p-3">

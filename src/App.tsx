@@ -1115,6 +1115,34 @@ export default function App() {
     );
   };
 
+  const handleUpdateParticipantDetails = (updatedParticipant: Participant) => {
+    const previous = participants.find((participant) => participant.id === updatedParticipant.id);
+    const session = sessions.find((item) => item.id === updatedParticipant.training_session_id);
+
+    setParticipants((current) =>
+      current.map((participant) =>
+        participant.id === updatedParticipant.id ? updatedParticipant : participant,
+      ),
+    );
+
+    void persistParticipant(updatedParticipant).catch((error) => {
+      console.error('Error persisting participant details:', error);
+      alert(error instanceof Error ? error.message : 'No se pudo guardar los datos del postulante.');
+    });
+
+    addAuditLog(
+      'Actualizacion de datos del postulante',
+      'Control de asistencia',
+      `Se actualizaron datos del postulante ${updatedParticipant.nombres} ${updatedParticipant.apellidos}.`,
+      session?.campaña,
+      session?.nombre_generacion,
+      updatedParticipant.id,
+      `${updatedParticipant.nombres} ${updatedParticipant.apellidos}`,
+      previous ? `${previous.nombres} ${previous.apellidos}` : undefined,
+      `${updatedParticipant.nombres} ${updatedParticipant.apellidos}`,
+    );
+  };
+
   // 5. Create Reopen Request
   const handleRequestReopen = (req: Omit<AttendanceReopenRequest, 'id' | 'formador_id' | 'formador_nombre' | 'estado' | 'fecha_solicitud'>) => {
     if (!activeUser) return;
@@ -2043,6 +2071,7 @@ export default function App() {
                   onBulkAttendance={handleBulkAttendance}
                   onRequestReopen={handleRequestReopen}
                   onUpdateParticipantOutcome={handleUpdateParticipantOutcome}
+                  onUpdateParticipantDetails={handleUpdateParticipantDetails}
                   onGoBack={() => { setSelectedSessionId(null); setCurrentView('capacitaciones'); }}
                   onAttemptLockedEdit={handleAttemptLockedEdit}
                 />
@@ -2108,6 +2137,7 @@ export default function App() {
                   responses={responses}
                   sessions={sessions}
                   participants={participants}
+                  attendance={attendance}
                   currentUser={activeUser}
                   onUpdateSurveyStatus={handleUpdateSurveyStatus}
                   onAddSurvey={handleAddSurvey}

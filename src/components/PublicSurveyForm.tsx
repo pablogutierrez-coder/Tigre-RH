@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { TrainingSurvey, SurveyResponse, Participant, TrainingSession, AuditLog, User } from '../types';
+import { getTrainingAttendancePercent, isSurveyEligibleParticipant } from '../utils/trainingProgress';
 import { AlertTriangle, CheckCircle2, ShieldCheck, Clipboard, Send, Star, HelpCircle } from 'lucide-react';
 import BrandLogo from './BrandLogo';
 import { APP_NAME } from '../constants/app';
@@ -231,17 +232,10 @@ export default function PublicSurveyForm({
       return;
     }
 
-    // Check attendance percentage (minimum 80% attendance required to answer)
+    // Check attendance and outcome (minimum 80% attendance and Apto required to answer)
     const pAttendance = attendance.filter(a => a.participant_id === matchedPart.id);
-    let attendancePercent = 100;
-    if (pAttendance.length > 0) {
-      const presentCount = pAttendance.filter(
-        a => a.estado_asistencia === 'Asistió' || a.estado_asistencia === 'Tardanza'
-      ).length;
-      attendancePercent = Math.round((presentCount / pAttendance.length) * 100);
-    }
-
-    if (attendancePercent < 80) {
+    const attendancePercent = getTrainingAttendancePercent(matchedPart.id, pAttendance);
+    if (!isSurveyEligibleParticipant(matchedPart, pAttendance)) {
       onAuditLog(
         'Intento de encuesta rechazado por baja asistencia',
         'Encuestas de Satisfacción',
@@ -251,7 +245,7 @@ export default function PublicSurveyForm({
         matchedPart.id,
         `${matchedPart.nombres} ${matchedPart.apellidos}`
       );
-      setValidationError(`No cumples con el porcentaje mínimo de asistencia requerido (80%) para responder la encuesta. Tu asistencia actual registrada es del ${attendancePercent}%.`);
+      setValidationError(`No cumples con el porcentaje minimo de asistencia requerido (80%) o aun no tienes resultado apto de capacitacion. Tu asistencia actual registrada es del ${attendancePercent}%.`);
       return;
     }
 

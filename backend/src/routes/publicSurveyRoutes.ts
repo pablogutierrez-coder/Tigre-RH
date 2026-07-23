@@ -6,6 +6,17 @@ const router = Router();
 
 const tokenSchema = z.string().trim().min(1).max(160);
 const dniSchema = z.string().trim().regex(/^\d{8,15}$/);
+const PRESENT_ATTENDANCE = new Set(['Asistio', 'Asisti�', 'Asistió', 'Tardanza']);
+const DROPOUT_ATTENDANCE = new Set(['Desisti�', 'Desistió', 'Baja']);
+const DROPOUT_FINAL_STATES = new Set(['Desisti�', 'Desistió', 'No asisti�', 'No asistió']);
+const SURVEY_READY_FINAL_STATES = new Set([
+  'Complet� capacitaci�n',
+  'Completó capacitación',
+  'Pendiente de alta',
+  'Alta confirmada',
+]);
+const REQUIRED_TRAINING_DAYS = 5;
+const REQUIRED_ATTENDANCE_PERCENT = 80;
 
 const findSurvey = async (token: string) => {
   const cleanToken = token.trim().toLowerCase();
@@ -35,6 +46,42 @@ const findParticipant = async (sessionId: string, dni: string) => {
     .where('training_session_id', '==', sessionId)
     .get();
   return snapshot.docs.find((item) => item.data().dni === dni) || null;
+};
+
+const getAttendancePercent = (participantId: string, attendance: Array<Record<string, unknown>>) => {
+  const presentDays = new Set(
+    attendance
+      .filter(
+        (item) =>
+          String(item.participant_id || '') === participantId &&
+          PRESENT_ATTENDANCE.has(String(item.estado_asistencia || '')),
+      )
+      .map((item) => Number(item.dia)),
+  ).size;
+
+  return Math.round((presentDays / REQUIRED_TRAINING_DAYS) * 100);
+};
+
+const canAnswerSurvey = (
+  participant: Record<string, unknown>,
+  attendance: Array<Record<string, unknown>>,
+) => {
+  const participantId = String(participant.id || '');
+  const hasDropout =
+    DROPOUT_FINAL_STATES.has(String(participant.estado_final || '')) ||
+    attendance.some(
+      (item) =>
+        String(item.participant_id || '') === participantId &&
+        DROPOUT_ATTENDANCE.has(String(item.estado_asistencia || '')),
+    );
+
+  if (hasDropout) return false;
+
+  const hasApprovedOutcome =
+    String(participant.resultado_formacion || '') === 'Apto' ||
+    SURVEY_READY_FINAL_STATES.has(String(participant.estado_final || ''));
+
+  return hasApprovedOutcome && getAttendancePercent(participantId, attendance) >= REQUIRED_ATTENDANCE_PERCENT;
 };
 
 router.get('/:token', async (req, res: Response) => {
@@ -88,16 +135,11 @@ router.get('/:token', async (req, res: Response) => {
     id: item.id,
     ...item.data(),
   })) as Array<Record<string, unknown>>;
-  const present = attendance.filter((item) => {
-    const status = String(item.estado_asistencia || '');
-    return status === 'Asistio' || status === 'Asistió' || status === 'Tardanza';
-  }).length;
-  const attendancePercent =
-    attendance.length === 0 ? 100 : Math.round((present / attendance.length) * 100);
+  const attendancePercent = getAttendancePercent(String(participant.id), attendance);
 
-  if (attendancePercent < 80) {
+  if (!canAnswerSurvey(participant, attendance)) {
     res.status(403).json({
-      message: `No cumples con el porcentaje minimo de asistencia requerido (80%). Tu asistencia registrada es ${attendancePercent}%.`,
+      message: `No cumples con el porcentaje minimo de asistencia requerido (80%) o aun no tienes resultado apto de capacitacion. Tu asistencia registrada es ${attendancePercent}%.`,
     });
     return;
   }
@@ -148,8 +190,25 @@ router.post('/:token/responses', async (req, res: Response) => {
     return;
   }
 
+  const participant = { id: participantDoc.id, ...participantDoc.data() } as Record<string, unknown>;
+  const attendanceSnapshot = await adminDb
+    .collection('attendance')
+    .where('participant_id', '==', participantDoc.id)
+    .get();
+  const attendance = attendanceSnapshot.docs.map((item) => ({
+    id: item.id,
+    ...item.data(),
+  })) as Array<Record<string, unknown>>;
+  const attendancePercent = getAttendancePercent(participantDoc.id, attendance);
+
+  if (!canAnswerSurvey(participant, attendance)) {
+    res.status(403).json({
+      message: `No cumples con el porcentaje minimo de asistencia requerido (80%) o aun no tienes resultado apto de capacitacion. Tu asistencia registrada es ${attendancePercent}%.`,
+    });
+    return;
+  }
+
   const responseId = `resp-${survey.id}-${participantDoc.id}`;
-  const participant = participantDoc.data();
   const values = [
     payload.data.q1,
     payload.data.q2,
@@ -170,8 +229,8 @@ router.post('/:token/responses', async (req, res: Response) => {
     training_survey_id: survey.id,
     participant_id: participantDoc.id,
     nombre_ejecutivo: `${participant.nombres || ''} ${participant.apellidos || ''}`.trim(),
-    campana: survey['campaña'] || survey.campana || '',
-    ['campaña']: survey['campaña'] || survey.campana || '',
+    campana: survey['campa�a'] || survey.campana || '',
+    ['campa�a']: survey['campa�a'] || survey.campana || '',
     codigo_generacion: survey.codigo_generacion || '',
     formador_id: survey.formador_id || '',
     formador_nombre: survey.formador_nombre || '',

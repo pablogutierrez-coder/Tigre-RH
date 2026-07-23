@@ -25,10 +25,14 @@ import {
   RefreshCw,
   RotateCcw,
   Check,
-  Filter
+  Filter,
+  Pencil,
+  Download,
+  ShieldCheck
 } from 'lucide-react';
 import { TrainingSession, Participant, AttendanceRecord, AttendanceStatus, User as AppUser, AttendanceReopenRequest, OperationConfirmation } from '../types';
 import { permissions } from '../utils/permissions';
+import * as XLSX from 'xlsx';
 
 interface AttendanceControlProps {
   session: TrainingSession;
@@ -58,6 +62,7 @@ interface AttendanceControlProps {
     evaluationScore?: number,
     evaluationObservation?: string,
   ) => void;
+  onUpdateParticipantDetails?: (participant: Participant) => void;
   onGoBack: () => void;
   onAttemptLockedEdit?: (sessionName: string, campaign: string, day: number) => void;
 }
@@ -87,6 +92,7 @@ export default function AttendanceControl({
   onBulkAttendance,
   onRequestReopen,
   onUpdateParticipantOutcome,
+  onUpdateParticipantDetails,
   onGoBack,
   onAttemptLockedEdit
 }: AttendanceControlProps) {
@@ -142,6 +148,17 @@ export default function AttendanceControl({
   const [outcomeComment, setOutcomeComment] = useState('');
   const [outcomeReason, setOutcomeReason] = useState('');
   const [outcomeError, setOutcomeError] = useState('');
+  const [editingParticipant, setEditingParticipant] = useState<Participant | null>(null);
+  const [participantDraft, setParticipantDraft] = useState({
+    nombres: '',
+    apellidos: '',
+    celular: '',
+    correo: '',
+    puesto: '',
+    fuente_reclutamiento: '',
+    coordinador: '',
+    ciudad: ''
+  });
 
   const handleOutcomeSelect = (part: Participant, value: 'Marcar' | 'Apto' | 'No apto') => {
     if (value === 'Marcar') {
@@ -178,7 +195,8 @@ export default function AttendanceControl({
   const canEditEvaluation = (part: Participant) => {
     const isTrainer = currentUser.rol === 'Formador';
     const isAssignedTrainer = isTrainer && session.formador_id === currentUser.id;
-    return currentUser.rol === 'Administrador' || (isAssignedTrainer && selectedDay === 5 && part.estado_final !== 'Alta confirmada');
+    const isAltaLocked = part.estado_final === 'Alta confirmada' || part.estado_final === 'Pendiente de alta';
+    return !isAltaLocked && (currentUser.rol === 'Administrador' || (isAssignedTrainer && selectedDay === 5));
   };
 
   const saveEvaluation = (part: Participant, rawScore: string, observation: string) => {
@@ -211,6 +229,49 @@ export default function AttendanceControl({
       isApproved ? '' : finalObservation,
       roundedScore,
       finalObservation,
+    );
+  };
+
+  const openParticipantEditor = (part: Participant) => {
+    setEditingParticipant(part);
+    setParticipantDraft({
+      nombres: part.nombres || '',
+      apellidos: part.apellidos || '',
+      celular: part.celular || '',
+      correo: part.correo || '',
+      puesto: part.puesto || '',
+      fuente_reclutamiento: part.fuente_reclutamiento || '',
+      coordinador: part.coordinador || '',
+      ciudad: part.ciudad || ''
+    });
+  };
+
+  const saveParticipantDetails = () => {
+    if (!editingParticipant || !onUpdateParticipantDetails) return;
+    onUpdateParticipantDetails({
+      ...editingParticipant,
+      nombres: participantDraft.nombres.trim(),
+      apellidos: participantDraft.apellidos.trim(),
+      celular: participantDraft.celular.trim(),
+      correo: participantDraft.correo.trim(),
+      puesto: participantDraft.puesto.trim(),
+      fuente_reclutamiento: participantDraft.fuente_reclutamiento.trim(),
+      coordinador: participantDraft.coordinador.trim(),
+      ciudad: participantDraft.ciudad.trim()
+    });
+    setEditingParticipant(null);
+  };
+
+  const handleEarlyAlta = (part: Participant) => {
+    if (!onUpdateParticipantOutcome) return;
+    if (!window.confirm(`Marcar alta anticipada para ${part.nombres} ${part.apellidos}? Se bloqueará la nota y quedará apto para encuesta.`)) return;
+    onUpdateParticipantOutcome(
+      part.id,
+      'Apto',
+      'Alta anticipada solicitada desde control de asistencia.',
+      '',
+      undefined,
+      part.observacion_evaluacion || 'Alta anticipada',
     );
   };
 
@@ -549,6 +610,40 @@ export default function AttendanceControl({
       .sort((a, b) => new Date(b.fecha_solicitud).getTime() - new Date(a.fecha_solicitud).getTime())[0];
   }, [reopens, session.id, selectedDay]);
 
+  const handleExportAttendanceExcel = () => {
+    const rows = filteredParts.map((part) => {
+      const rowAttendance = [1, 2, 3, 4, 5].map((day) => attendanceMap[`${part.id}_${day}`]);
+      return {
+        DNI: part.dni,
+        Nombres: part.nombres,
+        Apellidos: part.apellidos,
+        Celular: part.celular,
+        Correo: part.correo,
+        Perfil: part.puesto || '',
+        'Fuente reclutamiento': part.fuente_reclutamiento || '',
+        Coordinador: part.coordinador || '',
+        Ciudad: part.ciudad || '',
+        Campaña: session.campaña,
+        Generación: session.generation_code || session.nombre_generacion,
+        Formador: session.formador_nombre,
+        'Día 1': rowAttendance[0]?.estado_asistencia || 'Pendiente',
+        'Día 2': rowAttendance[1]?.estado_asistencia || 'Pendiente',
+        'Día 3': rowAttendance[2]?.estado_asistencia || 'Pendiente',
+        'Día 4': rowAttendance[3]?.estado_asistencia || 'Pendiente',
+        'Día 5': rowAttendance[4]?.estado_asistencia || 'Pendiente',
+        Evaluación: part.evaluacion_nota ?? '',
+        'Resultado formación': part.resultado_formacion || '',
+        'Estado final': part.estado_final,
+        Observación: part.observacion || part.observacion_general || '',
+      };
+    });
+
+    const worksheet = XLSX.utils.json_to_sheet(rows);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, 'Asistencia');
+    XLSX.writeFile(workbook, `asistencia-${session.generation_code || session.nombre_generacion}.xlsx`);
+  };
+
   return (
     <div className="space-y-6">
       {/* Top Navigation Row */}
@@ -562,6 +657,14 @@ export default function AttendanceControl({
         </button>
 
         <div className="flex items-center gap-2">
+          <button
+            onClick={handleExportAttendanceExcel}
+            className="bg-white hover:bg-slate-50 text-slate-700 font-bold text-xs px-3 py-2 rounded-xl border border-slate-200 flex items-center gap-1.5 cursor-pointer transition-colors"
+            title="Descargar asistencia y perfiles en Excel"
+          >
+            <Download className="w-4 h-4" />
+            Excel
+          </button>
           <span className="text-slate-400 text-xs">Campaña:</span>
           <span className="bg-indigo-50/70 text-indigo-700 font-bold text-xs px-2.5 py-1 rounded-full border border-indigo-100">
             {session.campaña}
@@ -1001,13 +1104,27 @@ export default function AttendanceControl({
 
                       {/* Candidate details */}
                       <td className="p-4">
-                        <div className="font-semibold text-slate-800 text-sm">
-                          {part.nombres} {part.apellidos}
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="font-semibold text-slate-800 text-sm">
+                            {part.nombres} {part.apellidos}
+                          </div>
+                          {onUpdateParticipantDetails && (
+                            <button
+                              onClick={() => openParticipantEditor(part)}
+                              className="text-slate-400 hover:text-indigo-600 p-1 rounded-lg hover:bg-indigo-50 transition-colors cursor-pointer"
+                              title="Editar solo datos del postulante"
+                            >
+                              <Pencil className="w-3.5 h-3.5" />
+                            </button>
+                          )}
                         </div>
                         <div className="flex gap-2 text-[10px] text-slate-400 font-mono mt-0.5">
                           <span>DNI: {part.dni}</span>
                           <span>•</span>
                           <span>Cel: {part.celular}</span>
+                        </div>
+                        <div className="mt-1 text-[10px] text-slate-500 font-semibold">
+                          Perfil: <span className="text-slate-700">{part.puesto || 'Sin perfil'}</span>
                         </div>
                       </td>
 
@@ -1163,6 +1280,16 @@ export default function AttendanceControl({
                                     {part.motivo_no_apt}
                                   </span>
                                 )}
+                                {outcome !== 'Apto' && (
+                                  <button
+                                    onClick={() => handleEarlyAlta(part)}
+                                    className="mt-1 inline-flex items-center gap-1 rounded-lg border border-emerald-200 bg-emerald-50 px-2 py-1 text-[9px] font-black uppercase text-emerald-700 hover:bg-emerald-100 cursor-pointer"
+                                    title="Marcar alta anticipada y habilitar encuesta si corresponde"
+                                  >
+                                    <ShieldCheck className="w-3 h-3" />
+                                    Alta anticipada
+                                  </button>
+                                )}
                               </div>
                             );
                           } else {
@@ -1235,6 +1362,73 @@ export default function AttendanceControl({
           </div>
         )}
       </div>
+
+      {/* MODAL: EDIT PARTICIPANT DETAILS ONLY */}
+      {editingParticipant && (
+        <div className="fixed inset-0 z-50 bg-slate-950/40 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-white/95 rounded-2xl p-6 max-w-2xl w-full border border-white/40 shadow-xl space-y-4">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+              <div>
+                <h3 className="font-black text-slate-800 text-base flex items-center gap-2">
+                  <Pencil className="w-4.5 h-4.5 text-indigo-600" />
+                  Editar datos del postulante
+                </h3>
+                <p className="text-[11px] text-slate-400 mt-0.5">
+                  Solo corrige información del postulante. La asistencia y evaluación no se modifican aquí.
+                </p>
+              </div>
+              <button
+                onClick={() => setEditingParticipant(null)}
+                className="text-slate-400 hover:text-slate-700 text-xl leading-none"
+              >
+                x
+              </button>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+              {[
+                ['nombres', 'Nombres'],
+                ['apellidos', 'Apellidos'],
+                ['celular', 'Celular'],
+                ['correo', 'Correo'],
+                ['puesto', 'Perfil / Puesto'],
+                ['fuente_reclutamiento', 'Fuente reclutamiento'],
+                ['coordinador', 'Coordinador / Supervisor'],
+                ['ciudad', 'Ciudad']
+              ].map(([field, label]) => (
+                <label key={field} className="space-y-1">
+                  <span className="block font-bold text-slate-600">{label}</span>
+                  <input
+                    value={participantDraft[field as keyof typeof participantDraft]}
+                    onChange={(event) =>
+                      setParticipantDraft((current) => ({
+                        ...current,
+                        [field]: event.target.value,
+                      }))
+                    }
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 outline-hidden focus:ring-1 focus:ring-indigo-500 text-slate-800"
+                  />
+                </label>
+              ))}
+            </div>
+
+            <div className="flex justify-end gap-3 pt-3">
+              <button
+                onClick={() => setEditingParticipant(null)}
+                className="bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold text-xs px-4 py-2 rounded-xl"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={saveParticipantDetails}
+                className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs px-5 py-2 rounded-xl"
+              >
+                Guardar datos
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* MODAL: SINGLE PARTICIPANT DESERTION REASON */}
       {showDesistióModal && modalParticipant && (

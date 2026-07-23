@@ -10,6 +10,7 @@ import type {
 } from '../../types';
 import { createAuditLog } from './auditLogService';
 import { createDocumentWithId, updateDocument } from './firestoreHelpers';
+import { isSurveyEligibleParticipant } from '../../utils/trainingProgress';
 
 interface ValidateClosureParams {
   session: TrainingSession;
@@ -115,11 +116,6 @@ export const validateClosureRequirements = ({
   const sessionAttendance = attendance.filter(
     (record) => record.training_session_id === session.id,
   );
-  const activeParticipants = sessionParticipants.filter(
-    (participant) =>
-      participant.estado_final !== 'Desistió' &&
-      participant.estado_final !== 'No asistió',
-  );
   const relatedSurveys = surveys.filter(
     (survey) =>
       survey.training_session_id === session.id &&
@@ -137,7 +133,10 @@ export const validateClosureRequirements = ({
   const desertionReasonsComplete = sessionParticipants.every((participant) =>
     hasValidDesertionReason(participant, sessionAttendance),
   );
-  const surveyComplete = activeParticipants.every((participant) =>
+  const surveyEligibleParticipants = sessionParticipants.filter((participant) =>
+    isSurveyEligibleParticipant(participant, sessionAttendance),
+  );
+  const surveyComplete = surveyEligibleParticipants.every((participant) =>
     hasSurveyResponse(participant, relatedSurveys, responses),
   );
 
@@ -157,7 +156,7 @@ export const validateClosureRequirements = ({
   }
   if (!surveyComplete) {
     errors.push(
-      'Los participantes activos deben responder la encuesta asociada antes del cierre.',
+      'Los participantes aptos con asistencia valida deben responder la encuesta asociada antes del cierre.',
     );
   }
 
