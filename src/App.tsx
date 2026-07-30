@@ -134,6 +134,7 @@ const userHasAreaAccess = (user: User, area: UserArea) => {
 
 const userHasModuleAccess = (user: User, area: UserArea, moduleId: string) => {
   if (!userHasAreaAccess(user, area)) return false;
+  if (area === 'formacion' && moduleId === 'reportes' && permissions[user.rol]?.canExportReports) return true;
   if (!user.module_access || user.module_access.length === 0) return true;
   return user.module_access.includes(`${area}:${moduleId}`);
 };
