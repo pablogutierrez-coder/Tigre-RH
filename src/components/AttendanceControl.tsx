@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useMemo } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import {
   Calendar,
   Users,
@@ -32,6 +32,7 @@ import {
 } from 'lucide-react';
 import { TrainingSession, Participant, AttendanceRecord, AttendanceStatus, User as AppUser, AttendanceReopenRequest, OperationConfirmation } from '../types';
 import { permissions } from '../utils/permissions';
+import { getTrainingDays, getTrainingDaysCount } from '../utils/trainingDays';
 import * as XLSX from 'xlsx';
 
 interface AttendanceControlProps {
@@ -80,9 +81,6 @@ const MOTIVOS_DESERCION = [
   'Otro motivo'
 ];
 
-const TRAINING_DAYS = Array.from({ length: 10 }, (_, index) => index + 1);
-const LAST_TRAINING_DAY = TRAINING_DAYS[TRAINING_DAYS.length - 1];
-
 const normalizeStatus = (status?: string) =>
   (status || '')
     .normalize('NFD')
@@ -94,14 +92,16 @@ const isPresentStatus = (status?: string) => ['asistio', 'tardanza'].includes(no
 const isAbsenceStatus = (status?: string) => normalizeStatus(status) === 'falto';
 const isDropoutStatus = (status?: string) => ['desistio', 'baja'].includes(normalizeStatus(status));
 const isVacationStatus = (status?: string) => normalizeStatus(status) === 'vacaciones';
+const isHolidayStatus = (status?: string) => normalizeStatus(status) === 'feriado';
 const isPendingStatus = (status?: string) => ['', 'seleccionar', 'pendiente'].includes(normalizeStatus(status));
 
 const ATTENDANCE_OPTIONS: Array<{ value: AttendanceStatus; label: string }> = [
-  { value: 'Asistió', label: 'Asistio' },
+  { value: 'Asistió', label: 'Asistió' },
   { value: 'Tardanza', label: 'Tardanza' },
-  { value: 'Faltó', label: 'Falto' },
+  { value: 'Faltó', label: 'Faltó' },
   { value: 'Vacaciones', label: 'Vacaciones' },
-  { value: 'Desistió', label: 'Desistio' },
+  { value: 'Feriado', label: 'Feriado' },
+  { value: 'Desistió', label: 'Desistió' },
   { value: 'Baja', label: 'Baja' },
 ];
 
@@ -121,9 +121,17 @@ export default function AttendanceControl({
   onGoBack,
   onAttemptLockedEdit
 }: AttendanceControlProps) {
+  const trainingDays = useMemo(() => getTrainingDays(session), [session.training_days]);
+  const trainingDaysCount = useMemo(() => getTrainingDaysCount(session), [session.training_days]);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedDay, setSelectedDay] = useState<number>(1);
   const [selectedParticipants, setSelectedParticipants] = useState<string[]>([]);
+
+  useEffect(() => {
+    if (selectedDay > trainingDaysCount) {
+      setSelectedDay(trainingDaysCount);
+    }
+  }, [selectedDay, trainingDaysCount]);
 
   // Collapsible Filters Panel
   const [showFiltersPanel, setShowFiltersPanel] = useState(false);
@@ -221,8 +229,10 @@ export default function AttendanceControl({
   const canEditEvaluation = (part: Participant) => {
     const isTrainer = currentUser.rol === 'Formador';
     const isAssignedTrainer = isTrainer && session.formador_id === currentUser.id;
-    const isAltaLocked = part.estado_final === 'Alta confirmada';
-    return !isAltaLocked && (currentUser.rol === 'Administrador' || (isAssignedTrainer && selectedDay === LAST_TRAINING_DAY));
+    const rowAttendance = trainingDays.map(day => attendanceMap[`${part.id}_${day}`]);
+    const hasDropout = part.estado_final === 'Desistió' || rowAttendance.some(a => isDropoutStatus(a?.estado_asistencia));
+    const hasAnyPresent = rowAttendance.some(a => isPresentStatus(a?.estado_asistencia));
+    return !hasDropout && hasAnyPresent && (currentUser.rol === 'Administrador' || isAssignedTrainer);
   };
 
   const saveEvaluation = (part: Participant, rawScore: string, observation: string) => {
@@ -341,7 +351,7 @@ export default function AttendanceControl({
         return false;
       }
 
-      const rowAttendance = TRAINING_DAYS.map(d => attendanceMap[`${p.id}_${d}`]);
+      const rowAttendance = trainingDays.map(d => attendanceMap[`${p.id}_${d}`]);
       const hasDesistio = rowAttendance.some(a => isDropoutStatus(a?.estado_asistencia));
       const d1 = attendanceMap[`${p.id}_1`]?.estado_asistencia;
 
@@ -352,7 +362,7 @@ export default function AttendanceControl({
         computedStatus = 'No asistió';
       } else if (rowAttendance.some(a => isAbsenceStatus(a?.estado_asistencia))) {
         computedStatus = 'En riesgo';
-      } else if (rowAttendance.filter(a => isPresentStatus(a?.estado_asistencia)).length === TRAINING_DAYS.length) {
+      } else if (rowAttendance.filter(a => isPresentStatus(a?.estado_asistencia)).length === trainingDays.length) {
         const conf = confirmationsMap[p.id];
         computedStatus = conf?.estado_alta === 'Alta confirmada' ? 'Alta confirmada' : 'Pendiente de alta';
       } else if (rowAttendance.some(a => isPresentStatus(a?.estado_asistencia))) {
@@ -379,7 +389,7 @@ export default function AttendanceControl({
 
       return true;
     });
-  }, [participants, session.id, searchTerm, selectedDay, attendanceMap, confirmationsMap, filterAttendanceStatus, filterFinalStatus, filterAltaStatus, filterObservationsOnly, filterUnmarkedOnly]);
+  }, [participants, session.id, searchTerm, selectedDay, attendanceMap, confirmationsMap, trainingDays, filterAttendanceStatus, filterFinalStatus, filterAltaStatus, filterObservationsOnly, filterUnmarkedOnly]);
 
   // Attendance metrics & progress indicators (Item 6)
   const stats = useMemo(() => {
@@ -398,7 +408,7 @@ export default function AttendanceControl({
       else if (normalizeStatus(status) === 'tardanza') tardanza++;
       else if (isAbsenceStatus(status)) falto++;
       else if (isDropoutStatus(status)) desistio++;
-      else if (isVacationStatus(status)) vacaciones++;
+      else if (isVacationStatus(status) || isHolidayStatus(status)) vacaciones++;
       else pendiente++;
     });
 
@@ -638,7 +648,7 @@ export default function AttendanceControl({
 
   const handleExportAttendanceExcel = () => {
     const rows = filteredParts.map((part) => {
-      const rowAttendance = TRAINING_DAYS.map((day) => attendanceMap[`${part.id}_${day}`]);
+      const rowAttendance = trainingDays.map((day) => attendanceMap[`${part.id}_${day}`]);
       return {
         DNI: part.dni,
         Nombres: part.nombres,
@@ -652,21 +662,15 @@ export default function AttendanceControl({
         Campania: session.campaña,
         Generacion: session.generation_code || session.nombre_generacion,
         Formador: session.formador_nombre,
-        'Dia 1': rowAttendance[0]?.estado_asistencia || 'Pendiente',
-        'Dia 2': rowAttendance[1]?.estado_asistencia || 'Pendiente',
-        'Dia 3': rowAttendance[2]?.estado_asistencia || 'Pendiente',
-        'Dia 4': rowAttendance[3]?.estado_asistencia || 'Pendiente',
-        'Dia 5': rowAttendance[4]?.estado_asistencia || 'Pendiente',
-        'Dia 6': rowAttendance[5]?.estado_asistencia || 'Pendiente',
-        'Dia 7': rowAttendance[6]?.estado_asistencia || 'Pendiente',
-        'Dia 8': rowAttendance[7]?.estado_asistencia || 'Pendiente',
-        'Dia 9': rowAttendance[8]?.estado_asistencia || 'Pendiente',
-        'Dia 10': rowAttendance[9]?.estado_asistencia || 'Pendiente',
         Evaluacion: part.evaluacion_nota ?? '',
         'Resultado formacion': part.resultado_formacion || '',
         'Estado final': part.estado_final,
         Observacion: part.observacion || part.observacion_general || '',
       };
+      trainingDays.forEach((day, index) => {
+        row[`Dia ${day}`] = rowAttendance[index]?.estado_asistencia || 'Pendiente';
+      });
+      return row;
     });
 
     const worksheet = XLSX.utils.json_to_sheet(rows);
@@ -878,7 +882,7 @@ export default function AttendanceControl({
           <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4">
             <div className="flex items-center gap-1.5 flex-wrap">
               <span className="text-slate-400 text-xs font-bold uppercase tracking-wider mr-2">Día de Control:</span>
-              {TRAINING_DAYS.map(day => (
+              {trainingDays.map(day => (
                 <button
                   key={day}
                   onClick={() => {
@@ -954,8 +958,9 @@ export default function AttendanceControl({
                   <option value="Tardanza">Tardanza</option>
                   <option value="Faltó">Faltó</option>
                   <option value="Vacaciones">Vacaciones</option>
-                <option value="Desistió">Desistió</option>
-                <option value="Baja">Baja</option>
+                  <option value="Feriado">Feriado</option>
+                  <option value="Desistió">Desistió</option>
+                  <option value="Baja">Baja</option>
                 </select>
               </div>
 
@@ -1061,6 +1066,7 @@ export default function AttendanceControl({
                 <option value="Tardanza">Marcar Tardanza</option>
                 <option value="Faltó">Marcar Faltó</option>
                 <option value="Vacaciones">Marcar Vacaciones</option>
+                <option value="Feriado">Marcar Feriado</option>
                 <option value="Desistió">Marcar Desistencia</option>
                 <option value="Baja">Marcar Baja</option>
               </select>
@@ -1097,7 +1103,7 @@ export default function AttendanceControl({
                     </th>
                   )}
                   <th className="p-4">DNI / Candidato</th>
-                  {TRAINING_DAYS.map(dayNum => (
+                  {trainingDays.map(dayNum => (
                     <th key={dayNum} className={`p-4 text-center ${selectedDay === dayNum ? 'bg-indigo-50/50 text-indigo-700 font-bold' : ''}`}>
                       Día {dayNum}
                     </th>
@@ -1112,7 +1118,7 @@ export default function AttendanceControl({
                 {filteredParts.map((part) => {
                   const isSelected = selectedParticipants.includes(part.id);
 
-                  const rowAttendance = TRAINING_DAYS.map(d => attendanceMap[`${part.id}_${d}`]);
+                  const rowAttendance = trainingDays.map(d => attendanceMap[`${part.id}_${d}`]);
                   const hasDesistio = rowAttendance.some(a => isDropoutStatus(a?.estado_asistencia));
                   const d1 = attendanceMap[`${part.id}_1`]?.estado_asistencia;
 
@@ -1124,7 +1130,7 @@ export default function AttendanceControl({
                     computedStatus = 'No asistió';
                   } else if (rowAttendance.some(a => isAbsenceStatus(a?.estado_asistencia))) {
                     computedStatus = 'En riesgo';
-                  } else if (rowAttendance.filter(a => isPresentStatus(a?.estado_asistencia)).length === TRAINING_DAYS.length) {
+                  } else if (rowAttendance.filter(a => isPresentStatus(a?.estado_asistencia)).length === trainingDays.length) {
                     computedStatus = part.estado_final === 'Alta confirmada' ? 'Alta confirmada' : 'Pendiente de alta';
                   } else if (rowAttendance.some(a => isPresentStatus(a?.estado_asistencia))) {
                     computedStatus = 'En formación';
@@ -1172,7 +1178,7 @@ export default function AttendanceControl({
                       </td>
 
                       {/* Days markings */}
-                      {TRAINING_DAYS.map((dayNum) => {
+                      {trainingDays.map((dayNum) => {
                         const record = attendanceMap[`${part.id}_${dayNum}`];
                         const isCurrentDay = selectedDay === dayNum;
 
@@ -1186,6 +1192,7 @@ export default function AttendanceControl({
                                   record.estado_asistencia === 'Tardanza' ? 'bg-amber-50 text-amber-700' :
                                   record.estado_asistencia === 'Faltó' ? 'bg-rose-50 text-rose-700' :
                                   record.estado_asistencia === 'Vacaciones' ? 'bg-sky-50 text-sky-700' :
+                                  record.estado_asistencia === 'Feriado' ? 'bg-violet-50 text-violet-700' :
                                   record.estado_asistencia === 'Baja' ? 'bg-orange-50 text-orange-800' :
                                   'bg-red-50 text-red-800'
                                 }`}>
@@ -1193,6 +1200,7 @@ export default function AttendanceControl({
                                    record.estado_asistencia === 'Tardanza' ? 'Tarde' :
                                    record.estado_asistencia === 'Faltó' ? 'Faltó' :
                                    record.estado_asistencia === 'Vacaciones' ? 'Vacaciones' :
+                                   record.estado_asistencia === 'Feriado' ? 'Feriado' :
                                    record.estado_asistencia === 'Baja' ? 'Baja' : 'Desistió'}
                                 </span>
                               ) : (
@@ -1208,6 +1216,7 @@ export default function AttendanceControl({
                                       record.estado_asistencia === 'Tardanza' ? 'bg-amber-100 text-amber-800' :
                                       record.estado_asistencia === 'Faltó' ? 'bg-rose-100 text-rose-800' :
                                       record.estado_asistencia === 'Vacaciones' ? 'bg-sky-100 text-sky-800' :
+                                      record.estado_asistencia === 'Feriado' ? 'bg-violet-100 text-violet-800' :
                                       record.estado_asistencia === 'Baja' ? 'bg-orange-100 text-orange-800' :
                                       'bg-red-100 text-red-900'
                                     }`}>
@@ -1225,6 +1234,7 @@ export default function AttendanceControl({
                                       record?.estado_asistencia === 'Tardanza' ? 'bg-amber-50 border-amber-200 text-amber-700' :
                                       record?.estado_asistencia === 'Faltó' ? 'bg-rose-50 border-rose-200 text-rose-700' :
                                       record?.estado_asistencia === 'Vacaciones' ? 'bg-sky-50 border-sky-200 text-sky-700' :
+                                      record?.estado_asistencia === 'Feriado' ? 'bg-violet-50 border-violet-200 text-violet-700' :
                                       record?.estado_asistencia === 'Baja' ? 'bg-orange-50 border-orange-200 text-orange-800' :
                                       record?.estado_asistencia === 'Desistió' ? 'bg-red-50 border-red-200 text-red-800' :
                                       'bg-white border-slate-200 text-slate-500'
@@ -1235,6 +1245,7 @@ export default function AttendanceControl({
                                     <option value="Tardanza">Tardanza</option>
                                     <option value="Faltó">Faltó</option>
                                     <option value="Vacaciones">Vacaciones</option>
+                                    <option value="Feriado">Feriado</option>
                                     <option value="Desistió">Desistió</option>
                                     <option value="Baja">Baja</option>
                                   </select>
@@ -1297,8 +1308,7 @@ export default function AttendanceControl({
                           const isAssignedTrainer = isTrainer && session.formador_id === currentUser.id;
                           const isAdmin = currentUser.rol === 'Administrador';
                           
-                          // Formador can only mark for their own sessions on Day 5 (selectedDay === LAST_TRAINING_DAY or other Day 5 completions)
-                          const canMarkOutcome = isAdmin || (isAssignedTrainer && selectedDay === LAST_TRAINING_DAY);
+                          const canMarkOutcome = canEditEvaluation(part) && (isAdmin || isAssignedTrainer);
 
                           const outcome = part.resultado_formacion || 'Marcar';
 

@@ -46,6 +46,7 @@ export interface TrainingSession {
   estado: 'Pendiente de inicio' | 'En curso' | 'Activa' | 'Campaña cerrada' | 'Capacitación cerrada';
   fecha_creacion: string;
   generation_code?: string;
+  training_days?: 5 | 10;
 }
 
 export interface Participant {
@@ -103,7 +104,7 @@ export interface Participant {
   observacion_evaluacion?: string;
 }
 
-export type AttendanceStatus = 'Seleccionar' | 'Asistió' | 'Tardanza' | 'Faltó' | 'Desistió' | 'Baja' | 'Vacaciones' | 'Pendiente';
+export type AttendanceStatus = 'Seleccionar' | 'Asistió' | 'Tardanza' | 'Faltó' | 'Desistió' | 'Baja' | 'Vacaciones' | 'Feriado' | 'Pendiente';
 
 export interface AttendanceRecord {
   id: string;

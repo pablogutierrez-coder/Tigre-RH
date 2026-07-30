@@ -11,6 +11,7 @@ import type {
 import { createAuditLog } from './auditLogService';
 import { createDocumentWithId, updateDocument } from './firestoreHelpers';
 import { isSurveyEligibleParticipant } from '../../utils/trainingProgress';
+import { getTrainingDays } from '../../utils/trainingDays';
 
 interface ValidateClosureParams {
   session: TrainingSession;
@@ -26,7 +27,7 @@ interface CloseTrainingParams extends ValidateClosureParams {
   observation?: string;
 }
 
-const VALID_ATTENDANCE = ['Asistió', 'Tardanza', 'Faltó', 'Desistió', 'Baja', 'Vacaciones'];
+const VALID_ATTENDANCE = ['Asistió', 'Tardanza', 'Faltó', 'Desistió', 'Baja', 'Vacaciones', 'Feriado'];
 const CLOSED_READY_STATES = ['En curso', 'Activa', 'Campaña cerrada'];
 
 const isFinishedByDate = (session: TrainingSession) => {
@@ -50,10 +51,11 @@ const isDeserted = (
   attendance.some(
     (record) =>
       record.participant_id === participant.id &&
-      record.estado_asistencia === 'Desistió',
+      (record.estado_asistencia === 'Desistió' || record.estado_asistencia === 'Baja'),
   );
 
 const hasValidAttendance = (
+  session: TrainingSession,
   participant: Participant,
   attendance: AttendanceRecord[],
 ) => {
@@ -62,7 +64,7 @@ const hasValidAttendance = (
   );
   if (isDeserted(participant, records)) return true;
 
-  return Array.from({ length: 10 }, (_, index) => index + 1).every((day) =>
+  return getTrainingDays(session).every((day) =>
     VALID_ATTENDANCE.includes(
       records.find((record) => record.dia === day)?.estado_asistencia || '',
     ),
@@ -82,7 +84,7 @@ const hasValidDesertionReason = (
   const desertionRecord = attendance.find(
     (record) =>
       record.participant_id === participant.id &&
-      record.estado_asistencia === 'Desistió',
+      (record.estado_asistencia === 'Desistió' || record.estado_asistencia === 'Baja'),
   );
 
   const motive = participant.motivo_desercion || desertionRecord?.motivo_desercion;
@@ -125,7 +127,7 @@ export const validateClosureRequirements = ({
   const sessionFinished =
     isFinishedByDate(session) || CLOSED_READY_STATES.includes(session.estado);
   const attendanceComplete = sessionParticipants.every((participant) =>
-    hasValidAttendance(participant, sessionAttendance),
+    hasValidAttendance(session, participant, sessionAttendance),
   );
   const participantOutcomeComplete = sessionParticipants.every((participant) =>
     isDeserted(participant, sessionAttendance) || hasValidOutcome(participant),

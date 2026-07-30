@@ -89,9 +89,7 @@ import {
 import { updateSurveyStatusRemote } from './services/surveyService';
 import { APP_NAME } from './constants/app';
 import loginBackgroundVideo from './assets/login-background.mp4';
-
-const TRAINING_DAYS_COUNT = 10;
-const TRAINING_DAYS = Array.from({ length: TRAINING_DAYS_COUNT }, (_, index) => index + 1);
+import { CURRENT_TRAINING_DAYS_COUNT, getTrainingDays, getTrainingDaysCount } from './utils/trainingDays';
 
 const normalizeAttendanceStatus = (status?: string) =>
   (status || '')
@@ -104,6 +102,8 @@ const isPresentAttendance = (status?: string) => ['asistio', 'tardanza'].include
 const isAbsenceAttendance = (status?: string) => normalizeAttendanceStatus(status) === 'falto';
 const isDropoutAttendanceStatus = (status?: string) => ['desistio', 'baja'].includes(normalizeAttendanceStatus(status));
 const isPendingAttendance = (status?: string) => ['pendiente', 'seleccionar', ''].includes(normalizeAttendanceStatus(status));
+const isValidCompletedAttendance = (status?: string) =>
+  ['asistio', 'tardanza', 'falto', 'vacaciones', 'feriado'].includes(normalizeAttendanceStatus(status));
 
 const EMPTY_USERS: User[] = [];
 const EMPTY_SESSIONS: TrainingSession[] = [];
@@ -206,10 +206,11 @@ export default function App() {
     setParticipants(prevParts => {
       let changed = false;
       const updated = prevParts.map(p => {
+        const session = sessions.find((item) => item.id === p.training_session_id);
         const pAttendance = attendance.filter(a => a.participant_id === p.id && a.training_session_id === p.training_session_id);
         const hasConf = confirmations.some(c => c.participant_id === p.id && c.estado_alta === 'Alta confirmada');
         
-        const days = TRAINING_DAYS.map(d => {
+        const days = getTrainingDays(session).map(d => {
           const rec = pAttendance.find(a => a.dia === d);
           return rec ? rec.estado_asistencia : 'Pendiente';
         });
@@ -220,6 +221,8 @@ export default function App() {
           computedStatus = 'Alta confirmada';
         } else if (days.some(isDropoutAttendanceStatus)) {
           computedStatus = 'Desistió';
+        } else if (p.resultado_formacion === 'No apto') {
+          computedStatus = 'Completó capacitación';
         } else if (days.every(isPendingAttendance)) {
           computedStatus = 'Pendiente de gestión';
         } else {
@@ -248,7 +251,7 @@ export default function App() {
 
       return changed ? updated : prevParts;
     });
-  }, [attendance, confirmations]);
+  }, [attendance, confirmations, sessions]);
 
   // --- Auth state ---
   const [activeUser, setActiveUser] = useState<User | null>(() => {
@@ -568,6 +571,7 @@ export default function App() {
       generation_code: trainingIdentifier,
       formador_nombre: fUser ? fUser.nombre : 'Sin formador',
       reclutador_nombre: rUser ? rUser.nombre : 'Sin reclutador',
+      training_days: CURRENT_TRAINING_DAYS_COUNT,
       fecha_creacion: new Date().toISOString()
     };
 
@@ -601,10 +605,11 @@ export default function App() {
 
     setParticipants(prev => [...prev, ...partsWithId]);
 
-    // Automatically prepare attendance records for each day (1 to 5) with imported states or 'Seleccionar'
+    // Automatically prepare attendance records for each required day with imported states or 'Seleccionar'
     const initialAttendanceRecords: AttendanceRecord[] = [];
+    const sessionTrainingDays = getTrainingDays(sessionObj);
     partsWithId.forEach(p => {
-      for (let dayNum = 1; dayNum <= TRAINING_DAYS_COUNT; dayNum++) {
+      for (const dayNum of sessionTrainingDays) {
         let recDate = newSess.fecha_inicio;
         try {
           const baseDate = new Date(newSess.fecha_inicio + 'T12:00:00');
@@ -776,16 +781,19 @@ export default function App() {
     }
 
     const sessionParts = participants.filter(p => p.training_session_id === sessionId);
+    const requiredDays = getTrainingDays(session);
 
-    // 1. Validate attendance for 5 days
+    // 1. Validate attendance for the required days of this training.
     const isAsistenciaCompleta = sessionParts.every(p => {
       const pAtts = attendance.filter(a => a.participant_id === p.id);
       const hasDesistio = pAtts.some(a => a.estado_asistencia === 'Desistió' || a.estado_asistencia === 'Baja') || p.estado_final === 'Desistió';
-      return hasDesistio || pAtts.length === 5;
+      return hasDesistio || requiredDays.every((day) =>
+        isValidCompletedAttendance(pAtts.find((record) => record.dia === day)?.estado_asistencia),
+      );
     });
 
     if (!isAsistenciaCompleta && userRol !== 'Administrador') {
-      alert('No se puede cerrar la capacitación: Falta completar el registro de asistencia de los 10 días para todos los participantes activos.');
+      alert(`No se puede cerrar la capacitación: Falta completar el registro de asistencia de los ${requiredDays.length} días para todos los participantes activos.`);
       return;
     }
 
@@ -830,6 +838,11 @@ export default function App() {
       }
       return s;
     }));
+
+    void updateTraining(sessionId, { estado: 'Capacitación cerrada' }).catch((error) => {
+      console.error('Error closing training:', error);
+      alert(error instanceof Error ? error.message : 'No se pudo guardar el cierre de la capacitación.');
+    });
 
     const sessionIdentifier = session.generation_code || session.nombre_generacion;
 
@@ -891,9 +904,10 @@ export default function App() {
     session: TrainingSession | undefined,
     participantIds: string[],
   ): AttendanceRecord[] => {
-    if (!isDropoutAttendance(baseRecord.estado_asistencia) || baseRecord.dia >= TRAINING_DAYS_COUNT) return [];
+    const trainingDaysCount = getTrainingDaysCount(session);
+    if (!isDropoutAttendance(baseRecord.estado_asistencia) || baseRecord.dia >= trainingDaysCount) return [];
     const now = new Date().toISOString();
-    const futureDays = Array.from({ length: TRAINING_DAYS_COUNT - baseRecord.dia }, (_, index) => baseRecord.dia + index + 1);
+    const futureDays = Array.from({ length: trainingDaysCount - baseRecord.dia }, (_, index) => baseRecord.dia + index + 1);
 
     return participantIds.flatMap((participantId) =>
       futureDays.map((day) => {
@@ -1008,7 +1022,7 @@ export default function App() {
     evidencia_imagen?: string
   ) => {
     const sess = sessions.find(s => s.id === sId);
-    const date = new Date().toISOString().split('T')[0];
+    const date = getTrainingDayDate(sess, dia);
 
     const newRecords: AttendanceRecord[] = pIds.map(pId => {
       const existingIdx = attendance.findIndex(a => a.participant_id === pId && a.dia === dia);
@@ -1103,7 +1117,7 @@ export default function App() {
       motivo_no_apt: outcome === 'No apto' ? reason : '',
       evaluacion_nota: evaluationScore ?? null,
       observacion_evaluacion: evaluationObservation,
-      estado_final: outcome === 'Apto' ? 'Pendiente de alta' : (outcome === 'No apto' ? 'Desistió' : part.estado_final)
+      estado_final: outcome === 'Apto' ? 'Pendiente de alta' : (outcome === 'No apto' ? 'Completó capacitación' : part.estado_final)
     };
     void persistParticipant(nextParticipant).catch((error) => {
       console.error('Error persisting participant outcome:', error);
@@ -1560,8 +1574,9 @@ export default function App() {
         .filter((participant) => !sessionParticipants.some((item) => item.id === participant.id))
         .map((participant) => participant.id),
     );
+    const sessionTrainingDays = getTrainingDays(session);
     const createdAttendance = created.filter((participant) => newIds.has(participant.id)).flatMap((participant) =>
-      TRAINING_DAYS.map((day) => {
+      sessionTrainingDays.map((day) => {
         const date = new Date(`${session.fecha_inicio}T12:00:00`);
         date.setDate(date.getDate() + day - 1);
         return {

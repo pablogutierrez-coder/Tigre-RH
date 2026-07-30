@@ -35,6 +35,7 @@ import {
   Award
 } from 'lucide-react';
 import { TrainingSession, Participant, AttendanceRecord, OperationConfirmation, AttendanceReopenRequest } from '../types';
+import { getTrainingDaysCount, LEGACY_TRAINING_DAYS_COUNT } from '../utils/trainingDays';
 
 interface DashboardProps {
   sessions: TrainingSession[];
@@ -45,10 +46,6 @@ interface DashboardProps {
   trainers: { id: string; nombre: string }[];
   recruiters: { id: string; nombre: string }[];
 }
-
-const TRAINING_DAYS_COUNT = 10;
-const TRAINING_DAYS = Array.from({ length: TRAINING_DAYS_COUNT }, (_, index) => index + 1);
-const LAST_TRAINING_DAY = TRAINING_DAYS_COUNT;
 
 const normalizeAttendanceStatus = (status?: string) =>
   (status || '')
@@ -111,6 +108,7 @@ export default function Dashboard({
   }, [sessions, filterCampaña, filterFormador, filterConvocatoria, filterGeneracion, filterFecha]);
 
   const filteredSessionIds = useMemo(() => new Set(filteredSessions.map(s => s.id)), [filteredSessions]);
+  const filteredSessionById = useMemo(() => new Map(filteredSessions.map(s => [s.id, s])), [filteredSessions]);
 
   // Filtered Participants
   const filteredParticipants = useMemo(() => {
@@ -144,7 +142,8 @@ export default function Dashboard({
     filteredAttendance.forEach(a => {
       if (isPresentAttendance(a.estado_asistencia)) {
         if (a.dia === 1) d1Attendants.add(a.participant_id);
-        if (a.dia === LAST_TRAINING_DAY) lastDayAttendants.add(a.participant_id);
+        const session = filteredSessionById.get(a.training_session_id);
+        if (session && a.dia === getTrainingDaysCount(session)) lastDayAttendants.add(a.participant_id);
       }
     });
 
@@ -195,17 +194,21 @@ export default function Dashboard({
       reqAprobadas,
       reqRechazadas
     };
-  }, [filteredParticipants, filteredAttendance, filteredConfirmations, reopens]);
+  }, [filteredParticipants, filteredAttendance, filteredConfirmations, filteredSessionById, reopens]);
 
   // 1. Embudo (Funnel) Data
   const funnelData = useMemo(() => {
     const total = metrics.totalCargados;
 
     // Calculate attendants per day
-    const dayCounts = Array.from({ length: TRAINING_DAYS_COUNT }, () => 0);
+    const maxTrainingDays = Math.max(LEGACY_TRAINING_DAYS_COUNT, ...filteredSessions.map((session) => getTrainingDaysCount(session)));
+    const funnelDays = Array.from({ length: maxTrainingDays }, (_, index) => index + 1);
+    const dayCounts = Array.from({ length: maxTrainingDays }, () => 0);
     filteredAttendance.forEach(a => {
       if (isPresentAttendance(a.estado_asistencia)) {
-        if (a.dia >= 1 && a.dia <= LAST_TRAINING_DAY) {
+        const session = filteredSessionById.get(a.training_session_id);
+        const sessionDays = getTrainingDaysCount(session);
+        if (a.dia >= 1 && a.dia <= sessionDays) {
           dayCounts[a.dia - 1]++;
         }
       }
@@ -214,14 +217,14 @@ export default function Dashboard({
     const colors = ['#3b82f6', '#06b6d4', '#14b8a6', '#10b981', '#84cc16', '#22c55e', '#0ea5e9', '#8b5cf6', '#a855f7', '#ec4899'];
     return [
       { name: 'Cargados', valor: total, fill: '#6366f1' },
-      ...TRAINING_DAYS.map((day, index) => ({
-        name: `Asist. Dia ${day}`,
+      ...funnelDays.map((day, index) => ({
+        name: `Asist. Día ${day}`,
         valor: dayCounts[index],
         fill: colors[index] || '#3b82f6',
       })),
       { name: 'Altas Conf.', valor: metrics.altasConfirmadas, fill: '#ec4899' },
     ];
-  }, [metrics, filteredAttendance]);
+  }, [metrics, filteredAttendance, filteredSessions, filteredSessionById]);
 
   // 2. Comparativo por Campaña
   const campañaData = useMemo(() => {
@@ -235,24 +238,25 @@ export default function Dashboard({
       const total = campParts.length;
       const desistidos = campParts.filter(p => p.estado_final === 'Desistió').length;
       const d1 = new Set();
-      const d5 = new Set();
+      const lastDay = new Set();
 
       attendance.forEach(a => {
         if (campPartIds.has(a.participant_id) && isPresentAttendance(a.estado_asistencia)) {
+          const session = campSessions.find((item) => item.id === a.training_session_id);
           if (a.dia === 1) d1.add(a.participant_id);
-          if (a.dia === LAST_TRAINING_DAY) d5.add(a.participant_id);
+          if (session && a.dia === getTrainingDaysCount(session)) lastDay.add(a.participant_id);
         }
       });
 
       const altas = validConfirmations.filter(c => campPartIds.has(c.participant_id) && c.estado_alta === 'Alta confirmada').length;
-      const retencion = d1.size > 0 ? Math.round((d5.size / d1.size) * 100) : 0;
-      const conversion = d5.size > 0 ? Math.round((altas / d5.size) * 100) : 0;
+      const retencion = d1.size > 0 ? Math.round((lastDay.size / d1.size) * 100) : 0;
+      const conversion = lastDay.size > 0 ? Math.round((altas / lastDay.size) * 100) : 0;
 
       return {
         name: camp,
         Cargados: total,
         'Asist. Día 1': d1.size,
-        'Asist. Día 10': d5.size,
+        'Asist. Día final': lastDay.size,
         Desistidos: desistidos,
         Altas: altas,
         'Retención %': retencion,
@@ -271,21 +275,22 @@ export default function Dashboard({
 
       const total = tParts.length;
       const desistidos = tParts.filter(p => p.estado_final === 'Desistió').length;
-      const d5 = new Set();
+      const lastDay = new Set();
 
       attendance.forEach(a => {
         if (tPartIds.has(a.participant_id) && isPresentAttendance(a.estado_asistencia)) {
-          if (a.dia === LAST_TRAINING_DAY) d5.add(a.participant_id);
+          const session = trainerSessions.find((item) => item.id === a.training_session_id);
+          if (session && a.dia === getTrainingDaysCount(session)) lastDay.add(a.participant_id);
         }
       });
 
       const altas = validConfirmations.filter(c => tPartIds.has(c.participant_id) && c.estado_alta === 'Alta confirmada').length;
-      const efectividad = d5.size > 0 ? Math.round((altas / d5.size) * 100) : 0;
+      const efectividad = lastDay.size > 0 ? Math.round((altas / lastDay.size) * 100) : 0;
 
       return {
         name: t.nombre.split(' ')[0] + ' ' + (t.nombre.split(' ')[1] || ''), // Short name
         Asignados: total,
-        Completados: d5.size,
+        Completados: lastDay.size,
         Deserciones: desistidos,
         Altas: altas,
         'Efectividad %': efectividad
@@ -513,10 +518,10 @@ export default function Dashboard({
           <div className="absolute inset-x-0 top-0 h-1 bg-cyan-500"></div>
           <div className="flex justify-between items-start">
             <div>
-              <p className="text-slate-400 font-medium text-xs uppercase tracking-wider">Día 10 / Dia 1</p>
+              <p className="text-slate-400 font-medium text-xs uppercase tracking-wider">Día final / Día 1</p>
               <h3 className="text-slate-900 text-3xl font-black mt-1">{metrics.ultimoDiaVsDia1}%</h3>
               <p className="text-xs text-emerald-600 font-medium mt-1">
-                {metrics.asistieronUltimoDia} de {metrics.asistieronDia1} llegaron al Día 10
+                {metrics.asistieronUltimoDia} de {metrics.asistieronDia1} llegaron al último día
               </p>
             </div>
             <div className="bg-cyan-50 rounded-xl p-2.5 text-cyan-600 border border-cyan-100">
@@ -530,7 +535,7 @@ export default function Dashboard({
           <div className="absolute inset-x-0 top-0 h-1 bg-fuchsia-500"></div>
           <div className="flex justify-between items-start">
             <div>
-              <p className="text-slate-400 font-medium text-xs uppercase tracking-wider">Altas / Día 10</p>
+              <p className="text-slate-400 font-medium text-xs uppercase tracking-wider">Altas / Día final</p>
               <h3 className="text-slate-900 text-3xl font-black mt-1">{metrics.altasVsUltimoDia}%</h3>
               <p className="text-xs text-fuchsia-600 font-medium mt-1">
                 {metrics.altasConfirmadas} altas confirmadas
@@ -633,7 +638,7 @@ export default function Dashboard({
                 <Legend iconSize={10} wrapperStyle={{ fontSize: 11 }} />
                 <Bar dataKey="Cargados" fill="#818cf8" radius={[4, 4, 0, 0]} />
                 <Bar dataKey="Asist. Día 1" fill="#3b82f6" radius={[4, 4, 0, 0]} />
-                <Bar dataKey="Asist. Día 10" fill="#10b981" radius={[4, 4, 0, 0]} />
+                <Bar dataKey="Asist. Día final" fill="#10b981" radius={[4, 4, 0, 0]} />
                 <Bar dataKey="Altas" fill="#ec4899" radius={[4, 4, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
@@ -741,7 +746,7 @@ export default function Dashboard({
           <div className="flex justify-between items-center mb-4">
             <h3 className="text-slate-800 font-bold text-base flex items-center gap-1.5">
               <Award className="text-emerald-600 w-4.5 h-4.5" />
-              Resultados de Calificación (Día 10)
+              Resultados de Calificación
             </h3>
             <span className="text-slate-400 text-xs font-mono">Aptitud</span>
           </div>
@@ -750,7 +755,7 @@ export default function Dashboard({
             {metrics.totalConResultado === 0 ? (
               <div className="text-center text-slate-400 py-10">
                 <p className="text-sm">No se registran calificaciones de aptitud todavía</p>
-                <p className="text-[11px] text-slate-400 mt-1">Marque Apto/No apto en el Día 10 de asistencia</p>
+                <p className="text-[11px] text-slate-400 mt-1">Registre nota o marque Apto/No apto para participantes activos</p>
               </div>
             ) : (
               <ResponsiveContainer width="100%" height={220}>

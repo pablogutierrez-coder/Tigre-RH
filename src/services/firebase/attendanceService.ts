@@ -2,6 +2,7 @@
 import { FDR_COLLECTIONS } from '../../constants/firebaseCollections';
 import { db } from '../../lib/firebase';
 import type { AttendanceRecord, AttendanceStatus, Participant } from '../../types';
+import { getTrainingDays } from '../../utils/trainingDays';
 import {
   createDocumentWithId,
   getCollectionDocuments,
@@ -12,6 +13,9 @@ const VALID_ATTENDANCE_STATUSES: AttendanceStatus[] = [
   'Tardanza',
   'Faltó',
   'Desistió',
+  'Baja',
+  'Vacaciones',
+  'Feriado',
 ];
 
 export const NEUTRAL_ATTENDANCE_STATUSES: AttendanceStatus[] = [
@@ -61,6 +65,7 @@ export const validateAttendanceComplete = (
   sessionId: string,
   participants: Participant[],
   attendance: AttendanceRecord[] = [],
+  session?: { training_days?: 5 | 10 },
 ) => {
   const sessionParticipants = participants.filter(
     (participant) => participant.training_session_id === sessionId,
@@ -74,11 +79,11 @@ export const validateAttendanceComplete = (
     );
 
     const hasDesertion = records.some(
-      (record) => record.estado_asistencia === 'Desistió',
+      (record) => record.estado_asistencia === 'Desistió' || record.estado_asistencia === 'Baja',
     );
     if (hasDesertion) return true;
 
-    return Array.from({ length: 10 }, (_, index) => index + 1).every((day) =>
+    return getTrainingDays(session).every((day) =>
       isValidAttendanceStatus(
         records.find((record) => record.dia === day)?.estado_asistencia,
       ),
@@ -96,6 +101,7 @@ export const getAttendanceSummary = async (sessionId: string) => {
       if (record.estado_asistencia === 'Desistió') summary.desistio += 1;
       if (record.estado_asistencia === 'Baja') summary.desistio += 1;
       if (record.estado_asistencia === 'Vacaciones') summary.vacaciones += 1;
+      if (record.estado_asistencia === 'Feriado') summary.vacaciones += 1;
       return summary;
     },
     { asistio: 0, tardanza: 0, falto: 0, desistio: 0, vacaciones: 0 },

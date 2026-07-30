@@ -27,6 +27,7 @@ import {
 } from 'lucide-react';
 import { TrainingSession, Participant, User as AppUser, AttendanceStatus, AttendanceRecord, TrainingSurvey, SurveyResponse } from '../types';
 import { permissions } from '../utils/permissions';
+import { getTrainingDays, getTrainingDaysCount } from '../utils/trainingDays';
 
 interface CapacitacionesProps {
   sessions: TrainingSession[];
@@ -164,6 +165,7 @@ export default function Capacitaciones({
     }
 
     const sessionId = sessionToClose.id;
+    const requiredDays = getTrainingDays(sessionToClose);
 
     // Condition 1: Asistencia completa
     const checkAttendanceDay = (p: Participant, day: number) => {
@@ -178,11 +180,11 @@ export default function Capacitaciones({
       if (!status || status === 'Seleccionar' || status === 'Pendiente' || (status as string) === 'Marcar' || (status as string) === '') {
         return false;
       }
-      return ['Asistió', 'Faltó', 'Tardanza', 'Desistió', 'Baja'].includes(status);
+      return ['Asistió', 'Faltó', 'Tardanza', 'Desistió', 'Baja', 'Vacaciones', 'Feriado'].includes(status);
     };
 
     const isAttendanceComplete = sessionParts.length > 0 && sessionParts.every(p => {
-      return Array.from({ length: 10 }, (_, index) => index + 1).every(d => checkAttendanceDay(p, d));
+      return requiredDays.every(d => checkAttendanceDay(p, d));
     });
 
     // Condition 2: Resultado de formación completo
@@ -220,7 +222,11 @@ export default function Capacitaciones({
       if (p.estado_final === 'Desistió' || p.estado_final === 'No asistió') {
         return false;
       }
-      const pAttendance = attendance.filter(a => a.participant_id === p.id && a.training_session_id === sessionId);
+      const pAttendance = attendance.filter(a =>
+        a.participant_id === p.id &&
+        a.training_session_id === sessionId &&
+        requiredDays.includes(a.dia)
+      );
       if (pAttendance.length === 0) return true;
       const presentCount = pAttendance.filter(
         a => a.estado_asistencia === 'Asistió' || a.estado_asistencia === 'Tardanza'
@@ -257,6 +263,7 @@ export default function Capacitaciones({
 
     const sParts = participants.filter(p => p.training_session_id === session.id);
 
+    const requiredDays = getTrainingDays(session);
     const checkAttendanceDay = (p: Participant, day: number) => {
       const pAtts = attendance.filter(a => a.participant_id === p.id && a.training_session_id === session.id);
       const desistedDays = pAtts.filter(a => a.estado_asistencia === 'Desistió' || a.estado_asistencia === 'Baja').map(a => a.dia);
@@ -265,10 +272,10 @@ export default function Capacitaciones({
       if (!record) return false;
       const status = record.estado_asistencia;
       if (!status || status === 'Seleccionar' || status === 'Pendiente' || (status as string) === 'Marcar' || (status as string) === '') return false;
-      return ['Asistió', 'Faltó', 'Tardanza', 'Desistió', 'Baja'].includes(status);
+      return ['Asistió', 'Faltó', 'Tardanza', 'Desistió', 'Baja', 'Vacaciones', 'Feriado'].includes(status);
     };
 
-    const isAttendanceComplete = sParts.length > 0 && sParts.every(p => Array.from({ length: 10 }, (_, index) => index + 1).every(d => checkAttendanceDay(p, d)));
+    const isAttendanceComplete = sParts.length > 0 && sParts.every(p => requiredDays.every(d => checkAttendanceDay(p, d)));
 
     const isResultadoFormacionCompleto = sParts.length > 0 && sParts.every(p => {
       if (p.estado_final === 'Desistió' || p.estado_final === 'No asistió') return true;
@@ -285,7 +292,11 @@ export default function Capacitaciones({
     const survey = surveys.find(s => s.training_session_id === session.id);
     const isHabilitado = (p: Participant) => {
       if (p.estado_final === 'Desistió' || p.estado_final === 'No asistió') return false;
-      const pAttendance = attendance.filter(a => a.participant_id === p.id && a.training_session_id === session.id);
+      const pAttendance = attendance.filter(a =>
+        a.participant_id === p.id &&
+        a.training_session_id === session.id &&
+        requiredDays.includes(a.dia)
+      );
       if (pAttendance.length === 0) return true;
       const presentCount = pAttendance.filter(a => a.estado_asistencia === 'Asistió' || a.estado_asistencia === 'Tardanza').length;
       return Math.round((presentCount / pAttendance.length) * 100) >= 80;
@@ -2327,7 +2338,7 @@ export default function Capacitaciones({
                         </span>
                       </h4>
                       <p className="text-slate-500 text-[11px] mt-1">
-                        Cada participante registrado en esta generación debe contar con su marca de asistencia correspondiente para los 5 días de capacitación (o marca de deserción oportuna).
+                        Cada participante registrado en esta generación debe contar con su marca de asistencia correspondiente para los {getTrainingDaysCount(sessionToClose)} días de capacitación (o marca de deserción oportuna).
                       </p>
                     </div>
                   </div>
