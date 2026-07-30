@@ -1,4 +1,4 @@
-/**
+﻿/**
  * @license
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -54,24 +54,24 @@ const DEMO_CSV_TEMPLATES = [
   {
     name: 'Plantilla Ideal (Columnas Exactas)',
     data: `DNI,nombres,apellidos,celular,correo,puesto,fuente_reclutamiento,observacion
-44112233,Mateo,Pérez Rojas,988112233,mateo.perez@gmail.com,Asesor BPO,Computrabajo,Postulante idóneo
+44112233,Mateo,P?rez Rojas,988112233,mateo.perez@gmail.com,Asesor BPO,Computrabajo,Postulante id?neo
 44112244,Gabriela,Flores Solano,988112244,gaby.flores@outlook.com,Asesor BPO,Indeed,Tiene experiencia
-44112255,César Augusto,Vela Palomino,988112255,cesar.vela@gmail.com,Asesor BPO,Facebook,Excelente actitud`
+44112255,C?sar Augusto,Vela Palomino,988112255,cesar.vela@gmail.com,Asesor BPO,Facebook,Excelente actitud`
   },
   {
     name: 'Plantilla con Nombres Diferentes (Mapear Columnas)',
-    data: `Documento;Nombre completo;Teléfono;Email;Cargo;Origen;Comentario
-55112211;María Fe Mendoza;912345678;maria.fe@gmail.com;Ejecutivo de Cuentas;Referido;Inglés intermedio
+    data: `Documento;Nombre completo;Tel?fono;Email;Cargo;Origen;Comentario
+55112211;Mar?a Fe Mendoza;912345678;maria.fe@gmail.com;Ejecutivo de Cuentas;Referido;Ingl?s intermedio
 55112222;Leonardo Silva Alva;912345679;leo.silva@hotmail.com;Ejecutivo de Cuentas;Computrabajo;Proactivo
-55112233;Patricia Luna Santillán;912345680;paty.luna@gmail.com;Ejecutivo de Cuentas;Facebook Ads;Reingreso`
+55112233;Patricia Luna Santill?n;912345680;paty.luna@gmail.com;Ejecutivo de Cuentas;Facebook Ads;Reingreso`
   },
   {
-    name: 'Plantilla con Errores y Duplicados (Prueba de Validación)',
+    name: 'Plantilla con Errores y Duplicados (Prueba de Validaci?n)',
     data: `DNI,nombres,apellidos,celular,correo,puesto,fuente_reclutamiento,observacion
-12121212,Juan,Ríos,900000001,juan.rios@gmail.com,Analista,Indeed,Registro correcto
-12121212,Juan,Ríos,900000001,juan.rios@gmail.com,Analista,Indeed,Duplicado detectado por DNI
-,Sin DNI,Persona,900000002,no-dni@gmail.com,Analista,Referido,DNI vacío (Error)
-99999999,Sofía,,900000003,sofia@gmail.com,Analista,Computrabajo,Sin Apellidos (Válido con alerta)`
+12121212,Juan,R?os,900000001,juan.rios@gmail.com,Analista,Indeed,Registro correcto
+12121212,Juan,R?os,900000001,juan.rios@gmail.com,Analista,Indeed,Duplicado detectado por DNI
+,Sin DNI,Persona,900000002,no-dni@gmail.com,Analista,Referido,DNI vac?o (Error)
+99999999,Sof?a,,900000003,sofia@gmail.com,Analista,Computrabajo,Sin Apellidos (V?lido con alerta)`
   }
 ];
 
@@ -117,7 +117,7 @@ export default function Capacitaciones({
   const [reclutadorId, setReclutadorId] = useState(
     currentUser.rol === 'Reclutador' ? currentUser.id : '',
   );
-  const [modalidad, setModalidad] = useState<'Presencial' | 'Virtual' | 'Híbrida'>('Presencial');
+  const [modalidad, setModalidad] = useState<'Presencial' | 'Virtual' | 'H?brida'>('Presencial');
   const [turno, setTurno] = useState<'Part time' | 'Full time' | 'Mini full'>('Full time');
   const [horaCapacitacion, setHoraCapacitacion] = useState('08:00');
   const [observaciones, setObservaciones] = useState('');
@@ -182,7 +182,7 @@ export default function Capacitaciones({
     };
 
     const isAttendanceComplete = sessionParts.length > 0 && sessionParts.every(p => {
-      return [1, 2, 3, 4, 5].every(d => checkAttendanceDay(p, d));
+      return Array.from({ length: 10 }, (_, index) => index + 1).every(d => checkAttendanceDay(p, d));
     });
 
     // Condition 2: Resultado de formación completo
@@ -209,7 +209,7 @@ export default function Capacitaciones({
       return true;
     });
 
-    // Condition 3: Encuesta de satisfacción completada
+    // Condition 3: Encuesta de satisfacci?n completada
     const survey = surveys.find(s => s.training_session_id === sessionId);
     const surveyCreated = !!survey;
     const surveyEnabledOrClosed = survey ? (survey.estado === 'Habilitada' || survey.estado === 'Cerrada') : false;
@@ -268,7 +268,7 @@ export default function Capacitaciones({
       return ['Asistió', 'Faltó', 'Tardanza', 'Desistió', 'Baja'].includes(status);
     };
 
-    const isAttendanceComplete = sParts.length > 0 && sParts.every(p => [1, 2, 3, 4, 5].every(d => checkAttendanceDay(p, d)));
+    const isAttendanceComplete = sParts.length > 0 && sParts.every(p => Array.from({ length: 10 }, (_, index) => index + 1).every(d => checkAttendanceDay(p, d)));
 
     const isResultadoFormacionCompleto = sParts.length > 0 && sParts.every(p => {
       if (p.estado_final === 'Desistió' || p.estado_final === 'No asistió') return true;
@@ -303,7 +303,7 @@ export default function Capacitaciones({
       onAuditLog(
         'Intento de cierre de capacitación',
         'Control de asistencia',
-        `El formador inició el proceso de cierre para la capacitación "${getTrainingIdentifier(session)}".`,
+        `El formador inici? el proceso de cierre para la capacitación "${getTrainingIdentifier(session)}".`,
         session.campaña,
         getTrainingIdentifier(session)
       );
@@ -312,9 +312,9 @@ export default function Capacitaciones({
     // Log 2: Sistema valida requisitos de cierre
     if (onAuditLog) {
       onAuditLog(
-        'Validación de requisitos de cierre',
+        'Validaci?n de requisitos de cierre',
         'Control de asistencia',
-        `El sistema evaluó los requisitos. Asistencia: ${isAttendanceComplete ? 'COMPLETO' : 'PENDIENTE'}, Resultado: ${isResultadoFormacionCompleto ? 'COMPLETO' : 'PENDIENTE'}, Comentarios: ${isCommentsComplete ? 'COMPLETO' : 'PENDIENTE'}, Encuesta: ${isSurveyComplete ? 'COMPLETO' : 'PENDIENTE'}, Aptos: ${isAptosDefined ? 'COMPLETO' : 'PENDIENTE'}.`,
+        `El sistema evalu? los requisitos. Asistencia: ${isAttendanceComplete ? 'COMPLETO' : 'PENDIENTE'}, Resultado: ${isResultadoFormacionCompleto ? 'COMPLETO' : 'PENDIENTE'}, Comentarios: ${isCommentsComplete ? 'COMPLETO' : 'PENDIENTE'}, Encuesta: ${isSurveyComplete ? 'COMPLETO' : 'PENDIENTE'}, Aptos: ${isAptosDefined ? 'COMPLETO' : 'PENDIENTE'}.`,
         session.campaña,
         session.nombre_generacion
       );
@@ -325,7 +325,7 @@ export default function Capacitaciones({
       onAuditLog(
         'Intento de cierre con pendientes',
         'Control de asistencia',
-        `El formador visualizó los requisitos pendientes de cierre para la capacitación "${getTrainingIdentifier(session)}".`,
+        `El formador visualiz? los requisitos pendientes de cierre para la capacitación "${getTrainingIdentifier(session)}".`,
         session.campaña,
         getTrainingIdentifier(session)
       );
@@ -356,7 +356,7 @@ export default function Capacitaciones({
       onAuditLog(
         'Reapertura de capacitación',
         'Registro de Capacitaciones',
-        `Se reabrió la capacitación "${getTrainingIdentifier(sessionToReopen)}". Motivo de reapertura: "${reopenReason.trim()}".`,
+        `Se reabri? la capacitación "${getTrainingIdentifier(sessionToReopen)}". Motivo de reapertura: "${reopenReason.trim()}".`,
         sessionToReopen.campaña,
         getTrainingIdentifier(sessionToReopen)
       );
@@ -501,7 +501,7 @@ export default function Capacitaciones({
       onAuditLog(
         'Cambio de campaña antes de guardar',
         'Registro de capacitaciones',
-        `Se cambió la campaña de "${oldCamp}" a "${newCamp}" en el formulario de creación. El código se recalculó automáticamente a "${recalculatedCode}".`,
+        `Se cambi? la campaña de "${oldCamp}" a "${newCamp}" en el formulario de creaci?n. El c?digo se recalcul? autom?ticamente a "${recalculatedCode}".`,
         newCamp,
         recalculatedCode
       );
@@ -527,7 +527,7 @@ export default function Capacitaciones({
     if (!editingSession) return;
     const nextTrainingIdentifier = currentUser.rol === 'Administrador' ? editManualGenerationCode.trim() : editDisplayedCode;
     if (!nextTrainingIdentifier) {
-      alert('El código de generación es obligatorio.');
+      alert('El c?digo de generaci?n es obligatorio.');
       return;
     }
     if (onUpdateSession) {
@@ -557,7 +557,7 @@ export default function Capacitaciones({
   // Smart Excel/CSV auto-detect, normalize, and validate engine
   const processExcelRows = (rows: any[][], fileName: string) => {
     if (rows.length === 0) {
-      alert('El archivo cargado está vacío.');
+      alert('El archivo cargado está vac?o.');
       return;
     }
 
@@ -577,7 +577,7 @@ export default function Capacitaciones({
     // 2. Scan rows to find the one with the most matching target headers
     const targetHeaders = [
       'reclutador', 'coordinador', 'ciudad', 'dni', 'nombres completos', 'nombre completo',
-      'teléfono', 'telefono', 'celular', 'puesto', 'sueldo', 'pruebas psicológicas', 'pruebas psicologicas',
+      'tel?fono', 'telefono', 'celular', 'puesto', 'sueldo', 'pruebas psicol?gicas', 'pruebas psicologicas',
       'entrevista sup', 'capacitación', 'capacitacion', 'formador',
       'asistencia d1', 'asistencia d2', 'asistencia d3', 'asistencia d4', 'asistencia d5'
     ];
@@ -642,7 +642,7 @@ export default function Capacitaciones({
       } else if (hLower === 'ciudad') {
         field = 'ciudad';
         label = 'Ciudad';
-      } else if (hLower === 'dni' || hLower === 'documento' || hLower === 'nro documento' || hLower === 'número de documento' || hLower === 'identificación' || hLower === 'cedula' || hLower === 'id') {
+      } else if (hLower === 'dni' || hLower === 'documento' || hLower === 'nro documento' || hLower === 'n?mero de documento' || hLower === 'identificaci?n' || hLower === 'cedula' || hLower === 'id') {
         field = 'dni';
         label = 'DNI';
       } else if (hLower === 'nombres completos' || hLower === 'nombre completo' || hLower === 'postulante' || hLower === 'nombre_completo') {
@@ -654,10 +654,10 @@ export default function Capacitaciones({
       } else if (hLower === 'apellidos' || hLower === 'apellido') {
         field = 'apellidos';
         label = 'Apellidos';
-      } else if (hLower === 'teléfono' || hLower === 'telefono' || hLower === 'celular' || hLower === 'cel' || hLower === 'phone' || hLower === 'contacto') {
+      } else if (hLower === 'tel?fono' || hLower === 'telefono' || hLower === 'celular' || hLower === 'cel' || hLower === 'phone' || hLower === 'contacto') {
         field = 'telefono';
-        label = 'Teléfono';
-      } else if (hLower === 'correo' || hLower === 'email' || hLower === 'e-mail' || hLower === 'correo electronico' || hLower === 'correo electrónico') {
+        label = 'Tel?fono';
+      } else if (hLower === 'correo' || hLower === 'email' || hLower === 'e-mail' || hLower === 'correo electronico' || hLower === 'correo electr?nico') {
         field = 'correo';
         label = 'Correo';
       } else if (hLower === 'puesto' || hLower === 'cargo' || hLower === 'rol' || hLower === 'position') {
@@ -666,9 +666,9 @@ export default function Capacitaciones({
       } else if (hLower === 'sueldo') {
         field = 'sueldo';
         label = 'Sueldo';
-      } else if (hLower === 'pruebas psicológicas' || hLower === 'pruebas psicologicas') {
+      } else if (hLower === 'pruebas psicol?gicas' || hLower === 'pruebas psicologicas') {
         field = 'estado_pruebas_psicologicas';
-        label = 'Pruebas psicológicas';
+        label = 'Pruebas psicol?gicas';
       } else if (hLower === 'capacitación' || hLower === 'capacitacion') {
         field = 'fecha_capacitacion';
         label = 'Fecha capacitación';
@@ -689,7 +689,7 @@ export default function Capacitaciones({
         label = 'Asistencia Día 4';
       } else if (hLower === 'asistencia d5' || hLower === 'asistencia_dia_5' || hLower === 'd5' || hLower === 'asistencia dia 5') {
         field = 'asistencia_dia_5';
-        label = 'Asistencia Día 5';
+        label = 'Asistencia Día 10';
       } else if (hLower === 'entrevista sup') {
         if (count === 1) {
           field = 'fecha_entrevista_sup';
@@ -820,7 +820,7 @@ export default function Capacitaciones({
     const normalizeTrainer = (name: string): string => {
       const clean = String(name || '').trim().toLowerCase()
         .normalize("NFD").replace(/[\u0300-\u036f]/g, "");
-      if (clean === 'victor reynoso' || clean === 'victor reynoso alva' || clean === 'victor') return 'Víctor Reynoso';
+      if (clean === 'victor reynoso' || clean === 'victor reynoso alva' || clean === 'victor') return 'V?ctor Reynoso';
       if (clean === 'paloma chamillo' || clean === 'paloma') return 'Paloma Chamillo';
       if (clean === 'oscar vildoso' || clean === 'oscar') return 'Oscar Vildoso';
       return name;
@@ -888,16 +888,16 @@ export default function Capacitaciones({
     const interpretAttendance = (val: string, fileRowNumber: number, dayNum: number): AttendanceStatus => {
       const v = String(val || '').trim().toUpperCase();
       if (!v || v === 'NULL' || v === 'UNDEFINED') return 'Seleccionar';
-      if (v === 'A' || v === 'ASISTIÓ' || v === 'ASISTIO') return 'Asistió';
+      if (v === 'A' || v === 'ASISTIÃ“' || v === 'ASISTIO') return 'Asistió';
       if (v === 'T' || v === 'TARDANZA') return 'Tardanza';
-      if (v === 'F' || v === 'FALTÓ' || v === 'FALTO') return 'Faltó';
-      if (v === 'D' || v === 'DESISTIÓ' || v === 'DESISTIO') return 'Desistió';
+      if (v === 'F' || v === 'FALTÃ“' || v === 'FALTO') return 'Faltó';
+      if (v === 'D' || v === 'DESISTIÃ“' || v === 'DESISTIO') return 'Desistió';
       if (v === 'B' || v === 'BAJA') return 'Baja';
       if (v === 'R' || v === 'RETIRO' || v === 'RETIRADO') {
-        errorsList.push(`Fila ${fileRowNumber} - Día ${dayNum}: Se interpretó "R" como "Desistió / Retiro". Verifique o edite en la lista.`);
+        errorsList.push(`Fila ${fileRowNumber} - Día ${dayNum}: Se interpret? "R" como "Desistió / Retiro". Verifique o edite en la lista.`);
         return 'Desistió';
       }
-      errorsList.push(`Fila ${fileRowNumber} - Día ${dayNum}: Valor de asistencia "${val}" no reconocido. Se cargó como "Seleccionar".`);
+      errorsList.push(`Fila ${fileRowNumber} - Día ${dayNum}: Valor de asistencia "${val}" no reconocido. Se carg? como "Seleccionar".`);
       return 'Seleccionar';
     };
 
@@ -906,20 +906,20 @@ export default function Capacitaciones({
 
       // Skip empty lines
       if (row.length === 0 || row.every(cell => !cell.trim())) {
-        errorsList.push(`Fila ${fileRowNumber}: Fila vacía o sin datos.`);
+        errorsList.push(`Fila ${fileRowNumber}: Fila vac?a o sin datos.`);
         errorCount++;
         return;
       }
 
       const dni = dniIdx !== -1 ? row[dniIdx]?.trim() || '' : '';
       if (!dni) {
-        errorsList.push(`Fila ${fileRowNumber}: El campo "DNI" está vacío. Acción: Ingrese un DNI válido.`);
+        errorsList.push(`Fila ${fileRowNumber}: El campo "DNI" está vac?o. Acci?n: Ingrese un DNI v?lido.`);
         errorCount++;
         return;
       }
 
       if (dniSet.has(dni)) {
-        errorsList.push(`Fila ${fileRowNumber}: DNI duplicado dentro del archivo (${dni}). Acción: Elimine el registro duplicado.`);
+        errorsList.push(`Fila ${fileRowNumber}: DNI duplicado dentro del archivo (${dni}). Acci?n: Elimine el registro duplicado.`);
         dupCount++;
         errorCount++;
         return;
@@ -946,7 +946,7 @@ export default function Capacitaciones({
       }
 
       if (!nombres) {
-        errorsList.push(`Fila ${fileRowNumber}: El campo "Nombre Completo" está vacío. Acción: Ingrese nombres válidos.`);
+        errorsList.push(`Fila ${fileRowNumber}: El campo "Nombre Completo" está vac?o. Acci?n: Ingrese nombres v?lidos.`);
         errorCount++;
         return;
       }
@@ -954,9 +954,9 @@ export default function Capacitaciones({
       // Check formador assigned
       const rowFormadorRaw = formadorIdx !== -1 ? row[formadorIdx]?.trim() || '' : '';
       const rowFormadorNormalized = normalizeTrainer(rowFormadorRaw);
-      const isFormadorValido = ['Víctor Reynoso', 'Paloma Chamillo', 'Oscar Vildoso'].includes(rowFormadorNormalized);
+      const isFormadorValido = ['V?ctor Reynoso', 'Paloma Chamillo', 'Oscar Vildoso'].includes(rowFormadorNormalized);
       if (rowFormadorRaw && !isFormadorValido) {
-        errorsList.push(`Fila ${fileRowNumber}: El formador "${rowFormadorRaw}" no es reconocido. Acción: Seleccione uno de la lista válida.`);
+        errorsList.push(`Fila ${fileRowNumber}: El formador "${rowFormadorRaw}" no es reconocido. Acci?n: Seleccione uno de la lista válida.`);
       }
 
       // Map all extra fields
@@ -1059,7 +1059,7 @@ export default function Capacitaciones({
     const fileExtension = file.name.split('.').pop()?.toLowerCase();
     const allowedExtensions = ['xlsx', 'xls', 'xlsm', 'ods', 'csv'];
     if (!fileExtension || !allowedExtensions.includes(fileExtension)) {
-      alert('Formato de archivo no soportado. Formatos válidos: .xlsx, .xls, .xlsm, .ods, .csv');
+      alert('Formato de archivo no soportado. Formatos v?lidos: .xlsx, .xls, .xlsm, .ods, .csv');
       return;
     }
 
@@ -1083,7 +1083,7 @@ export default function Capacitaciones({
         processExcelRows(rows, file.name);
       } catch (err) {
         console.error('Error al leer el archivo:', err);
-        alert('Error al leer el archivo. Asegúrese de que sea un archivo Excel o CSV válido.');
+        alert('Error al leer el archivo. Aseg?rese de que sea un archivo Excel o CSV v?lido.');
       }
     };
     reader.readAsArrayBuffer(file);
@@ -1241,7 +1241,7 @@ export default function Capacitaciones({
           </h2>
           <p className="text-slate-500 text-sm">
             {view === 'list'
-              ? 'Controla las generaciones de capacitación, asignación de formadores y participantes.'
+              ? 'Controla las generaciones de capacitación, asignaci?n de formadores y participantes.'
               : 'Asigna campaña, formador, turno y carga la base inicial de ejecutivos.'}
           </p>
         </div>
@@ -1266,7 +1266,7 @@ export default function Capacitaciones({
                 <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 w-4 h-4" />
                 <input
                   type="text"
-                  placeholder="Buscar generación, campaña..."
+                  placeholder="Buscar generaci?n, campaña..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
                   className="w-full glass-input text-slate-700 rounded-xl pl-10 pr-4 py-2.5 text-sm outline-hidden"
@@ -1369,7 +1369,7 @@ export default function Capacitaciones({
                       <div className="flex items-center gap-2">
                         <Calendar className="w-4 h-4 text-slate-400 shrink-0" />
                         <span>
-                          <strong>Período:</strong> {session.fecha_inicio} al {session.fecha_fin}
+                          <strong>Per?odo:</strong> {session.fecha_inicio} al {session.fecha_fin}
                         </span>
                       </div>
                       <div className="flex items-center gap-2">
@@ -1425,12 +1425,12 @@ export default function Capacitaciones({
                           (currentUser.rol === 'Reclutador' && session.reclutador_id === currentUser.id)) && (
                           <button
                             onClick={() => {
-                              if (confirm(`¿Está seguro de eliminar esta capacitación y sus ${sessionPartsCount} participantes? Esta acción registrará una auditoría.`)) {
+                              if (confirm(`?Est? seguro de eliminar esta capacitación y sus ${sessionPartsCount} participantes? Esta acci?n registrar? una auditor?a.`)) {
                                 onDeleteSession(session.id);
                               }
                             }}
                             className="text-slate-400 hover:text-rose-600 p-2 rounded-lg hover:bg-rose-50 transition-colors cursor-pointer"
-                            title="Eliminar capacitación errónea"
+                            title="Eliminar capacitación err?nea"
                           >
                             <Trash2 className="w-4 h-4" />
                           </button>
@@ -1495,7 +1495,7 @@ export default function Capacitaciones({
             <div className="space-y-4">
               <h4 className="text-slate-800 font-bold text-sm uppercase tracking-wider flex items-center gap-2 border-b border-slate-100 pb-2">
                 <span className="bg-fuchsia-100 text-fuchsia-700 w-6 h-6 rounded-full flex items-center justify-center font-bold text-xs">1</span>
-                Información de Campaña y Asignación
+                Información de Campaña y Asignaci?n
               </h4>
 
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -1590,7 +1590,7 @@ export default function Capacitaciones({
                   >
                     <option value="Presencial">Presencial</option>
                     <option value="Virtual">Virtual</option>
-                    <option value="Híbrida">Híbrida</option>
+                    <option value="H?brida">H?brida</option>
                   </select>
                 </div>
 
@@ -1794,7 +1794,7 @@ export default function Capacitaciones({
 
                   {/* Celular */}
                   <div>
-                    <label className="block text-[11px] font-bold text-slate-600 mb-1">Celular / Teléfono</label>
+                    <label className="block text-[11px] font-bold text-slate-600 mb-1">Celular / Tel?fono</label>
                     <select
                       value={mappingCelular}
                       onChange={(e) => setMappingCelular(e.target.value)}
@@ -1811,7 +1811,7 @@ export default function Capacitaciones({
 
                   {/* Correo */}
                   <div>
-                    <label className="block text-[11px] font-bold text-slate-600 mb-1">Correo Electrónico</label>
+                    <label className="block text-[11px] font-bold text-slate-600 mb-1">Correo Electr?nico</label>
                     <select
                       value={mappingCorreo}
                       onChange={(e) => setMappingCorreo(e.target.value)}
@@ -1902,7 +1902,7 @@ export default function Capacitaciones({
                         <p className="text-xl font-bold text-slate-700">{validationSummary.total}</p>
                       </div>
                       <div className="bg-emerald-50 text-emerald-800 rounded-xl p-3 text-center">
-                        <p className="text-[10px] text-emerald-600 font-semibold uppercase">Registros Válidos</p>
+                        <p className="text-[10px] text-emerald-600 font-semibold uppercase">Registros V?lidos</p>
                         <p className="text-xl font-bold">{validationSummary.valid}</p>
                       </div>
                       <div className="bg-rose-50 text-rose-800 rounded-xl p-3 text-center">
@@ -1928,21 +1928,21 @@ export default function Capacitaciones({
                           ))}
                         </ul>
                         <p className="text-[10px] text-rose-600 mt-2">
-                          * Nota: Solo se cargarán los registros válidos. Puede corregir el archivo y volver a cargarlo, o confirmar solo con los registros válidos.
+                          * Nota: Solo se cargar?n los registros v?lidos. Puede corregir el archivo y volver a cargarlo, o confirmar solo con los registros v?lidos.
                         </p>
                       </div>
                     )}
 
                     {validatedParticipants.length === 0 && (
                       <div className="bg-amber-50 text-amber-900 border border-amber-200 rounded-xl p-4 text-center text-xs">
-                        No se ha ejecutado la validación aún, o no hay registros válidos. Por favor, asigne las columnas arriba y presione <strong className="text-amber-950 font-bold">"Validar Registros Mapeados"</strong>.
+                        No se ha ejecutado la validaci?n aún, o no hay registros v?lidos. Por favor, asigne las columnas arriba y presione <strong className="text-amber-950 font-bold">"Validar Registros Mapeados"</strong>.
                       </div>
                     )}
 
                     {/* Pre-Loaded list preview table */}
                     {validatedParticipants.length > 0 && (
                       <div className="space-y-2">
-                        <p className="text-[11px] font-bold text-slate-700">Participantes que serán agregados a la capacitación:</p>
+                        <p className="text-[11px] font-bold text-slate-700">Participantes que ser?n agregados a la capacitación:</p>
                         <div className="overflow-x-auto max-h-[350px] border border-slate-200 rounded-xl shadow-xs">
                           <table className="w-full text-left text-[11px] text-slate-600 border-collapse min-w-[3200px]">
                             <thead className="bg-slate-900 text-white uppercase text-[9px] tracking-wider sticky top-0 font-bold z-10">
@@ -1952,17 +1952,17 @@ export default function Capacitaciones({
                                 <th className="p-3 bg-slate-900 text-white whitespace-nowrap">Ciudad</th>
                                 <th className="p-3 bg-slate-900 text-white whitespace-nowrap">DNI</th>
                                 <th className="p-3 bg-slate-900 text-white whitespace-nowrap">Nombre Completo</th>
-                                <th className="p-3 bg-slate-900 text-white whitespace-nowrap">Teléfono</th>
+                                <th className="p-3 bg-slate-900 text-white whitespace-nowrap">Tel?fono</th>
                                 <th className="p-3 bg-slate-900 text-white whitespace-nowrap">Puesto</th>
                                 <th className="p-3 bg-slate-900 text-white whitespace-nowrap">Sueldo</th>
-                                <th className="p-3 bg-slate-900 text-white whitespace-nowrap">Pruebas Psicológicas</th>
+                                <th className="p-3 bg-slate-900 text-white whitespace-nowrap">Pruebas Psicol?gicas</th>
                                 <th className="p-3 bg-slate-900 text-white text-center whitespace-nowrap">Fecha Entrevista SUP</th>
                                 <th className="p-3 bg-slate-900 text-white text-center whitespace-nowrap">Resultado Entrevista SUP</th>
                                 <th className="p-3 bg-slate-900 text-white text-center whitespace-nowrap">Fecha Capacitación</th>
                                 <th className="p-3 bg-slate-900 text-white whitespace-nowrap">Formador</th>
                                 
                                 {/* Operational Attendance columns */}
-                                {[1, 2, 3, 4, 5].map(day => (
+                                {Array.from({ length: 10 }, (_, index) => index + 1).map(day => (
                                   <React.Fragment key={day}>
                                     <th className="p-3 bg-indigo-950 text-indigo-200 text-center border-l border-indigo-900">Día {day}</th>
                                     <th className="p-3 bg-indigo-950/90 text-indigo-200">Obs. Día {day}</th>
@@ -2013,7 +2013,7 @@ export default function Capacitaciones({
                                   <td className="p-3 font-medium text-slate-700">{p.formador_asignado || '-'}</td>
                                   
                                   {/* Operational Days defaults */}
-                                  {[1, 2, 3, 4, 5].map(day => {
+                                  {Array.from({ length: 10 }, (_, index) => index + 1).map(day => {
                                     const attKey = `asistencia_dia_${day}` as keyof typeof p;
                                     const obsKey = `observacion_dia_${day}` as keyof typeof p;
                                     const status = (p[attKey] as string) || 'Pendiente';
@@ -2101,7 +2101,7 @@ export default function Capacitaciones({
                 onClick={() => setEditingSession(null)}
                 className="text-white/80 hover:text-white hover:bg-white/10 p-1.5 rounded-lg text-xs"
               >
-                ✕
+                âœ•
               </button>
             </div>
 
@@ -2135,7 +2135,7 @@ export default function Capacitaciones({
 
                 {currentUser.rol === 'Administrador' && (
                   <div className="md:col-span-2">
-                    <label className="block text-xs font-semibold text-slate-600 mb-1">Código de generación *</label>
+                    <label className="block text-xs font-semibold text-slate-600 mb-1">C?digo de generaci?n *</label>
                     <input
                       type="text"
                       value={editManualGenerationCode}
@@ -2253,7 +2253,7 @@ export default function Capacitaciones({
                     onChange={(e) => setEditObservaciones(e.target.value)}
                     rows={2}
                     className="w-full text-sm bg-slate-50 text-slate-700 rounded-xl border border-slate-200 p-2.5 focus:ring-2 focus:ring-indigo-500 outline-hidden"
-                    placeholder="Observaciones de la edición..."
+                    placeholder="Observaciones de la edici?n..."
                   />
                 </div>
               </div>
@@ -2286,14 +2286,14 @@ export default function Capacitaciones({
             <div className="bg-linear-to-r from-purple-700 to-indigo-700 px-6 py-5 text-white flex justify-between items-center">
               <div>
                 <span className="bg-purple-500/30 text-purple-100 font-extrabold text-[9px] uppercase px-2 py-0.5 rounded-full tracking-wider">Cierre de Proceso</span>
-                <h3 className="font-black text-lg text-white mt-1">Validación de Requisitos de Cierre</h3>
+                <h3 className="font-black text-lg text-white mt-1">Validaci?n de Requisitos de Cierre</h3>
                 <p className="text-white/80 text-xs font-mono mt-0.5">{getTrainingIdentifier(sessionToClose)} - {sessionToClose.campaña}</p>
               </div>
               <button
                 onClick={() => setSessionToClose(null)}
                 className="text-white/80 hover:text-white hover:bg-white/10 p-1.5 rounded-lg text-xs"
               >
-                ✕
+                âœ•
               </button>
             </div>
 
@@ -2312,7 +2312,7 @@ export default function Capacitaciones({
                   <div className="flex gap-3">
                     <div className="mt-0.5">
                       {validationDetails.isAttendanceComplete ? (
-                        <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-emerald-100 text-emerald-700 font-black text-xs">✓</span>
+                        <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-emerald-100 text-emerald-700 font-black text-xs">âœ“</span>
                       ) : (
                         <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-amber-100 text-amber-700 font-black text-xs">!</span>
                       )}
@@ -2327,7 +2327,7 @@ export default function Capacitaciones({
                         </span>
                       </h4>
                       <p className="text-slate-500 text-[11px] mt-1">
-                        Cada participante registrado en esta generación debe contar con su marca de asistencia correspondiente para los 5 días de capacitación (o marca de deserción oportuna).
+                        Cada participante registrado en esta generaci?n debe contar con su marca de asistencia correspondiente para los 5 días de capacitación (o marca de deserción oportuna).
                       </p>
                     </div>
                   </div>
@@ -2342,14 +2342,14 @@ export default function Capacitaciones({
                   <div className="flex gap-3">
                     <div className="mt-0.5">
                       {(validationDetails.isResultadoFormacionCompleto && validationDetails.isCommentsComplete) ? (
-                        <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-emerald-100 text-emerald-700 font-black text-xs">✓</span>
+                        <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-emerald-100 text-emerald-700 font-black text-xs">âœ“</span>
                       ) : (
                         <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-amber-100 text-amber-700 font-black text-xs">!</span>
                       )}
                     </div>
                     <div>
                       <h4 className="font-bold text-xs text-slate-800 flex items-center gap-2">
-                        2. Calificación Final de Aptitud y Comentarios
+                        2. Calificaci?n Final de Aptitud y Comentarios
                         <span className={`text-[9px] font-extrabold px-2 py-0.5 rounded-full ${
                           (validationDetails.isResultadoFormacionCompleto && validationDetails.isCommentsComplete) ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'
                         }`}>
@@ -2357,19 +2357,19 @@ export default function Capacitaciones({
                         </span>
                       </h4>
                       <p className="text-slate-500 text-[11px] mt-1">
-                        Todos los participantes que completaron el proceso deben tener definido su resultado final (<strong className="text-slate-700 font-extrabold">Apto</strong> o <strong className="text-slate-700 font-extrabold">No apto</strong>), incluyendo comentarios obligatorios (motivo de no aptitud de mínimo 10 caracteres o comentario de aptitud).
+                        Todos los participantes que completaron el proceso deben tener definido su resultado final (<strong className="text-slate-700 font-extrabold">Apto</strong> o <strong className="text-slate-700 font-extrabold">No apto</strong>), incluyendo comentarios obligatorios (motivo de no aptitud de m?nimo 10 caracteres o comentario de aptitud).
                       </p>
                       {!validationDetails.isResultadoFormacionCompleto && (
-                        <p className="text-rose-600 text-[10px] font-bold mt-1.5">• Existen participantes sin calificar su aptitud.</p>
+                        <p className="text-rose-600 text-[10px] font-bold mt-1.5">? Existen participantes sin calificar su aptitud.</p>
                       )}
                       {validationDetails.isResultadoFormacionCompleto && !validationDetails.isCommentsComplete && (
-                        <p className="text-rose-600 text-[10px] font-bold mt-1.5">• Existen participantes aprobados o reprobados sin su comentario de justificación correspondiente.</p>
+                        <p className="text-rose-600 text-[10px] font-bold mt-1.5">? Existen participantes aprobados o reprobados sin su comentario de justificaci?n correspondiente.</p>
                       )}
                     </div>
                   </div>
                 </div>
 
-                {/* 3. Encuesta de Satisfacción */}
+                {/* 3. Encuesta de Satisfacci?n */}
                 <div className={`p-4 rounded-2xl border transition-all ${
                   validationDetails.isSurveyComplete 
                     ? 'bg-emerald-50/50 border-emerald-100' 
@@ -2378,14 +2378,14 @@ export default function Capacitaciones({
                   <div className="flex gap-3">
                     <div className="mt-0.5">
                       {validationDetails.isSurveyComplete ? (
-                        <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-emerald-100 text-emerald-700 font-black text-xs">✓</span>
+                        <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-emerald-100 text-emerald-700 font-black text-xs">âœ“</span>
                       ) : (
                         <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-amber-100 text-amber-700 font-black text-xs">!</span>
                       )}
                     </div>
                     <div>
                       <h4 className="font-bold text-xs text-slate-800 flex items-center gap-2">
-                        3. Encuesta de Satisfacción (100% de Aptos)
+                        3. Encuesta de Satisfacci?n (100% de Aptos)
                         <span className={`text-[9px] font-extrabold px-2 py-0.5 rounded-full ${
                           validationDetails.isSurveyComplete ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'
                         }`}>
@@ -2393,7 +2393,7 @@ export default function Capacitaciones({
                         </span>
                       </h4>
                       <p className="text-slate-500 text-[11px] mt-1">
-                        La encuesta de satisfacción debe estar creada, habilitada, y el 100% de los ejecutivos declarados aptos con asistencia del 80% o superior deben haberla completado.
+                        La encuesta de satisfacci?n debe estar creada, habilitada, y el 100% de los ejecutivos declarados aptos con asistencia del 80% o superior deben haberla completado.
                       </p>
                       <div className="mt-2 bg-slate-50 p-2.5 rounded-xl border border-slate-100 text-[11px] text-slate-700 space-y-1">
                         <div className="flex justify-between font-medium">
@@ -2436,14 +2436,14 @@ export default function Capacitaciones({
                   <div className="flex gap-3">
                     <div className="mt-0.5">
                       {validationDetails.isAptosDefined ? (
-                        <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-emerald-100 text-emerald-700 font-black text-xs">✓</span>
+                        <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-emerald-100 text-emerald-700 font-black text-xs">âœ“</span>
                       ) : (
                         <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-amber-100 text-amber-700 font-black text-xs">!</span>
                       )}
                     </div>
                     <div>
                       <h4 className="font-bold text-xs text-slate-800 flex items-center gap-2">
-                        4. Habilitación de Alta en Operaciones
+                        4. Habilitaci?n de Alta en Operaciones
                         <span className={`text-[9px] font-extrabold px-2 py-0.5 rounded-full ${
                           validationDetails.isAptosDefined ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'
                         }`}>
@@ -2451,7 +2451,7 @@ export default function Capacitaciones({
                         </span>
                       </h4>
                       <p className="text-slate-500 text-[11px] mt-1">
-                        Haber culminado la capacitación y preparado el consolidado de aptos que serán asignados para el alta operativa por el área correspondiente.
+                        Haber culminado la capacitación y preparado el consolidado de aptos que ser?n asignados para el alta operativa por el ?rea correspondiente.
                       </p>
                     </div>
                   </div>
@@ -2461,10 +2461,10 @@ export default function Capacitaciones({
               {/* Final Resolution Banner */}
               {closeRequirementsMet ? (
                 <div className="bg-emerald-50 border border-emerald-200 rounded-2xl p-4 flex gap-3 text-emerald-800 text-xs">
-                  <div className="text-base">🎉</div>
+                  <div className="text-base">ðŸŽ‰</div>
                   <div>
-                    <h5 className="font-extrabold">¡Todo en orden!</h5>
-                    <p className="text-emerald-700 mt-0.5 font-medium">Todos los controles de calidad han sido superados con éxito. Puede proceder a realizar el cierre de la capacitación.</p>
+                    <h5 className="font-extrabold">?Todo en orden!</h5>
+                    <p className="text-emerald-700 mt-0.5 font-medium">Todos los controles de calidad han sido superados con ?xito. Puede proceder a realizar el cierre de la capacitación.</p>
                   </div>
                 </div>
               ) : canForceCloseAsAdmin ? (
@@ -2477,10 +2477,10 @@ export default function Capacitaciones({
                 </div>
               ) : (
                 <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 flex gap-3 text-amber-800 text-xs">
-                  <div className="text-base">⚠️</div>
+                  <div className="text-base">âš ï¸</div>
                   <div>
                     <h5 className="font-extrabold">Requisitos Pendientes</h5>
-                    <p className="text-amber-700 mt-0.5 font-medium">No es posible cerrar la capacitación aún. Por favor complete los registros pendientes listados anteriormente para poder habilitar el botón de cierre.</p>
+                    <p className="text-amber-700 mt-0.5 font-medium">No es posible cerrar la capacitación aún. Por favor complete los registros pendientes listados anteriormente para poder habilitar el bot?n de cierre.</p>
                   </div>
                 </div>
               )}
@@ -2529,31 +2529,31 @@ export default function Capacitaciones({
                 onClick={() => setSessionToReopen(null)}
                 className="text-white/80 hover:text-white hover:bg-white/10 p-1.5 rounded-lg text-xs"
               >
-                ✕
+                âœ•
               </button>
             </div>
 
             <div className="p-6 space-y-4">
               <div className="bg-amber-50 border border-amber-200 rounded-2xl p-3.5 flex gap-2.5 text-amber-800 text-[11px] leading-relaxed">
-                <span className="text-sm">⚠️</span>
+                <span className="text-sm">âš ï¸</span>
                 <p className="font-medium">
-                  <strong>Atención:</strong> Al reabrir esta capacitación, su estado volverá a <strong className="text-amber-950 font-black">En curso</strong>, lo que permitirá a los formadores corregir marcas de asistencia o calificaciones. Esta acción requiere justificación obligatoria y se registrará en la auditoría del sistema.
+                  <strong>Atenci?n:</strong> Al reabrir esta capacitación, su estado volver? a <strong className="text-amber-950 font-black">En curso</strong>, lo que permitir? a los formadores corregir marcas de asistencia o calificaciones. Esta acci?n requiere justificaci?n obligatoria y se registrar? en la auditor?a del sistema.
                 </p>
               </div>
 
               <div>
                 <label className="block text-xs font-semibold text-slate-600 mb-1.5">
-                  Motivo de la reapertura (Mínimo 15 caracteres) *
+                  Motivo de la reapertura (M?nimo 15 caracteres) *
                 </label>
                 <textarea
                   value={reopenReason}
                   onChange={(e) => setReopenReason(e.target.value)}
-                  placeholder="Escriba detalladamente el motivo por el cual es necesario reabrir esta capacitación para auditoría..."
+                  placeholder="Escriba detalladamente el motivo por el cual es necesario reabrir esta capacitación para auditor?a..."
                   rows={4}
                   className="w-full text-xs bg-slate-50 text-slate-700 rounded-xl border border-slate-200 p-3 focus:ring-2 focus:ring-emerald-500 outline-hidden leading-relaxed"
                 />
                 <div className="flex justify-between text-[10px] mt-1 font-semibold text-slate-400">
-                  <span>Mínimo requerido: 15 caracteres</span>
+                  <span>M?nimo requerido: 15 caracteres</span>
                   <span className={reopenReason.trim().length >= 15 ? 'text-emerald-600' : 'text-rose-500'}>
                     {reopenReason.trim().length} / 15
                   </span>

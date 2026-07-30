@@ -1,4 +1,4 @@
-/**
+﻿/**
  * @license
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -45,6 +45,19 @@ interface DashboardProps {
   trainers: { id: string; nombre: string }[];
   recruiters: { id: string; nombre: string }[];
 }
+
+const TRAINING_DAYS_COUNT = 10;
+const TRAINING_DAYS = Array.from({ length: TRAINING_DAYS_COUNT }, (_, index) => index + 1);
+const LAST_TRAINING_DAY = TRAINING_DAYS_COUNT;
+
+const normalizeAttendanceStatus = (status?: string) =>
+  (status || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .trim();
+
+const isPresentAttendance = (status?: string) => ['asistio', 'tardanza'].includes(normalizeAttendanceStatus(status));
 
 export default function Dashboard({
   sessions,
@@ -125,45 +138,39 @@ export default function Dashboard({
     const totalCargados = filteredParticipants.length;
 
     // Days attendance counts
-    const d1Attendants = new Set();
-    const d5Attendants = new Set();
+    const d1Attendants = new Set<string>();
+    const lastDayAttendants = new Set<string>();
 
     filteredAttendance.forEach(a => {
-      if (a.estado_asistencia === 'Asistió' || a.estado_asistencia === 'Tardanza') {
+      if (isPresentAttendance(a.estado_asistencia)) {
         if (a.dia === 1) d1Attendants.add(a.participant_id);
-        if (a.dia === 5) d5Attendants.add(a.participant_id);
+        if (a.dia === LAST_TRAINING_DAY) lastDayAttendants.add(a.participant_id);
       }
     });
 
     const asistieronDia1 = d1Attendants.size;
-    const asistieronDia5 = d5Attendants.size;
+    const asistieronUltimoDia = lastDayAttendants.size;
 
-    // Completaron capacitación (participants with final status Completó, Alta confirmada, or Pendiente de alta)
     const completaron = filteredParticipants.filter(p =>
       p.estado_final === 'Completó capacitación' ||
       p.estado_final === 'Pendiente de alta' ||
       p.estado_final === 'Alta confirmada'
     ).length;
 
-    // Desistidos
     const desistidos = filteredParticipants.filter(p => p.estado_final === 'Desistió').length;
-
-    // Altas confirmadas
     const altasConfirmadas = filteredConfirmations.filter(c => c.estado_alta === 'Alta confirmada').length;
     const pendientesAlta = filteredParticipants.filter(p => p.estado_final === 'Pendiente de alta').length;
 
-    // Aptos / No aptos counts
     const aptos = filteredParticipants.filter(p => p.resultado_formacion === 'Apto').length;
     const noAptos = filteredParticipants.filter(p => p.resultado_formacion === 'No apto').length;
     const totalConResultado = aptos + noAptos;
     const porcAptos = totalConResultado > 0 ? Math.round((aptos / totalConResultado) * 100) : 0;
 
-    // Rates
-    const retencionDia1a5 = asistieronDia1 > 0 ? Math.round((asistieronDia5 / asistieronDia1) * 100) : 0;
-    const conversionAlta = totalCargados > 0 ? Math.round((altasConfirmadas / totalCargados) * 100) : 0;
+    const convocadosVsDia1 = totalCargados > 0 ? Math.round((asistieronDia1 / totalCargados) * 100) : 0;
+    const ultimoDiaVsDia1 = asistieronDia1 > 0 ? Math.round((asistieronUltimoDia / asistieronDia1) * 100) : 0;
+    const altasVsUltimoDia = asistieronUltimoDia > 0 ? Math.round((altasConfirmadas / asistieronUltimoDia) * 100) : 0;
     const desercionRate = totalCargados > 0 ? Math.round((desistidos / totalCargados) * 100) : 0;
 
-    // Requests
     const reqPendientes = reopens.filter(r => r.estado === 'pendiente').length;
     const reqAprobadas = reopens.filter(r => r.estado === 'aprobada').length;
     const reqRechazadas = reopens.filter(r => r.estado === 'rechazada').length;
@@ -171,7 +178,7 @@ export default function Dashboard({
     return {
       totalCargados,
       asistieronDia1,
-      asistieronDia5,
+      asistieronUltimoDia,
       completaron,
       desistidos,
       altasConfirmadas,
@@ -180,8 +187,9 @@ export default function Dashboard({
       noAptos,
       totalConResultado,
       porcAptos,
-      retencionDia1a5,
-      conversionAlta,
+      convocadosVsDia1,
+      ultimoDiaVsDia1,
+      altasVsUltimoDia,
       desercionRate,
       reqPendientes,
       reqAprobadas,
@@ -194,23 +202,24 @@ export default function Dashboard({
     const total = metrics.totalCargados;
 
     // Calculate attendants per day
-    const dayCounts = [0, 0, 0, 0, 0]; // Day 1, 2, 3, 4, 5
+    const dayCounts = Array.from({ length: TRAINING_DAYS_COUNT }, () => 0);
     filteredAttendance.forEach(a => {
-      if (a.estado_asistencia === 'Asistió' || a.estado_asistencia === 'Tardanza') {
-        if (a.dia >= 1 && a.dia <= 5) {
+      if (isPresentAttendance(a.estado_asistencia)) {
+        if (a.dia >= 1 && a.dia <= LAST_TRAINING_DAY) {
           dayCounts[a.dia - 1]++;
         }
       }
     });
 
+    const colors = ['#3b82f6', '#06b6d4', '#14b8a6', '#10b981', '#84cc16', '#22c55e', '#0ea5e9', '#8b5cf6', '#a855f7', '#ec4899'];
     return [
-      { name: 'Cargados', valor: total, fill: '#6366f1' }, // Indigo
-      { name: 'Asist. Día 1', valor: dayCounts[0], fill: '#3b82f6' }, // Blue
-      { name: 'Asist. Día 2', valor: dayCounts[1], fill: '#06b6d4' }, // Cyan
-      { name: 'Asist. Día 3', valor: dayCounts[2], fill: '#14b8a6' }, // Teal
-      { name: 'Asist. Día 4', valor: dayCounts[3], fill: '#10b981' }, // Emerald
-      { name: 'Asist. Día 5', valor: dayCounts[4], fill: '#84cc16' }, // Lime
-      { name: 'Altas Conf.', valor: metrics.altasConfirmadas, fill: '#ec4899' } // Pink / Fuchsia
+      { name: 'Cargados', valor: total, fill: '#6366f1' },
+      ...TRAINING_DAYS.map((day, index) => ({
+        name: `Asist. Dia ${day}`,
+        valor: dayCounts[index],
+        fill: colors[index] || '#3b82f6',
+      })),
+      { name: 'Altas Conf.', valor: metrics.altasConfirmadas, fill: '#ec4899' },
     ];
   }, [metrics, filteredAttendance]);
 
@@ -229,25 +238,25 @@ export default function Dashboard({
       const d5 = new Set();
 
       attendance.forEach(a => {
-        if (campPartIds.has(a.participant_id) && (a.estado_asistencia === 'Asistió' || a.estado_asistencia === 'Tardanza')) {
+        if (campPartIds.has(a.participant_id) && isPresentAttendance(a.estado_asistencia)) {
           if (a.dia === 1) d1.add(a.participant_id);
-          if (a.dia === 5) d5.add(a.participant_id);
+          if (a.dia === LAST_TRAINING_DAY) d5.add(a.participant_id);
         }
       });
 
       const altas = validConfirmations.filter(c => campPartIds.has(c.participant_id) && c.estado_alta === 'Alta confirmada').length;
       const retencion = d1.size > 0 ? Math.round((d5.size / d1.size) * 100) : 0;
-      const conversion = total > 0 ? Math.round((altas / total) * 100) : 0;
+      const conversion = d5.size > 0 ? Math.round((altas / d5.size) * 100) : 0;
 
       return {
         name: camp,
         Cargados: total,
         'Asist. Día 1': d1.size,
-        'Asist. Día 5': d5.size,
+        'Asist. Dia 10': d5.size,
         Desistidos: desistidos,
         Altas: altas,
-        'Retención %': retencion,
-        'Conversión %': conversion
+        'Retenci?n %': retencion,
+        'Conversi?n %': conversion
       };
     });
   }, [filteredSessions, participants, attendance, validConfirmations]);
@@ -265,13 +274,13 @@ export default function Dashboard({
       const d5 = new Set();
 
       attendance.forEach(a => {
-        if (tPartIds.has(a.participant_id) && (a.estado_asistencia === 'Asistió' || a.estado_asistencia === 'Tardanza')) {
-          if (a.dia === 5) d5.add(a.participant_id);
+        if (tPartIds.has(a.participant_id) && isPresentAttendance(a.estado_asistencia)) {
+          if (a.dia === LAST_TRAINING_DAY) d5.add(a.participant_id);
         }
       });
 
       const altas = validConfirmations.filter(c => tPartIds.has(c.participant_id) && c.estado_alta === 'Alta confirmada').length;
-      const efectividad = total > 0 ? Math.round((altas / total) * 100) : 0;
+      const efectividad = d5.size > 0 ? Math.round((altas / d5.size) * 100) : 0;
 
       return {
         name: t.nombre.split(' ')[0] + ' ' + (t.nombre.split(' ')[1] || ''), // Short name
@@ -427,9 +436,9 @@ export default function Dashboard({
               </select>
             </div>
 
-            {/* Generación */}
+            {/* Generaci?n */}
             <div>
-              <label className="block text-xs font-medium text-slate-500 mb-1">Generación</label>
+              <label className="block text-xs font-medium text-slate-500 mb-1">Generaci?n</label>
               <select
                 value={filterGeneracion}
                 onChange={(e) => setFilterGeneracion(e.target.value)}
@@ -489,9 +498,9 @@ export default function Dashboard({
           <div className="absolute inset-x-0 top-0 h-1 bg-indigo-500"></div>
           <div className="flex justify-between items-start">
             <div>
-              <p className="text-slate-400 font-medium text-xs uppercase tracking-wider">Cargados en FDR</p>
-              <h3 className="text-slate-900 text-3xl font-black mt-1">{metrics.totalCargados}</h3>
-              <p className="text-xs text-indigo-500 font-medium mt-1">Participantes registrados</p>
+              <p className="text-slate-400 font-medium text-xs uppercase tracking-wider">Dia 1 / Convocados</p>
+              <h3 className="text-slate-900 text-3xl font-black mt-1">{metrics.convocadosVsDia1}%</h3>
+              <p className="text-xs text-indigo-500 font-medium mt-1">{metrics.asistieronDia1} de {metrics.totalCargados} llegaron</p>
             </div>
             <div className="bg-indigo-50 rounded-xl p-2.5 text-indigo-600 border border-indigo-100">
               <Users className="w-5 h-5" />
@@ -504,10 +513,10 @@ export default function Dashboard({
           <div className="absolute inset-x-0 top-0 h-1 bg-cyan-500"></div>
           <div className="flex justify-between items-start">
             <div>
-              <p className="text-slate-400 font-medium text-xs uppercase tracking-wider">Llegaron al Día 5</p>
-              <h3 className="text-slate-900 text-3xl font-black mt-1">{metrics.asistieronDia5}</h3>
+              <p className="text-slate-400 font-medium text-xs uppercase tracking-wider">Dia 10 / Dia 1</p>
+              <h3 className="text-slate-900 text-3xl font-black mt-1">{metrics.ultimoDiaVsDia1}%</h3>
               <p className="text-xs text-emerald-600 font-medium mt-1">
-                {metrics.retencionDia1a5}% retención Día 1 a 5
+                {metrics.asistieronUltimoDia} de {metrics.asistieronDia1} llegaron al Dia 10
               </p>
             </div>
             <div className="bg-cyan-50 rounded-xl p-2.5 text-cyan-600 border border-cyan-100">
@@ -521,10 +530,10 @@ export default function Dashboard({
           <div className="absolute inset-x-0 top-0 h-1 bg-fuchsia-500"></div>
           <div className="flex justify-between items-start">
             <div>
-              <p className="text-slate-400 font-medium text-xs uppercase tracking-wider">Alta Confirmada</p>
-              <h3 className="text-slate-900 text-3xl font-black mt-1">{metrics.altasConfirmadas}</h3>
+              <p className="text-slate-400 font-medium text-xs uppercase tracking-wider">Altas / Dia 10</p>
+              <h3 className="text-slate-900 text-3xl font-black mt-1">{metrics.altasVsUltimoDia}%</h3>
               <p className="text-xs text-fuchsia-600 font-medium mt-1">
-                {metrics.conversionAlta}% conversión final
+                {metrics.altasConfirmadas} altas confirmadas
               </p>
             </div>
             <div className="bg-fuchsia-50 rounded-xl p-2.5 text-fuchsia-600 border border-fuchsia-100">
@@ -578,7 +587,7 @@ export default function Dashboard({
               <TrendingUp className="text-indigo-600 w-4.5 h-4.5" />
               Embudo de Formación
             </h3>
-            <span className="text-slate-400 text-xs font-mono">Conversión</span>
+            <span className="text-slate-400 text-xs font-mono">Conversi?n</span>
           </div>
           <div className="flex-1 min-h-[300px]">
             <ResponsiveContainer width="100%" height={300}>
@@ -624,7 +633,7 @@ export default function Dashboard({
                 <Legend iconSize={10} wrapperStyle={{ fontSize: 11 }} />
                 <Bar dataKey="Cargados" fill="#818cf8" radius={[4, 4, 0, 0]} />
                 <Bar dataKey="Asist. Día 1" fill="#3b82f6" radius={[4, 4, 0, 0]} />
-                <Bar dataKey="Asist. Día 5" fill="#10b981" radius={[4, 4, 0, 0]} />
+                <Bar dataKey="Asist. Dia 10" fill="#10b981" radius={[4, 4, 0, 0]} />
                 <Bar dataKey="Altas" fill="#ec4899" radius={[4, 4, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
@@ -633,7 +642,7 @@ export default function Dashboard({
             {campañaData.map(c => (
               <div key={c.name} className="text-center">
                 <p className="text-[10px] text-slate-500 font-semibold uppercase truncate">{c.name}</p>
-                <p className="text-xs font-bold text-slate-700">Conv: {c['Conversión %']}%</p>
+                <p className="text-xs font-bold text-slate-700">Conv: {c['Conversi?n %']}%</p>
               </div>
             ))}
           </div>
@@ -679,12 +688,12 @@ export default function Dashboard({
               <UserX className="text-rose-500 w-4.5 h-4.5" />
               Deserciones por Motivo
             </h3>
-            <span className="text-slate-400 text-xs font-mono">Distribución</span>
+            <span className="text-slate-400 text-xs font-mono">Distribuci?n</span>
           </div>
           <div className="flex-1 min-h-[220px] flex items-center justify-center">
             {desercionesPorMotivo.length === 0 ? (
               <div className="text-center text-slate-400 py-10">
-                <p className="text-sm">No se registran deserciones en este período</p>
+                <p className="text-sm">No se registran deserciones en este per?odo</p>
               </div>
             ) : (
               <ResponsiveContainer width="100%" height={220}>
@@ -727,12 +736,12 @@ export default function Dashboard({
 
       {/* Resultados de Formación (Aptitud) Panel */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Distribución de Aptitud Card */}
+        {/* Distribuci?n de Aptitud Card */}
         <div className="glass-card flex flex-col p-5 rounded-2xl">
           <div className="flex justify-between items-center mb-4">
             <h3 className="text-slate-800 font-bold text-base flex items-center gap-1.5">
               <Award className="text-emerald-600 w-4.5 h-4.5" />
-              Resultados de Calificación (Día 5)
+              Resultados de Calificaci?n (Dia 10)
             </h3>
             <span className="text-slate-400 text-xs font-mono">Aptitud</span>
           </div>
@@ -741,7 +750,7 @@ export default function Dashboard({
             {metrics.totalConResultado === 0 ? (
               <div className="text-center text-slate-400 py-10">
                 <p className="text-sm">No se registran calificaciones de aptitud todavía</p>
-                <p className="text-[11px] text-slate-400 mt-1">Marque Apto/No apto en el Día 5 de asistencia</p>
+                <p className="text-[11px] text-slate-400 mt-1">Marque Apto/No apto en el Dia 10 de asistencia</p>
               </div>
             ) : (
               <ResponsiveContainer width="100%" height={220}>
@@ -794,7 +803,7 @@ export default function Dashboard({
           <div className="flex justify-between items-center mb-4">
             <h3 className="text-slate-800 font-bold text-base flex items-center gap-1.5">
               <Users className="text-indigo-600 w-4.5 h-4.5" />
-              Detalle de Novedades de Calificación
+              Detalle de Novedades de Calificaci?n
             </h3>
             <span className="text-slate-400 text-xs font-mono">Comentarios</span>
           </div>
@@ -806,7 +815,7 @@ export default function Dashboard({
                 return (
                   <div className="flex flex-col items-center justify-center text-slate-400 h-full py-16">
                     <p className="text-sm">Sin comentarios de aptitud recientes</p>
-                    <p className="text-[11px] text-slate-400 mt-0.5">Las justificaciones de Aptitud/No aptitud se verán aquí</p>
+                    <p className="text-[11px] text-slate-400 mt-0.5">Las justificaciones de Aptitud/No aptitud se ver?n aquí</p>
                   </div>
                 );
               }
@@ -841,7 +850,7 @@ export default function Dashboard({
         <div className="flex justify-between items-center mb-4">
           <h3 className="text-slate-800 font-bold text-base flex items-center gap-1.5">
             <Layers className="text-blue-600 w-4.5 h-4.5" />
-            Evolución de Capacitación FDR (Semanal)
+            Evoluci?n de Capacitación FDR (Semanal)
           </h3>
           <span className="text-slate-400 text-xs font-mono">Tendencias</span>
         </div>
@@ -849,8 +858,8 @@ export default function Dashboard({
           {evolutionData.length === 0 ? (
             <div className="h-[220px] flex flex-col items-center justify-center text-center text-slate-400">
               <Layers className="w-8 h-8 mb-2 text-slate-300" />
-              <p className="text-sm font-medium">Sin datos de evolución todavía</p>
-              <p className="text-[11px] mt-1">Las tendencias aparecerán cuando existan capacitaciones y altas registradas.</p>
+              <p className="text-sm font-medium">Sin datos de evoluci?n todavía</p>
+              <p className="text-[11px] mt-1">Las tendencias aparecer?n cuando existan capacitaciones y altas registradas.</p>
             </div>
           ) : (
             <ResponsiveContainer width="100%" height={220}>

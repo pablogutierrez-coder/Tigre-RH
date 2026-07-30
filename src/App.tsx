@@ -1,4 +1,4 @@
-/**
+﻿/**
  * @license
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -89,6 +89,21 @@ import {
 import { updateSurveyStatusRemote } from './services/surveyService';
 import { APP_NAME } from './constants/app';
 import loginBackgroundVideo from './assets/login-background.mp4';
+
+const TRAINING_DAYS_COUNT = 10;
+const TRAINING_DAYS = Array.from({ length: TRAINING_DAYS_COUNT }, (_, index) => index + 1);
+
+const normalizeAttendanceStatus = (status?: string) =>
+  (status || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .trim();
+
+const isPresentAttendance = (status?: string) => ['asistio', 'tardanza'].includes(normalizeAttendanceStatus(status));
+const isAbsenceAttendance = (status?: string) => normalizeAttendanceStatus(status) === 'falto';
+const isDropoutAttendanceStatus = (status?: string) => ['desistio', 'baja'].includes(normalizeAttendanceStatus(status));
+const isPendingAttendance = (status?: string) => ['pendiente', 'seleccionar', ''].includes(normalizeAttendanceStatus(status));
 
 const EMPTY_USERS: User[] = [];
 const EMPTY_SESSIONS: TrainingSession[] = [];
@@ -194,7 +209,7 @@ export default function App() {
         const pAttendance = attendance.filter(a => a.participant_id === p.id && a.training_session_id === p.training_session_id);
         const hasConf = confirmations.some(c => c.participant_id === p.id && c.estado_alta === 'Alta confirmada');
         
-        const days = [1, 2, 3, 4, 5].map(d => {
+        const days = TRAINING_DAYS.map(d => {
           const rec = pAttendance.find(a => a.dia === d);
           return rec ? rec.estado_asistencia : 'Pendiente';
         });
@@ -203,19 +218,19 @@ export default function App() {
 
         if (hasConf) {
           computedStatus = 'Alta confirmada';
-        } else if (days.includes('Desistió') || days.includes('Baja')) {
+        } else if (days.some(isDropoutAttendanceStatus)) {
           computedStatus = 'Desistió';
-        } else if (days.every(status => status === 'Pendiente')) {
+        } else if (days.every(isPendingAttendance)) {
           computedStatus = 'Pendiente de gestión';
         } else {
-          const hasEverAttended = days.some(status => status === 'Asistió' || status === 'Tardanza');
-          const firstMarked = days.find(status => status !== 'Pendiente');
-          
-          if (!hasEverAttended && firstMarked === 'Faltó') {
+          const hasEverAttended = days.some(isPresentAttendance);
+          const firstMarked = days.find(status => !isPendingAttendance(status));
+
+          if (!hasEverAttended && isAbsenceAttendance(firstMarked)) {
             computedStatus = 'No asistió';
-          } else if (hasEverAttended && days.includes('Faltó')) {
+          } else if (hasEverAttended && days.some(isAbsenceAttendance)) {
             computedStatus = 'En riesgo';
-          } else if (days.every(status => status === 'Asistió' || status === 'Tardanza')) {
+          } else if (days.every(isPresentAttendance)) {
             computedStatus = 'Pendiente de alta';
           } else if (hasEverAttended) {
             computedStatus = 'En formación';
@@ -403,7 +418,7 @@ export default function App() {
         addAuditLog(
           'Acceso al dashboard',
           'Dashboard General',
-          `El usuario "${activeUser.nombre}" con rol "${activeUser.rol}" accedió al Dashboard General.`
+          `El usuario "${activeUser.nombre}" con rol "${activeUser.rol}" accedi? al Dashboard General.`
         );
       }
     }
@@ -424,7 +439,7 @@ export default function App() {
 
         if (!profile) {
           setActiveUser(null);
-          setLoginError('La sesión existe, pero no se encontró el perfil en Firestore/users.');
+          setLoginError('La sesi?n existe, pero no se encontr? el perfil en Firestore/users.');
           setAuthChecking(false);
           return;
         }
@@ -516,7 +531,7 @@ export default function App() {
 
   const handleLogout = async () => {
     if (activeUser) {
-      addAuditLog('Cierre de sesión', 'Autenticación', `El usuario ${activeUser.nombre} cerró su sesión.`);
+      addAuditLog('Cierre de sesi?n', 'Autenticaci?n', `El usuario ${activeUser.nombre} cerr? su sesi?n.`);
     }
     try {
       await logoutFirebase();
@@ -589,7 +604,7 @@ export default function App() {
     // Automatically prepare attendance records for each day (1 to 5) with imported states or 'Seleccionar'
     const initialAttendanceRecords: AttendanceRecord[] = [];
     partsWithId.forEach(p => {
-      for (let dayNum = 1; dayNum <= 5; dayNum++) {
+      for (let dayNum = 1; dayNum <= TRAINING_DAYS_COUNT; dayNum++) {
         let recDate = newSess.fecha_inicio;
         try {
           const baseDate = new Date(newSess.fecha_inicio + 'T12:00:00');
@@ -633,9 +648,9 @@ export default function App() {
     // Register automatic code generation audit log
     if (sessionObj.generation_code) {
       addAuditLog(
-        'Creación automática de código de generación',
+        'Creaci?n autom?tica de c?digo de generaci?n',
         'Registro de capacitaciones',
-        `Se generó automáticamente el código de generación "${sessionObj.generation_code}" para la campaña "${newSess.campaña}".`,
+        `Se gener? autom?ticamente el c?digo de generaci?n "${sessionObj.generation_code}" para la campaña "${newSess.campaña}".`,
         newSess.campaña,
         trainingIdentifier
       );
@@ -643,9 +658,9 @@ export default function App() {
 
     // Register upload history record
     addAuditLog(
-      'Creación de capacitación',
+      'Creaci?n de capacitación',
       'Registro de capacitaciones',
-      `Se creó la capacitación "${trainingIdentifier}" con ${partsWithId.length} participantes asignados a ${sessionObj.formador_nombre}.`,
+      `Se cre? la capacitación "${trainingIdentifier}" con ${partsWithId.length} participantes asignados a ${sessionObj.formador_nombre}.`,
       newSess.campaña,
       trainingIdentifier
     );
@@ -682,8 +697,8 @@ export default function App() {
         });
         addAuditLog(
           `Estado de encuesta modificado: ${status}`,
-          'Encuestas de Satisfacción',
-          `Se cambió el estado de la encuesta de la generación "${s.codigo_generacion}" a: "${status}".`,
+          'Encuestas de Satisfacci?n',
+          `Se cambi? el estado de la encuesta de la generaci?n "${s.codigo_generacion}" a: "${status}".`,
           s.campaña,
           s.codigo_generacion
         );
@@ -697,8 +712,8 @@ export default function App() {
     setSurveys(prev => [newSurvey, ...prev]);
     addAuditLog(
       'Encuesta creada manualmente',
-      'Encuestas de Satisfacción',
-      `Se creó una nueva encuesta para la generación "${newSurvey.codigo_generacion}" de la campaña "${newSurvey.campaña}".`,
+      'Encuestas de Satisfacci?n',
+      `Se cre? una nueva encuesta para la generaci?n "${newSurvey.codigo_generacion}" de la campaña "${newSurvey.campaña}".`,
       newSurvey.campaña,
       newSurvey.codigo_generacion
     );
@@ -735,9 +750,9 @@ export default function App() {
     const sessionIdentifier = sessionObj.generation_code || sessionObj.nombre_generacion;
 
     addAuditLog(
-      'Eliminación de capacitación',
+      'Eliminaci?n de capacitación',
       'Registro de capacitaciones',
-      `Se eliminó la capacitación "${sessionIdentifier}" y sus ${partsCount} registros asociados debido a un error de carga.`,
+      `Se elimin? la capacitación "${sessionIdentifier}" y sus ${partsCount} registros asociados debido a un error de carga.`,
       sessionObj.campaña,
       sessionIdentifier
     );
@@ -770,7 +785,7 @@ export default function App() {
     });
 
     if (!isAsistenciaCompleta && userRol !== 'Administrador') {
-      alert('No se puede cerrar la capacitación: Falta completar el registro de asistencia de los 5 días para todos los participantes activos.');
+      alert('No se puede cerrar la capacitación: Falta completar el registro de asistencia de los 10 días para todos los participantes activos.');
       return;
     }
 
@@ -790,7 +805,7 @@ export default function App() {
       return;
     }
 
-    // 3. For Formador, check "Ningún participante en estado Marcar, Seleccionar o Pendiente" in Resultado formación
+    // 3. For Formador, check "Ning?n participante en estado Marcar, Seleccionar o Pendiente" in Resultado formación
     if (userRol === 'Formador') {
       const isResultadoFormacionCompleto = sessionParts.every(p => {
         const hasDesistio = p.estado_final === 'Desistió' || attendance.some(a => a.participant_id === p.id && (a.estado_asistencia === 'Desistió' || a.estado_asistencia === 'Baja'));
@@ -821,12 +836,12 @@ export default function App() {
     addAuditLog(
       'Cierre de capacitación',
       'Control de asistencia',
-      `El ${userRol === 'Administrador' ? 'administrador' : 'formador'} cerró oficialmente la capacitación "${sessionIdentifier}".`,
+      `El ${userRol === 'Administrador' ? 'administrador' : 'formador'} cerr? oficialmente la capacitación "${sessionIdentifier}".`,
       session.campaña,
       sessionIdentifier
     );
 
-    alert('¡La capacitación ha sido cerrada oficialmente con éxito!');
+    alert('?La capacitación ha sido cerrada oficialmente con ?xito!');
   };
 
   // 2c. Update training session details (for Administrador edit)
@@ -858,7 +873,7 @@ export default function App() {
     }));
   };
 
-  const isDropoutAttendance = (status: AttendanceStatus) => status === 'Desistió' || status === 'Baja';
+  const isDropoutAttendance = (status: AttendanceStatus) => isDropoutAttendanceStatus(status);
 
   const getTrainingDayDate = (session: TrainingSession | undefined, day: number) => {
     if (!session?.fecha_inicio) return new Date().toISOString().split('T')[0];
@@ -876,9 +891,9 @@ export default function App() {
     session: TrainingSession | undefined,
     participantIds: string[],
   ): AttendanceRecord[] => {
-    if (!isDropoutAttendance(baseRecord.estado_asistencia) || baseRecord.dia >= 5) return [];
+    if (!isDropoutAttendance(baseRecord.estado_asistencia) || baseRecord.dia >= TRAINING_DAYS_COUNT) return [];
     const now = new Date().toISOString();
-    const futureDays = Array.from({ length: 5 - baseRecord.dia }, (_, index) => baseRecord.dia + index + 1);
+    const futureDays = Array.from({ length: TRAINING_DAYS_COUNT - baseRecord.dia }, (_, index) => baseRecord.dia + index + 1);
 
     return participantIds.flatMap((participantId) =>
       futureDays.map((day) => {
@@ -970,7 +985,7 @@ export default function App() {
     addAuditLog(
       'Marcado de asistencia',
       'Control de asistencia',
-      `Se registró asistencia del Día ${rec.dia} para ${part ? part.nombres + ' ' + part.apellidos : pId} como "${rec.estado_asistencia}".`,
+      `Se registr? asistencia del Día ${rec.dia} para ${part ? part.nombres + ' ' + part.apellidos : pId} como "${rec.estado_asistencia}".`,
       sess?.campaña,
       sess?.nombre_generacion,
       pId,
@@ -1064,7 +1079,7 @@ export default function App() {
     addAuditLog(
       'Marcado masivo de asistencia',
       'Control de asistencia',
-      `Se aplicó asistencia masiva (${status}) para ${pIds.length} participantes en el Día ${dia}.`,
+      `Se aplic? asistencia masiva (${status}) para ${pIds.length} participantes en el Día ${dia}.`,
       sess?.campaña,
       sess?.nombre_generacion
     );
@@ -1103,9 +1118,9 @@ export default function App() {
     }));
 
     addAuditLog(
-      'Actualización de resultado formación',
+      'Actualizaci?n de resultado formación',
       'Control de asistencia',
-      `Se actualizó el resultado de formación de ${part.nombres} ${part.apellidos} a "${outcome}". ${outcome === 'Apto' ? 'Comentario: ' + comment : (outcome === 'No apto' ? 'Motivo: ' + reason : '')}`,
+      `Se actualiz? el resultado de formación de ${part.nombres} ${part.apellidos} a "${outcome}". ${outcome === 'Apto' ? 'Comentario: ' + comment : (outcome === 'No apto' ? 'Motivo: ' + reason : '')}`,
       sess?.campaña,
       sess?.nombre_generacion,
       pId,
@@ -1165,7 +1180,7 @@ export default function App() {
     addAuditLog(
       'Solicitud de reapertura',
       'Control de asistencia',
-      `El formador ${activeUser.nombre} solicitó reapertura para el Día ${req.dia_capacitacion} de la generación "${req.generacion}".`,
+      `El formador ${activeUser.nombre} solicit? reapertura para el Día ${req.dia_capacitacion} de la generaci?n "${req.generacion}".`,
       req.campaña,
       req.generacion
     );
@@ -1198,9 +1213,9 @@ export default function App() {
     }));
 
     addAuditLog(
-      'Aprobación de reapertura',
+      'Aprobaci?n de reapertura',
       'Reaperturas de asistencia',
-      `El administrador ${adminName} aprobó la reapertura del Día ${req.dia_capacitacion} para ${req.formador_nombre}.`,
+      `El administrador ${adminName} aprob? la reapertura del Día ${req.dia_capacitacion} para ${req.formador_nombre}.`,
       req.campaña,
       req.generacion
     );
@@ -1231,7 +1246,7 @@ export default function App() {
     addAuditLog(
       'Rechazo de reapertura',
       'Reaperturas de asistencia',
-      `El administrador ${adminName} rechazó la reapertura del Día ${req.dia_capacitacion} para ${req.formador_nombre}. Motivo: ${reason}`,
+      `El administrador ${adminName} rechaz? la reapertura del Día ${req.dia_capacitacion} para ${req.formador_nombre}. Motivo: ${reason}`,
       req.campaña,
       req.generacion
     );
@@ -1289,9 +1304,9 @@ export default function App() {
     }
 
     addAuditLog(
-      'Confirmación de alta',
-      'Confirmación de altas',
-      `Se registró estado de alta operativa como "${conf.estado_alta}" para ${part ? part.nombres + ' ' + part.apellidos : pId}.`,
+      'Confirmaci?n de alta',
+      'Confirmaci?n de altas',
+      `Se registr? estado de alta operativa como "${conf.estado_alta}" para ${part ? part.nombres + ' ' + part.apellidos : pId}.`,
       sess?.campaña,
       sess?.nombre_generacion,
       pId,
@@ -1349,8 +1364,8 @@ export default function App() {
 
     addAuditLog(
       'Administrador elimina alta',
-      'Confirmación de altas',
-      `El administrador eliminó lógicamente el alta de ${part ? part.nombres + ' ' + part.apellidos : pId}.`,
+      'Confirmaci?n de altas',
+      `El administrador elimin? l?gicamente el alta de ${part ? part.nombres + ' ' + part.apellidos : pId}.`,
       sess?.campaña,
       sess?.nombre_generacion,
       pId,
@@ -1368,7 +1383,7 @@ export default function App() {
     }
 
     if (!newUser.password) {
-      alert('Se requiere una contraseÃ±a temporal para crear el usuario.');
+      alert('Se requiere una contraseÃƒÂ±a temporal para crear el usuario.');
       return;
     }
 
@@ -1386,22 +1401,22 @@ export default function App() {
     setUsers(prev => [...prev, userObj]);
 
     addAuditLog(
-      'Creación de usuario',
+      'Creaci?n de usuario',
       'Gestión de usuarios',
-      `Se creó el usuario de sistema "${newUser.nombre}" con rol ${newUser.rol}.`
+      `Se cre? el usuario de sistema "${newUser.nombre}" con rol ${newUser.rol}.`
     );
 
     if (newUser.rol === 'Coordinador') {
       addAuditLog(
         'Usuario creado con rol Coordinador',
         'Gestión de usuarios',
-        `Se creó el usuario de sistema "${newUser.nombre}" con rol Coordinador.`
+        `Se cre? el usuario de sistema "${newUser.nombre}" con rol Coordinador.`
       );
     } else if (newUser.rol === 'Sistemas') {
       addAuditLog(
         'Usuario creado con rol Sistemas',
         'Gestión de usuarios',
-        `Se creó el usuario de sistema "${newUser.nombre}" con rol Sistemas.`
+        `Se cre? el usuario de sistema "${newUser.nombre}" con rol Sistemas.`
       );
     }
   };
@@ -1418,16 +1433,16 @@ export default function App() {
       return u;
     }));
 
-    let actionName = 'Modificación de usuario';
-    let detailMsg = `Se modificó la cuenta del usuario de sistema "${prevUser.nombre}".`;
+    let actionName = 'Modificaci?n de usuario';
+    let detailMsg = `Se modific? la cuenta del usuario de sistema "${prevUser.nombre}".`;
 
     if (updatedUser.estado !== undefined && updatedUser.estado !== prevUser.estado) {
       if (updatedUser.estado === 'Inactivo') {
         actionName = 'Usuario desactivado';
-        detailMsg = `Se desactivó la cuenta del usuario de sistema "${prevUser.nombre}".`;
+        detailMsg = `Se desactiv? la cuenta del usuario de sistema "${prevUser.nombre}".`;
       } else {
         actionName = 'Usuario reactivado';
-        detailMsg = `Se reactivó la cuenta del usuario de sistema "${prevUser.nombre}".`;
+        detailMsg = `Se reactiv? la cuenta del usuario de sistema "${prevUser.nombre}".`;
       }
     }
 
@@ -1453,7 +1468,7 @@ export default function App() {
       addAuditLog(
         'Intento de eliminar usuario sin permiso',
         'Usuarios FDR',
-        `El usuario "${activeUser?.nombre}" con rol "${activeUser?.rol}" intentó eliminar al usuario "${userToDelete.nombre}", pero fue bloqueado por falta de permisos.`
+        `El usuario "${activeUser?.nombre}" con rol "${activeUser?.rol}" intent? eliminar al usuario "${userToDelete.nombre}", pero fue bloqueado por falta de permisos.`
       );
       return;
     }
@@ -1467,11 +1482,11 @@ export default function App() {
       userToDelete.estado === 'Activo' &&
       activeAdmins.length <= 1
     ) {
-      alert('No puedes eliminar el único usuario administrador activo de la plataforma.');
+      alert('No puedes eliminar el ?nico usuario administrador activo de la plataforma.');
       addAuditLog(
-        'Intento de eliminar el único administrador activo',
+        'Intento de eliminar el ?nico administrador activo',
         'Usuarios FDR',
-        `El administrador "${activeUser?.nombre}" intentó eliminar al usuario administrador "${userToDelete.nombre}", pero fue bloqueado por ser el único administrador activo.`
+        `El administrador "${activeUser?.nombre}" intent? eliminar al usuario administrador "${userToDelete.nombre}", pero fue bloqueado por ser el ?nico administrador activo.`
       );
       return;
     }
@@ -1483,9 +1498,9 @@ export default function App() {
     setUsers(prev => prev.filter(u => u.id !== id));
 
     addAuditLog(
-      'Eliminación de usuario',
+      'Eliminaci?n de usuario',
       'Usuarios FDR',
-      `${activeUser?.nombre} eliminó al usuario ${userToDelete.usuario} el ${formatPeruDate(getEffectivePeruTime())}.`
+      `${activeUser?.nombre} elimin? al usuario ${userToDelete.usuario} el ${formatPeruDate(getEffectivePeruTime())}.`
     );
   };
 
@@ -1546,7 +1561,7 @@ export default function App() {
         .map((participant) => participant.id),
     );
     const createdAttendance = created.filter((participant) => newIds.has(participant.id)).flatMap((participant) =>
-      [1, 2, 3, 4, 5].map((day) => {
+      TRAINING_DAYS.map((day) => {
         const date = new Date(`${session.fecha_inicio}T12:00:00`);
         date.setDate(date.getDate() + day - 1);
         return {
@@ -1587,17 +1602,17 @@ export default function App() {
     const isReadOnly = !permissions[activeUser?.rol || 'Formador']?.canEditAttendance;
     if (isReadOnly) {
       addAuditLog(
-        'Intento de edición bloqueado por rol solo lectura',
+        'Intento de edici?n bloqueado por rol solo lectura',
         'Control de asistencia',
-        `El usuario "${activeUser?.nombre}" con rol solo lectura "${activeUser?.rol}" intentó modificar la asistencia para el Día ${day}. El intento fue bloqueado.`,
+        `El usuario "${activeUser?.nombre}" con rol solo lectura "${activeUser?.rol}" intent? modificar la asistencia para el Día ${day}. El intento fue bloqueado.`,
         campaign,
         sessionName
       );
     } else {
       addAuditLog(
-        'Intento de edición fuera de horario por Formador',
+        'Intento de edici?n fuera de horario por Formador',
         'Control de asistencia',
-        `El formador "${activeUser?.nombre}" intentó registrar o modificar asistencia fuera de horario (bloqueado) para el Día ${day}.`,
+        `El formador "${activeUser?.nombre}" intent? registrar o modificar asistencia fuera de horario (bloqueado) para el Día ${day}.`,
         campaign,
         sessionName
       );
@@ -1634,7 +1649,7 @@ export default function App() {
           const logObj = {
             id: logId,
             usuario_id: forcedUser?.id || 'ejecutivo-publico',
-            usuario_nombre: forcedUser?.nombre || 'Ejecutivo Público',
+            usuario_nombre: forcedUser?.nombre || 'Ejecutivo P?blico',
             usuario_rol: (forcedUser?.rol || 'Ejecutivo') as any,
             accion,
             modulo,
@@ -1660,7 +1675,7 @@ export default function App() {
     return (
       <div className="min-h-screen bg-transparent flex items-center justify-center font-sans">
         <div className="glass-card rounded-2xl px-5 py-4 text-xs font-bold text-slate-600">
-          Verificando sesión...
+          Verificando sesi?n...
         </div>
       </div>
     );
@@ -1703,7 +1718,7 @@ export default function App() {
               </div>
 
               <div className="text-center lg:text-left">
-                <h2 className="text-slate-800 text-2xl font-black tracking-tight">Iniciar Sesión</h2>
+                <h2 className="text-slate-800 text-2xl font-black tracking-tight">Iniciar Sesi?n</h2>
               </div>
 
               {/* Login Form */}
@@ -1728,13 +1743,13 @@ export default function App() {
                 </div>
 
                 <div className="space-y-1">
-                  <label className="text-xs font-bold text-slate-600 block">Contraseña</label>
+                  <label className="text-xs font-bold text-slate-600 block">Contrase?a</label>
                   <input
                     type="password"
                     required
                     value={loginPass}
                     onChange={(e) => setLoginPass(e.target.value)}
-                    placeholder="Ingrese su contraseña..."
+                    placeholder="Ingrese su contrase?a..."
                     className="w-full glass-input rounded-xl px-3.5 py-2.5 text-sm text-slate-800 outline-hidden font-medium"
                   />
                 </div>
@@ -1803,7 +1818,7 @@ export default function App() {
                 <button
                   onClick={handleLogout}
                   className="w-12 h-12 rounded-2xl bg-white/10 hover:bg-rose-500/90 text-white flex items-center justify-center transition"
-                  title="Cerrar sesión"
+                  title="Cerrar sesi?n"
                 >
                   <LogOut className="w-5 h-5" />
                 </button>
@@ -1815,16 +1830,16 @@ export default function App() {
                     <div className="min-w-0">
                       <p className="text-[10px] font-black uppercase tracking-widest text-fuchsia-600">
                         {currentView === 'seleccion'
-                          ? 'Módulo Selección'
+                          ? 'M?dulo Selección'
                           : activeUser.rol === 'Administrador' && ['usuarios', 'reportes', 'auditoria'].includes(currentView)
-                            ? 'Módulo Administrador'
-                            : 'Módulo Formación'}
+                            ? 'M?dulo Administrador'
+                            : 'M?dulo Formación'}
                       </p>
                       <h2 className="mt-1 text-lg font-black text-slate-950 truncate">
                         {currentView === 'seleccion'
                           ? 'Selección Masiva'
                           : activeUser.rol === 'Administrador' && ['usuarios', 'reportes', 'auditoria'].includes(currentView)
-                            ? 'Administración'
+                            ? 'Administraci?n'
                             : 'Formación y Desarrollo'}
                       </h2>
                     </div>
@@ -1850,7 +1865,7 @@ export default function App() {
                     const selectionGroups = [
                       { title: 'Monitoreo', items: [['dashboard', 'Dashboard de Selección', LayoutDashboard]] },
                       {
-                        title: 'Operación',
+                        title: 'Operaci?n',
                         items: [
                           ['convocatorias', 'Convocatorias', BriefcaseBusiness],
                           ['postulantes', 'Postulantes', Users],
@@ -1859,46 +1874,46 @@ export default function App() {
                           ['evaluaciones', 'Entrevistas y Evaluaciones', ClipboardCheck],
                           ['aptos', 'Aptos para Capacitación', UserCheck],
                           ['base', 'Base de Postulantes', Users],
-                          ['asignacion', 'Asignación a Capacitación', BookOpen],
+                          ['asignacion', 'Asignaci?n a Capacitación', BookOpen],
                           ['historial', 'Historial de Selección', FileText],
                         ],
                       },
                       {
-                        title: 'Configuración y reportes',
+                        title: 'Configuraci?n y reportes',
                         items: [
                           ['automatizaciones', 'Automatizaciones', Settings],
-                          ['catalogos', 'Catálogos', Settings],
-                          ['configuracion', 'Configuración', Settings],
+                          ['catalogos', 'Cat?logos', Settings],
+                          ['configuracion', 'Configuraci?n', Settings],
                           ['reportes', 'Reportes', FileSpreadsheet],
-                          ['auditoria', 'Auditoría', FileText],
+                          ['auditoria', 'Auditor?a', FileText],
                         ],
                       },
                     ];
                     const formationGroups = [
                       { title: 'Monitoreo', items: [['dashboard', 'Dashboard de Formación', LayoutDashboard, ['Administrador', 'Analista', 'Coordinador', 'Sistemas']]] },
                       {
-                        title: activeUser.rol === 'Formador' ? 'Aula FDR' : 'Operación FDR',
+                        title: activeUser.rol === 'Formador' ? 'Aula FDR' : 'Operaci?n FDR',
                         items: [
                           ['capacitaciones', activeUser.rol === 'Formador' ? 'Mis Capacitaciones' : 'Registro de Capacitaciones', BookOpen, ['Administrador', 'Analista', 'Coordinador', 'Sistemas', 'Formador', 'Reclutador']],
                           ['asistencia', 'Control de Asistencia', CalendarCheck, ['Administrador', 'Analista', 'Coordinador', 'Sistemas', 'Formador', 'Reclutador']],
-                          ['altas', 'Confirmación de Altas', Award, ['Administrador', 'Analista', 'Coordinador', 'Sistemas', 'Formador', 'Reclutador']],
+                          ['altas', 'Confirmaci?n de Altas', Award, ['Administrador', 'Analista', 'Coordinador', 'Sistemas', 'Formador', 'Reclutador']],
                           ['reaperturas', activeUser.rol === 'Formador' ? 'Solicitudes enviadas' : 'Reaperturas', Clock, ['Administrador', 'Analista', 'Formador']],
                         ],
                       },
                       {
                         title: 'Encuestas',
                         items: [
-                          ['encuestas', 'Encuestas de Satisfacción', ClipboardCheck, ['Administrador', 'Analista', 'Coordinador', 'Sistemas', 'Formador', 'Reclutador']],
+                          ['encuestas', 'Encuestas de Satisfacci?n', ClipboardCheck, ['Administrador', 'Analista', 'Coordinador', 'Sistemas', 'Formador', 'Reclutador']],
                         ],
                       },
                     ];
                     const adminGroups = [
                       {
-                        title: 'Administración',
+                        title: 'Administraci?n',
                         items: [
                           ['usuarios', 'Usuarios', Users],
                           ['reportes', 'Reportes Exportables', FileSpreadsheet],
-                          ['auditoria', 'Auditoría del Sistema', FileText],
+                          ['auditoria', 'Auditor?a del Sistema', FileText],
                         ],
                       },
                     ];
@@ -1959,10 +1974,10 @@ export default function App() {
               <div>
 	                <span className="text-[10px] text-indigo-600 font-bold uppercase tracking-widest font-mono">
                     {currentView === 'seleccion'
-                      ? 'Área Selección'
+                      ? '?rea Selección'
                       : activeUser.rol === 'Administrador' && ['usuarios', 'reportes', 'auditoria'].includes(currentView)
-                        ? 'Área Administrador'
-                        : 'Área Formación'}
+                        ? '?rea Administrador'
+                        : '?rea Formación'}
                   </span>
 	                <h2 className="text-slate-900 text-lg font-black leading-tight tracking-tight">
                     {currentView === 'seleccion'
@@ -1977,7 +1992,7 @@ export default function App() {
               <div className="bg-white border border-slate-200 rounded-2xl px-4 py-2.5 flex items-center gap-3 shadow-xs">
                 <Clock3 className="w-4 h-4 text-slate-500 shrink-0" />
                 <div className="text-xs">
-                  <span className="block text-[10px] font-bold text-slate-400 uppercase">Fecha y Hora (Perú/Lima)</span>
+                  <span className="block text-[10px] font-bold text-slate-400 uppercase">Fecha y Hora (Per?/Lima)</span>
                   <span className="font-mono text-xs font-bold text-slate-700 mt-0.5 block">
                     {getPeruNow().formatted}
                   </span>
@@ -1993,7 +2008,7 @@ export default function App() {
                 <div className="space-y-4">
                   <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-xs">
                     <h3 className="text-slate-800 font-extrabold text-base mb-2">Paso 1: Seleccione la Capacitación a calificar</h3>
-                    <p className="text-slate-500 text-xs">Por favor, diríjase a la pestaña "Registro de Capacitaciones" o "Mis Capacitaciones" y presione el botón de "Ver Asistencias" para abrir la cuadrícula de marcas diaria.</p>
+                    <p className="text-slate-500 text-xs">Por favor, dir?jase a la pesta?a "Registro de Capacitaciones" o "Mis Capacitaciones" y presione el bot?n de "Ver Asistencias" para abrir la cuadr?cula de marcas diaria.</p>
                   </div>
                   <Capacitaciones
                     sessions={sessions}

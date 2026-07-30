@@ -82,6 +82,11 @@ export interface Participant {
   asistencia_dia_4?: AttendanceStatus;
   observacion_dia_4?: string;
   asistencia_dia_5?: AttendanceStatus;
+  asistencia_dia_6?: AttendanceStatus;
+  asistencia_dia_7?: AttendanceStatus;
+  asistencia_dia_8?: AttendanceStatus;
+  asistencia_dia_9?: AttendanceStatus;
+  asistencia_dia_10?: AttendanceStatus;
   observacion_dia_5?: string;
   
   // Deserción and high states
@@ -98,7 +103,7 @@ export interface Participant {
   observacion_evaluacion?: string;
 }
 
-export type AttendanceStatus = 'Seleccionar' | 'Asistió' | 'Tardanza' | 'Faltó' | 'Desistió' | 'Baja' | 'Pendiente';
+export type AttendanceStatus = 'Seleccionar' | 'Asistió' | 'Tardanza' | 'Faltó' | 'Desistió' | 'Baja' | 'Vacaciones' | 'Pendiente';
 
 export interface AttendanceRecord {
   id: string;

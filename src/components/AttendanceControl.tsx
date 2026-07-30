@@ -1,4 +1,4 @@
-/**
+﻿/**
  * @license
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -68,7 +68,7 @@ interface AttendanceControlProps {
 }
 
 const MOTIVOS_DESERCION = [
-  'No se presentó',
+  'No se present?',
   'Abandono durante capacitación',
   'No acepta condiciones',
   'Otra propuesta laboral',
@@ -78,6 +78,31 @@ const MOTIVOS_DESERCION = [
   'No cumple perfil',
   'Desistimiento voluntario',
   'Otro motivo'
+];
+
+const TRAINING_DAYS = Array.from({ length: 10 }, (_, index) => index + 1);
+const LAST_TRAINING_DAY = TRAINING_DAYS[TRAINING_DAYS.length - 1];
+
+const normalizeStatus = (status?: string) =>
+  (status || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .trim();
+
+const isPresentStatus = (status?: string) => ['asistio', 'tardanza'].includes(normalizeStatus(status));
+const isAbsenceStatus = (status?: string) => normalizeStatus(status) === 'falto';
+const isDropoutStatus = (status?: string) => ['desistio', 'baja'].includes(normalizeStatus(status));
+const isVacationStatus = (status?: string) => normalizeStatus(status) === 'vacaciones';
+const isPendingStatus = (status?: string) => ['', 'seleccionar', 'pendiente'].includes(normalizeStatus(status));
+
+const ATTENDANCE_OPTIONS: Array<{ value: AttendanceStatus; label: string }> = [
+  { value: 'Asistió', label: 'Asistio' },
+  { value: 'Tardanza', label: 'Tardanza' },
+  { value: 'Faltó', label: 'Falto' },
+  { value: 'Vacaciones', label: 'Vacaciones' },
+  { value: 'Desistió', label: 'Desistio' },
+  { value: 'Baja', label: 'Baja' },
 ];
 
 export default function AttendanceControl({
@@ -111,13 +136,13 @@ export default function AttendanceControl({
   const [filterUnmarkedOnly, setFilterUnmarkedOnly] = useState<string>('Todos'); // 'Todos', 'Sin registrar', 'Registrado'
 
   // Modal states
-  const [showDesistióModal, setShowDesistióModal] = useState(false);
+  const [showDesistioModal, setShowDesistioModal] = useState(false);
   const [modalParticipant, setModalParticipant] = useState<Participant | null>(null);
-  const [desistióMotivo, setDesistióMotivo] = useState(MOTIVOS_DESERCION[0]);
-  const [desistióComentario, setDesistióComentario] = useState('');
-  const [desistióStatus, setDesistióStatus] = useState<Extract<AttendanceStatus, 'Desistió' | 'Baja'>>('Desistió');
-  const [desistióEvidenceName, setDesistióEvidenceName] = useState('');
-  const [desistióEvidenceImage, setDesistióEvidenceImage] = useState('');
+  const [desistioMotivo, setDesistioMotivo] = useState(MOTIVOS_DESERCION[0]);
+  const [desistioComentario, setDesistioComentario] = useState('');
+  const [desistioStatus, setDesistioStatus] = useState<Extract<AttendanceStatus, 'Desistió' | 'Baja'>>('Desistió');
+  const [desistioEvidenceName, setDesistioEvidenceName] = useState('');
+  const [desistioEvidenceImage, setDesistioEvidenceImage] = useState('');
 
   // Single Participant Observation Modal (Faltó/Tardanza)
   const [showObservationModal, setShowObservationModal] = useState(false);
@@ -127,7 +152,7 @@ export default function AttendanceControl({
   const [obsModalValue, setObsModalValue] = useState('');
 
   const [showReopenModal, setShowReopenModal] = useState(false);
-  const [reopenMotivo, setReopenMotivo] = useState('Se me pasó el horario de registro');
+  const [reopenMotivo, setReopenMotivo] = useState('Se me pas? el horario de registro');
   const [reopenComentario, setReopenComentario] = useState('');
 
   // Bulk actions status and Bulk Dialog Modal
@@ -149,6 +174,7 @@ export default function AttendanceControl({
   const [outcomeReason, setOutcomeReason] = useState('');
   const [outcomeError, setOutcomeError] = useState('');
   const [editingParticipant, setEditingParticipant] = useState<Participant | null>(null);
+  const [evidencePreview, setEvidencePreview] = useState<{ src: string; name: string } | null>(null);
   const [participantDraft, setParticipantDraft] = useState({
     nombres: '',
     apellidos: '',
@@ -195,8 +221,8 @@ export default function AttendanceControl({
   const canEditEvaluation = (part: Participant) => {
     const isTrainer = currentUser.rol === 'Formador';
     const isAssignedTrainer = isTrainer && session.formador_id === currentUser.id;
-    const isAltaLocked = part.estado_final === 'Alta confirmada' || part.estado_final === 'Pendiente de alta';
-    return !isAltaLocked && (currentUser.rol === 'Administrador' || (isAssignedTrainer && selectedDay === 5));
+    const isAltaLocked = part.estado_final === 'Alta confirmada';
+    return !isAltaLocked && (currentUser.rol === 'Administrador' || (isAssignedTrainer && selectedDay === LAST_TRAINING_DAY));
   };
 
   const saveEvaluation = (part: Participant, rawScore: string, observation: string) => {
@@ -264,7 +290,7 @@ export default function AttendanceControl({
 
   const handleEarlyAlta = (part: Participant) => {
     if (!onUpdateParticipantOutcome) return;
-    if (!window.confirm(`Marcar alta anticipada para ${part.nombres} ${part.apellidos}? Se bloqueará la nota y quedará apto para encuesta.`)) return;
+    if (!window.confirm(`Marcar alta anticipada para ${part.nombres} ${part.apellidos}? Se bloquear? la nota y quedar? apto para encuesta.`)) return;
     onUpdateParticipantOutcome(
       part.id,
       'Apto',
@@ -300,35 +326,36 @@ export default function AttendanceControl({
     return participants.filter(p => {
       if (p.training_session_id !== session.id) return false;
 
-      // 1. Text Search matches
-      const matchesSearch = p.nombres.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        p.apellidos.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        p.dni.includes(searchTerm);
+      const normalizedSearch = searchTerm.trim().toLowerCase();
+      const matchesSearch = !normalizedSearch ||
+        p.nombres.toLowerCase().includes(normalizedSearch) ||
+        p.apellidos.toLowerCase().includes(normalizedSearch) ||
+        `${p.nombres} ${p.apellidos}`.toLowerCase().includes(normalizedSearch) ||
+        p.dni.includes(normalizedSearch) ||
+        (p.celular || '').includes(normalizedSearch);
       if (!matchesSearch) return false;
 
-      // 2. Attendance Status filter in the selectedDay
       const dayRecord = attendanceMap[`${p.id}_${selectedDay}`];
       const attStatus = dayRecord ? dayRecord.estado_asistencia : 'Pendiente';
-      if (filterAttendanceStatus !== 'Todos' && attStatus !== filterAttendanceStatus) {
+      if (filterAttendanceStatus !== 'Todos' && normalizeStatus(attStatus) !== normalizeStatus(filterAttendanceStatus)) {
         return false;
       }
 
-      // 3. Dynamic Calculation of Final Status for filtering
-      const rowAttendance = [1, 2, 3, 4, 5].map(d => attendanceMap[`${p.id}_${d}`]);
-      const hasDesistió = rowAttendance.some(a => a?.estado_asistencia === 'Desistió' || a?.estado_asistencia === 'Baja');
+      const rowAttendance = TRAINING_DAYS.map(d => attendanceMap[`${p.id}_${d}`]);
+      const hasDesistio = rowAttendance.some(a => isDropoutStatus(a?.estado_asistencia));
       const d1 = attendanceMap[`${p.id}_1`]?.estado_asistencia;
 
       let computedStatus = p.estado_final;
-      if (hasDesistió) {
+      if (hasDesistio) {
         computedStatus = 'Desistió';
-      } else if (d1 === 'Faltó' && rowAttendance.filter(a => a).every(a => a.estado_asistencia === 'Faltó')) {
+      } else if (isAbsenceStatus(d1) && rowAttendance.filter(Boolean).every(a => isAbsenceStatus(a?.estado_asistencia))) {
         computedStatus = 'No asistió';
-      } else if (rowAttendance.some(a => a?.estado_asistencia === 'Faltó')) {
+      } else if (rowAttendance.some(a => isAbsenceStatus(a?.estado_asistencia))) {
         computedStatus = 'En riesgo';
-      } else if (rowAttendance.filter(a => a?.estado_asistencia === 'Asistió' || a?.estado_asistencia === 'Tardanza').length === 5) {
+      } else if (rowAttendance.filter(a => isPresentStatus(a?.estado_asistencia)).length === TRAINING_DAYS.length) {
         const conf = confirmationsMap[p.id];
         computedStatus = conf?.estado_alta === 'Alta confirmada' ? 'Alta confirmada' : 'Pendiente de alta';
-      } else if (rowAttendance.some(a => a?.estado_asistencia === 'Asistió' || a?.estado_asistencia === 'Tardanza')) {
+      } else if (rowAttendance.some(a => isPresentStatus(a?.estado_asistencia))) {
         computedStatus = 'En formación';
       }
 
@@ -336,20 +363,17 @@ export default function AttendanceControl({
         return false;
       }
 
-      // 4. Alta status filter
       const conf = confirmationsMap[p.id];
       const altaStatusVal = conf ? conf.estado_alta : 'Pendiente de alta';
       if (filterAltaStatus !== 'Todos' && altaStatusVal !== filterAltaStatus) {
         return false;
       }
 
-      // 5. Observations filter
       const hasAnyObservation = rowAttendance.some(a => a?.observacion?.trim()) || p.observacion?.trim();
       if (filterObservationsOnly === 'Con observaciones' && !hasAnyObservation) return false;
       if (filterObservationsOnly === 'Sin observaciones' && hasAnyObservation) return false;
 
-      // 6. Unmarked / marked filter
-      const isUnmarked = !dayRecord || dayRecord.estado_asistencia === 'Pendiente';
+      const isUnmarked = !dayRecord || isPendingStatus(dayRecord.estado_asistencia);
       if (filterUnmarkedOnly === 'Sin registrar' && !isUnmarked) return false;
       if (filterUnmarkedOnly === 'Registrado' && isUnmarked) return false;
 
@@ -364,22 +388,24 @@ export default function AttendanceControl({
     let tardanza = 0;
     let falto = 0;
     let desistio = 0;
+    let vacaciones = 0;
     let pendiente = 0;
 
     filteredParts.forEach(p => {
       const record = attendanceMap[`${p.id}_${selectedDay}`];
       const status = record ? record.estado_asistencia : 'Pendiente';
-      if (status === 'Asistió') asistio++;
-      else if (status === 'Tardanza') tardanza++;
-      else if (status === 'Faltó') falto++;
-      else if (status === 'Desistió' || status === 'Baja') desistio++;
+      if (isPresentStatus(status) && normalizeStatus(status) === 'asistio') asistio++;
+      else if (normalizeStatus(status) === 'tardanza') tardanza++;
+      else if (isAbsenceStatus(status)) falto++;
+      else if (isDropoutStatus(status)) desistio++;
+      else if (isVacationStatus(status)) vacaciones++;
       else pendiente++;
     });
 
     const marked = total - pendiente;
     const progressPercent = total > 0 ? Math.round((marked / total) * 100) : 0;
 
-    return { total, asistio, tardanza, falto, desistio, pendiente, marked, progressPercent };
+    return { total, asistio, tardanza, falto, desistio, vacaciones, pendiente, marked, progressPercent };
   }, [filteredParts, attendanceMap, selectedDay]);
 
   const attendanceWindowLabel = useMemo(() => {
@@ -466,16 +492,16 @@ export default function AttendanceControl({
       return;
     }
 
-    if (status === 'Desistió' || status === 'Baja') {
+    if (isDropoutStatus(status)) {
       // Open Deserción details modal
       setModalParticipant(participant);
-      setDesistióStatus(status);
-      setDesistióMotivo(MOTIVOS_DESERCION[0]);
-      setDesistióComentario('');
-      setDesistióEvidenceName('');
-      setDesistióEvidenceImage('');
-      setShowDesistióModal(true);
-    } else if (status === 'Faltó' || status === 'Tardanza') {
+      setDesistioStatus(status);
+      setDesistioMotivo(MOTIVOS_DESERCION[0]);
+      setDesistioComentario('');
+      setDesistioEvidenceName('');
+      setDesistioEvidenceImage('');
+      setShowDesistioModal(true);
+    } else if (isAbsenceStatus(status) || normalizeStatus(status) === 'tardanza') {
       // Open Novedad Observation capture modal
       const existing = attendanceMap[`${participant.id}_${day}`];
       setObsModalParticipant(participant);
@@ -507,24 +533,24 @@ export default function AttendanceControl({
   };
 
   // Confirm Deserción Modal
-  const handleConfirmDesistió = () => {
+  const handleConfirmDesistio = () => {
     if (!modalParticipant) return;
     onSaveAttendance({
       participant_id: modalParticipant.id,
       training_session_id: session.id,
       dia: selectedDay,
       fecha: getDayDate(selectedDay),
-      estado_asistencia: desistióStatus,
-      motivo_desercion: desistióMotivo,
-      observacion: desistióComentario,
-      evidencia_nombre: desistióEvidenceName,
-      evidencia_imagen: desistióEvidenceImage,
+      estado_asistencia: desistioStatus,
+      motivo_desercion: desistioMotivo,
+      observacion: desistioComentario,
+      evidencia_nombre: desistioEvidenceName,
+      evidencia_imagen: desistioEvidenceImage,
       registrado_por: currentUser.id
     });
-    setShowDesistióModal(false);
+    setShowDesistioModal(false);
     setModalParticipant(null);
-    setDesistióEvidenceName('');
-    setDesistióEvidenceImage('');
+    setDesistioEvidenceName('');
+    setDesistioEvidenceImage('');
   };
 
   // Submit Reopen Request
@@ -586,7 +612,7 @@ export default function AttendanceControl({
       selectedDay,
       bulkStatus,
       selectedParticipants,
-      bulkStatus === 'Desistió' || bulkStatus === 'Baja' ? bulkMotivoDesercion : undefined,
+      isDropoutStatus(bulkStatus) ? bulkMotivoDesercion : undefined,
       bulkComentario || undefined,
       bulkEvidenceName || undefined,
       bulkEvidenceImage || undefined
@@ -612,7 +638,7 @@ export default function AttendanceControl({
 
   const handleExportAttendanceExcel = () => {
     const rows = filteredParts.map((part) => {
-      const rowAttendance = [1, 2, 3, 4, 5].map((day) => attendanceMap[`${part.id}_${day}`]);
+      const rowAttendance = TRAINING_DAYS.map((day) => attendanceMap[`${part.id}_${day}`]);
       return {
         DNI: part.dni,
         Nombres: part.nombres,
@@ -623,18 +649,23 @@ export default function AttendanceControl({
         'Fuente reclutamiento': part.fuente_reclutamiento || '',
         Coordinador: part.coordinador || '',
         Ciudad: part.ciudad || '',
-        Campaña: session.campaña,
-        Generación: session.generation_code || session.nombre_generacion,
+        Campania: session.campaña,
+        Generacion: session.generation_code || session.nombre_generacion,
         Formador: session.formador_nombre,
-        'Día 1': rowAttendance[0]?.estado_asistencia || 'Pendiente',
-        'Día 2': rowAttendance[1]?.estado_asistencia || 'Pendiente',
-        'Día 3': rowAttendance[2]?.estado_asistencia || 'Pendiente',
-        'Día 4': rowAttendance[3]?.estado_asistencia || 'Pendiente',
-        'Día 5': rowAttendance[4]?.estado_asistencia || 'Pendiente',
-        Evaluación: part.evaluacion_nota ?? '',
-        'Resultado formación': part.resultado_formacion || '',
+        'Dia 1': rowAttendance[0]?.estado_asistencia || 'Pendiente',
+        'Dia 2': rowAttendance[1]?.estado_asistencia || 'Pendiente',
+        'Dia 3': rowAttendance[2]?.estado_asistencia || 'Pendiente',
+        'Dia 4': rowAttendance[3]?.estado_asistencia || 'Pendiente',
+        'Dia 5': rowAttendance[4]?.estado_asistencia || 'Pendiente',
+        'Dia 6': rowAttendance[5]?.estado_asistencia || 'Pendiente',
+        'Dia 7': rowAttendance[6]?.estado_asistencia || 'Pendiente',
+        'Dia 8': rowAttendance[7]?.estado_asistencia || 'Pendiente',
+        'Dia 9': rowAttendance[8]?.estado_asistencia || 'Pendiente',
+        'Dia 10': rowAttendance[9]?.estado_asistencia || 'Pendiente',
+        Evaluacion: part.evaluacion_nota ?? '',
+        'Resultado formacion': part.resultado_formacion || '',
         'Estado final': part.estado_final,
-        Observación: part.observacion || part.observacion_general || '',
+        Observacion: part.observacion || part.observacion_general || '',
       };
     });
 
@@ -723,7 +754,7 @@ export default function AttendanceControl({
         {isTimeLocked && (
           <button
             onClick={() => {
-              if (currentDayRequest?.estado === 'pendiente') {
+              if (currentDayRequestá.estado === 'pendiente') {
                 alert('Ya tienes una solicitud pendiente para este día.');
                 return;
               }
@@ -737,8 +768,8 @@ export default function AttendanceControl({
         )}
       </div>
 
-      {/* 📊 INDICADORES VISUALES Y METRICAS DEL DIA */}
-      <div className="grid grid-cols-2 md:grid-cols-6 gap-3">
+      {/* ðŸ“Š INDICADORES VISUALES Y METRICAS DEL DIA */}
+      <div className="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-7 gap-3">
         {/* Total Card */}
         <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs flex items-center gap-3">
           <div className="p-3 bg-blue-50 text-blue-600 rounded-xl">
@@ -794,6 +825,17 @@ export default function AttendanceControl({
           </div>
         </div>
 
+        {/* Vacaciones Card */}
+        <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs flex items-center gap-3">
+          <div className="p-3 bg-sky-50 text-sky-600 rounded-xl">
+            <Calendar className="w-5 h-5" />
+          </div>
+          <div>
+            <span className="block text-[11px] text-slate-400 font-bold uppercase">Vacaciones</span>
+            <span className="text-xl font-black text-sky-700">{stats.vacaciones}</span>
+          </div>
+        </div>
+
         {/* Progress Card */}
         <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs flex flex-col justify-between">
           <div className="flex justify-between text-[10px] font-bold text-slate-400 uppercase">
@@ -817,7 +859,7 @@ export default function AttendanceControl({
               <Check className="w-4 h-4" />
             </div>
             <div>
-              <span className="font-bold">¡Asistencias Sincronizadas!</span> Las marcas del Día {selectedDay} se han guardado de forma segura en la base de datos de FDR.
+              <span className="font-bold">?Asistencias Sincronizadas!</span> Las marcas del Día {selectedDay} se han guardado de forma segura en la base de datos de FDR.
             </div>
           </div>
           <button 
@@ -836,7 +878,7 @@ export default function AttendanceControl({
           <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4">
             <div className="flex items-center gap-1.5 flex-wrap">
               <span className="text-slate-400 text-xs font-bold uppercase tracking-wider mr-2">Día de Control:</span>
-              {[1, 2, 3, 4, 5].map(day => (
+              {TRAINING_DAYS.map(day => (
                 <button
                   key={day}
                   onClick={() => {
@@ -911,6 +953,7 @@ export default function AttendanceControl({
                   <option value="Asistió">Asistió</option>
                   <option value="Tardanza">Tardanza</option>
                   <option value="Faltó">Faltó</option>
+                  <option value="Vacaciones">Vacaciones</option>
                 <option value="Desistió">Desistió</option>
                 <option value="Baja">Baja</option>
                 </select>
@@ -1017,6 +1060,7 @@ export default function AttendanceControl({
                 <option value="Asistió">Marcar Asistencia</option>
                 <option value="Tardanza">Marcar Tardanza</option>
                 <option value="Faltó">Marcar Faltó</option>
+                <option value="Vacaciones">Marcar Vacaciones</option>
                 <option value="Desistió">Marcar Desistencia</option>
                 <option value="Baja">Marcar Baja</option>
               </select>
@@ -1053,7 +1097,7 @@ export default function AttendanceControl({
                     </th>
                   )}
                   <th className="p-4">DNI / Candidato</th>
-                  {[1, 2, 3, 4, 5].map(dayNum => (
+                  {TRAINING_DAYS.map(dayNum => (
                     <th key={dayNum} className={`p-4 text-center ${selectedDay === dayNum ? 'bg-indigo-50/50 text-indigo-700 font-bold' : ''}`}>
                       Día {dayNum}
                     </th>
@@ -1068,26 +1112,25 @@ export default function AttendanceControl({
                 {filteredParts.map((part) => {
                   const isSelected = selectedParticipants.includes(part.id);
 
-                  // Calculate reactive indicators for row
-                  const rowAttendance = [1, 2, 3, 4, 5].map(d => attendanceMap[`${part.id}_${d}`]);
-                  const hasDesistió = rowAttendance.some(a => a?.estado_asistencia === 'Desistió' || a?.estado_asistencia === 'Baja');
+                  const rowAttendance = TRAINING_DAYS.map(d => attendanceMap[`${part.id}_${d}`]);
+                  const hasDesistio = rowAttendance.some(a => isDropoutStatus(a?.estado_asistencia));
                   const d1 = attendanceMap[`${part.id}_1`]?.estado_asistencia;
 
                   // Dynamic final status calculations
                   let computedStatus = part.estado_final;
-                  if (hasDesistió) {
+                  if (hasDesistio) {
                     computedStatus = 'Desistió';
-                  } else if (d1 === 'Faltó' && rowAttendance.filter(a => a).every(a => a.estado_asistencia === 'Faltó')) {
+                  } else if (isAbsenceStatus(d1) && rowAttendance.filter(Boolean).every(a => isAbsenceStatus(a?.estado_asistencia))) {
                     computedStatus = 'No asistió';
-                  } else if (rowAttendance.some(a => a?.estado_asistencia === 'Faltó')) {
+                  } else if (rowAttendance.some(a => isAbsenceStatus(a?.estado_asistencia))) {
                     computedStatus = 'En riesgo';
-                  } else if (rowAttendance.filter(a => a?.estado_asistencia === 'Asistió' || a?.estado_asistencia === 'Tardanza').length === 5) {
+                  } else if (rowAttendance.filter(a => isPresentStatus(a?.estado_asistencia)).length === TRAINING_DAYS.length) {
                     computedStatus = part.estado_final === 'Alta confirmada' ? 'Alta confirmada' : 'Pendiente de alta';
-                  } else if (rowAttendance.some(a => a?.estado_asistencia === 'Asistió' || a?.estado_asistencia === 'Tardanza')) {
+                  } else if (rowAttendance.some(a => isPresentStatus(a?.estado_asistencia))) {
                     computedStatus = 'En formación';
                   }
 
-                  const activeDesistioRecord = rowAttendance.find(a => a?.estado_asistencia === 'Desistió' || a?.estado_asistencia === 'Baja');
+                  const activeDesistioRecord = rowAttendance.find(a => isDropoutStatus(a?.estado_asistencia));
 
                   return (
                     <tr key={part.id} className={`hover:bg-slate-50/40 transition-colors ${isSelected ? 'bg-indigo-50/20' : ''}`}>
@@ -1120,7 +1163,7 @@ export default function AttendanceControl({
                         </div>
                         <div className="flex gap-2 text-[10px] text-slate-400 font-mono mt-0.5">
                           <span>DNI: {part.dni}</span>
-                          <span>•</span>
+                          <span>?</span>
                           <span>Cel: {part.celular}</span>
                         </div>
                         <div className="mt-1 text-[10px] text-slate-500 font-semibold">
@@ -1129,7 +1172,7 @@ export default function AttendanceControl({
                       </td>
 
                       {/* Days markings */}
-                      {[1, 2, 3, 4, 5].map((dayNum) => {
+                      {TRAINING_DAYS.map((dayNum) => {
                         const record = attendanceMap[`${part.id}_${dayNum}`];
                         const isCurrentDay = selectedDay === dayNum;
 
@@ -1142,12 +1185,14 @@ export default function AttendanceControl({
                                   record.estado_asistencia === 'Asistió' ? 'bg-emerald-50 text-emerald-700' :
                                   record.estado_asistencia === 'Tardanza' ? 'bg-amber-50 text-amber-700' :
                                   record.estado_asistencia === 'Faltó' ? 'bg-rose-50 text-rose-700' :
+                                  record.estado_asistencia === 'Vacaciones' ? 'bg-sky-50 text-sky-700' :
                                   record.estado_asistencia === 'Baja' ? 'bg-orange-50 text-orange-800' :
                                   'bg-red-50 text-red-800'
                                 }`}>
                                   {record.estado_asistencia === 'Asistió' ? 'Asistió' :
                                    record.estado_asistencia === 'Tardanza' ? 'Tarde' :
                                    record.estado_asistencia === 'Faltó' ? 'Faltó' :
+                                   record.estado_asistencia === 'Vacaciones' ? 'Vacaciones' :
                                    record.estado_asistencia === 'Baja' ? 'Baja' : 'Desistió'}
                                 </span>
                               ) : (
@@ -1162,6 +1207,7 @@ export default function AttendanceControl({
                                       record.estado_asistencia === 'Asistió' ? 'bg-emerald-100 text-emerald-800' :
                                       record.estado_asistencia === 'Tardanza' ? 'bg-amber-100 text-amber-800' :
                                       record.estado_asistencia === 'Faltó' ? 'bg-rose-100 text-rose-800' :
+                                      record.estado_asistencia === 'Vacaciones' ? 'bg-sky-100 text-sky-800' :
                                       record.estado_asistencia === 'Baja' ? 'bg-orange-100 text-orange-800' :
                                       'bg-red-100 text-red-900'
                                     }`}>
@@ -1178,6 +1224,7 @@ export default function AttendanceControl({
                                       record?.estado_asistencia === 'Asistió' ? 'bg-emerald-50 border-emerald-200 text-emerald-700' :
                                       record?.estado_asistencia === 'Tardanza' ? 'bg-amber-50 border-amber-200 text-amber-700' :
                                       record?.estado_asistencia === 'Faltó' ? 'bg-rose-50 border-rose-200 text-rose-700' :
+                                      record?.estado_asistencia === 'Vacaciones' ? 'bg-sky-50 border-sky-200 text-sky-700' :
                                       record?.estado_asistencia === 'Baja' ? 'bg-orange-50 border-orange-200 text-orange-800' :
                                       record?.estado_asistencia === 'Desistió' ? 'bg-red-50 border-red-200 text-red-800' :
                                       'bg-white border-slate-200 text-slate-500'
@@ -1187,6 +1234,7 @@ export default function AttendanceControl({
                                     <option value="Asistió">Asistió</option>
                                     <option value="Tardanza">Tardanza</option>
                                     <option value="Faltó">Faltó</option>
+                                    <option value="Vacaciones">Vacaciones</option>
                                     <option value="Desistió">Desistió</option>
                                     <option value="Baja">Baja</option>
                                   </select>
@@ -1249,8 +1297,8 @@ export default function AttendanceControl({
                           const isAssignedTrainer = isTrainer && session.formador_id === currentUser.id;
                           const isAdmin = currentUser.rol === 'Administrador';
                           
-                          // Formador can only mark for their own sessions on Day 5 (selectedDay === 5 or other Day 5 completions)
-                          const canMarkOutcome = isAdmin || (isAssignedTrainer && selectedDay === 5);
+                          // Formador can only mark for their own sessions on Day 5 (selectedDay === LAST_TRAINING_DAY or other Day 5 completions)
+                          const canMarkOutcome = isAdmin || (isAssignedTrainer && selectedDay === LAST_TRAINING_DAY);
 
                           const outcome = part.resultado_formacion || 'Marcar';
 
@@ -1340,14 +1388,18 @@ export default function AttendanceControl({
                             <p className="font-semibold text-rose-600 truncate">{activeDesistioRecord.motivo_desercion}</p>
                             <p className="text-slate-400 truncate italic">{activeDesistioRecord.observacion}</p>
                             {activeDesistioRecord.evidencia_imagen && (
-                              <a
-                                href={activeDesistioRecord.evidencia_imagen}
-                                target="_blank"
-                                rel="noreferrer"
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  setEvidencePreview({
+                                    src: activeDesistioRecord.evidencia_imagen || '',
+                                    name: activeDesistioRecord.evidencia_nombre || 'Evidencia',
+                                  })
+                                }
                                 className="mt-1 inline-flex text-[9px] font-bold text-indigo-600 underline"
                               >
                                 Ver imagen
-                              </a>
+                              </button>
                             )}
                           </div>
                         ) : (
@@ -1362,6 +1414,29 @@ export default function AttendanceControl({
           </div>
         )}
       </div>
+
+      {/* MODAL: EVIDENCE PREVIEW */}
+      {evidencePreview && (
+        <div className="fixed inset-0 z-50 bg-slate-950/60 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl p-4 max-w-3xl w-full border border-white/40 shadow-xl space-y-3">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+              <div>
+                <h3 className="font-black text-slate-800 text-sm">Evidencia de asistencia</h3>
+                <p className="text-[11px] text-slate-400 truncate">{evidencePreview.name}</p>
+              </div>
+              <button
+                onClick={() => setEvidencePreview(null)}
+                className="text-slate-400 hover:text-slate-700 text-xl leading-none"
+              >
+                x
+              </button>
+            </div>
+            <div className="max-h-[70vh] overflow-auto rounded-xl bg-slate-50 border border-slate-100 p-2">
+              <img src={evidencePreview.src} alt={evidencePreview.name} className="mx-auto max-h-[66vh] w-auto max-w-full rounded-lg object-contain" />
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* MODAL: EDIT PARTICIPANT DETAILS ONLY */}
       {editingParticipant && (
@@ -1431,24 +1506,24 @@ export default function AttendanceControl({
       )}
 
       {/* MODAL: SINGLE PARTICIPANT DESERTION REASON */}
-      {showDesistióModal && modalParticipant && (
+      {showDesistioModal && modalParticipant && (
         <div className="fixed inset-0 z-50 bg-slate-950/40 backdrop-blur-sm flex items-center justify-center p-4">
           <div className="bg-white/90 backdrop-blur-md rounded-2xl p-6 max-w-md w-full border border-white/40 shadow-xl space-y-4 animate-in fade-in-50 zoom-in-95 animate-duration-200">
             <div className="flex items-center gap-2.5 text-rose-600 border-b border-slate-100 pb-2">
               <AlertTriangle className="w-5 h-5 animate-bounce" />
-              <h3 className="font-bold text-base">Registrar {desistióStatus === 'Baja' ? 'Baja' : 'Deserción'} de FDR</h3>
+              <h3 className="font-bold text-base">Registrar {desistioStatus === 'Baja' ? 'Baja' : 'Deserción'} de FDR</h3>
             </div>
 
             <p className="text-slate-600 text-xs leading-relaxed">
-              Estás marcando al participante <strong>{modalParticipant.nombres} {modalParticipant.apellidos}</strong> como <strong>{desistióStatus}</strong> en el Día {selectedDay}. Este cambio es irreversible sin reapertura. Indica el motivo:
+              Estás marcando al participante <strong>{modalParticipant.nombres} {modalParticipant.apellidos}</strong> como <strong>{desistioStatus}</strong> en el Día {selectedDay}. Este cambio es irreversible sin reapertura. Indica el motivo:
             </p>
 
             <div className="space-y-3 text-xs">
               <div>
-                <label className="block font-bold text-slate-600 mb-1">Motivo de {desistióStatus === 'Baja' ? 'Baja' : 'Deserción'} *</label>
+                <label className="block font-bold text-slate-600 mb-1">Motivo de {desistioStatus === 'Baja' ? 'Baja' : 'Deserción'} *</label>
                 <select
-                  value={desistióMotivo}
-                  onChange={(e) => setDesistióMotivo(e.target.value)}
+                  value={desistioMotivo}
+                  onChange={(e) => setDesistioMotivo(e.target.value)}
                   className="w-full bg-slate-50 border rounded-xl p-2.5 outline-hidden focus:ring-1 focus:ring-rose-500"
                 >
                   {MOTIVOS_DESERCION.map(m => (
@@ -1458,10 +1533,10 @@ export default function AttendanceControl({
               </div>
 
               <div>
-                <label className="block font-bold text-slate-600 mb-1">Observaciones / Comentario de {desistióStatus === 'Baja' ? 'Baja' : 'Deserción'} *</label>
+                <label className="block font-bold text-slate-600 mb-1">Observaciones / Comentario de {desistioStatus === 'Baja' ? 'Baja' : 'Deserción'} *</label>
                 <textarea
-                  value={desistióComentario}
-                  onChange={(e) => setDesistióComentario(e.target.value)}
+                  value={desistioComentario}
+                  onChange={(e) => setDesistioComentario(e.target.value)}
                   placeholder="Explique las condiciones o comentarios vertidos por el candidato al retirarse..."
                   rows={3}
                   className="w-full bg-slate-50 border rounded-xl p-2.5 outline-hidden focus:ring-1 focus:ring-rose-500"
@@ -1475,18 +1550,18 @@ export default function AttendanceControl({
                   accept="image/*"
                   onChange={(event) =>
                     readEvidenceImage(event.currentTarget.files?.[0], (name, image) => {
-                      setDesistióEvidenceName(name);
-                      setDesistióEvidenceImage(image);
+                      setDesistioEvidenceName(name);
+                      setDesistioEvidenceImage(image);
                     })
                   }
                   className="w-full text-xs bg-slate-50 border rounded-xl p-2.5 text-slate-600"
                 />
-                {desistióEvidenceName && (
+                {desistioEvidenceName && (
                   <div className="mt-2 flex items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 p-2">
-                    {desistióEvidenceImage && (
-                      <img src={desistióEvidenceImage} alt="Evidencia de baja" className="h-12 w-12 rounded-lg object-cover border border-slate-200" />
+                    {desistioEvidenceImage && (
+                      <img src={desistioEvidenceImage} alt="Evidencia de baja" className="h-12 w-12 rounded-lg object-cover border border-slate-200" />
                     )}
-                    <span className="text-[10px] font-semibold text-slate-600 truncate">{desistióEvidenceName}</span>
+                    <span className="text-[10px] font-semibold text-slate-600 truncate">{desistioEvidenceName}</span>
                   </div>
                 )}
               </div>
@@ -1495,21 +1570,21 @@ export default function AttendanceControl({
             <div className="flex justify-end gap-3 pt-3">
               <button
                 onClick={() => {
-                  setShowDesistióModal(false);
+                  setShowDesistioModal(false);
                   setModalParticipant(null);
-                  setDesistióEvidenceName('');
-                  setDesistióEvidenceImage('');
+                  setDesistioEvidenceName('');
+                  setDesistioEvidenceImage('');
                 }}
                 className="bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold text-xs px-4 py-2 rounded-xl"
               >
                 Cancelar
               </button>
               <button
-                onClick={handleConfirmDesistió}
-                disabled={!desistióComentario.trim()}
+                onClick={handleConfirmDesistio}
+                disabled={!desistioComentario.trim()}
                 className="bg-rose-600 hover:bg-rose-700 disabled:opacity-50 text-white font-bold text-xs px-4 py-2 rounded-xl"
               >
-                Confirmar {desistióStatus === 'Baja' ? 'Baja' : 'Deserción'}
+                Confirmar {desistioStatus === 'Baja' ? 'Baja' : 'Deserción'}
               </button>
             </div>
           </div>
@@ -1526,7 +1601,7 @@ export default function AttendanceControl({
             </div>
 
             <p className="text-slate-600 text-xs">
-              Envía una solicitud formal al administrador para abrir la edición de asistencia del{' '}
+              Env?a una solicitud formal al administrador para abrir la edici?n de asistencia del{' '}
               <strong>Día {selectedDay}</strong> en la campaña <strong>{session.campaña}</strong> ({session.nombre_generacion}).
             </p>
 
@@ -1538,21 +1613,21 @@ export default function AttendanceControl({
                   onChange={(e) => setReopenMotivo(e.target.value)}
                   className="w-full bg-slate-50 border rounded-xl p-2.5 outline-hidden focus:ring-1 focus:ring-amber-500"
                 >
-                  <option value="Se me pasó el horario de registro">Se me pasó el horario de registro</option>
+                  <option value="Se me pas? el horario de registro">Se me pas? el horario de registro</option>
                   <option value="Error al registrar asistencia">Error al registrar asistencia</option>
-                  <option value="Problemas técnicos">Problemas técnicos</option>
-                  <option value="Participante se incorporó tarde">Participante se incorporó tarde</option>
-                  <option value="Validación pendiente con reclutamiento">Validación pendiente con reclutamiento</option>
+                  <option value="Problemas t?cnicos">Problemas t?cnicos</option>
+                  <option value="Participante se incorpor? tarde">Participante se incorpor? tarde</option>
+                  <option value="Validaci?n pendiente con reclutamiento">Validaci?n pendiente con reclutamiento</option>
                   <option value="Otro motivo">Otro motivo</option>
                 </select>
               </div>
 
               <div>
-                <label className="block font-bold text-slate-600 mb-1">Comentarios o Justificación *</label>
+                <label className="block font-bold text-slate-600 mb-1">Comentarios o Justificaci?n *</label>
                 <textarea
                   value={reopenComentario}
                   onChange={(e) => setReopenComentario(e.target.value)}
-                  placeholder="Escriba los detalles de por qué requiere editar la asistencia..."
+                  placeholder="Escriba los detalles de por qu? requiere editar la asistencia..."
                   rows={3}
                   className="w-full bg-slate-50 border rounded-xl p-2.5 outline-hidden focus:ring-1 focus:ring-amber-500"
                 />
@@ -1596,21 +1671,21 @@ export default function AttendanceControl({
 
             {obsModalStatus === 'Faltó' ? (
               <div className="bg-rose-50 text-rose-800 text-[11px] p-3 rounded-lg border border-rose-100 font-medium">
-                ⚠️ El ingreso de observación o novedad es obligatorio para registrar una inasistencia (Faltó) en FDR.
+                âš ï¸ El ingreso de observación o novedad es obligatorio para registrar una inasistencia (Faltó) en FDR.
               </div>
             ) : (
               <div className="bg-amber-50 text-amber-800 text-[11px] p-3 rounded-lg border border-amber-100 font-medium">
-                💡 Se recomienda detallar los minutos de tardanza o justificaciones entregadas por el participante.
+                ðŸ’¡ Se recomienda detallar los minutos de tardanza o justificaciones entregadas por el participante.
               </div>
             )}
 
             <div className="space-y-3 text-xs">
               <div>
-                <label className="block font-bold text-slate-600 mb-1">Descripción de la Novedad *</label>
+                <label className="block font-bold text-slate-600 mb-1">Descripci?n de la Novedad *</label>
                 <textarea
                   value={obsModalValue}
                   onChange={(e) => setObsModalValue(e.target.value)}
-                  placeholder={obsModalStatus === 'Faltó' ? 'Indicar motivo (ej: Celular apagado, problema médico con certificado, no responde...)' : 'Detalle la tardanza (ej: Ingresó 15 minutos tarde por congestión vehicular...)'}
+                  placeholder={obsModalStatus === 'Faltó' ? 'Indicar motivo (ej: Celular apagado, problema m?dico con certificado, no responde...)' : 'Detalle la tardanza (ej: Ingres? 15 minutos tarde por congestión vehicular...)'}
                   rows={3}
                   className="w-full bg-slate-50 border rounded-xl p-2.5 outline-hidden focus:ring-1 focus:ring-indigo-500 text-xs text-slate-800"
                 />
@@ -1692,7 +1767,7 @@ export default function AttendanceControl({
                 <textarea
                   value={bulkComentario}
                   onChange={(e) => setBulkComentario(e.target.value)}
-                  placeholder={bulkStatus === 'Desistió' || bulkStatus === 'Baja' || bulkStatus === 'Faltó' ? 'Escribe la justificación o comentario para este grupo...' : 'Ingresa comentarios o novedades si aplica...'}
+                  placeholder={bulkStatus === 'Desistió' || bulkStatus === 'Baja' || bulkStatus === 'Faltó' ? 'Escribe la justificaci?n o comentario para este grupo...' : 'Ingresa comentarios o novedades si aplica...'}
                   rows={3}
                   className="w-full bg-slate-50 border rounded-xl p-2.5 outline-hidden focus:ring-1 focus:ring-indigo-500 text-xs text-slate-800"
                 />
@@ -1778,7 +1853,7 @@ export default function AttendanceControl({
                       setOutcomeComment(e.target.value);
                       if (e.target.value.trim()) setOutcomeError('');
                     }}
-                    placeholder="Escriba un comentario sobre el desempeño sobresaliente, actitud y potencial del ejecutivo..."
+                    placeholder="Escriba un comentario sobre el desempe?o sobresaliente, actitud y potencial del ejecutivo..."
                     rows={4}
                     className="w-full bg-slate-50 border rounded-xl p-2.5 outline-hidden focus:ring-1 focus:ring-emerald-500 text-xs text-slate-800"
                   />
@@ -1793,7 +1868,7 @@ export default function AttendanceControl({
                       setOutcomeReason(e.target.value);
                       if (e.target.value.trim()) setOutcomeError('');
                     }}
-                    placeholder="Detalle el motivo por el cual el ejecutivo no califica (ej: No supera evaluaciones técnicas, inasistencias acumuladas, bajo nivel de comunicación...)"
+                    placeholder="Detalle el motivo por el cual el ejecutivo no califica (ej: No supera evaluaciones t?cnicas, inasistencias acumuladas, bajo nivel de comunicaci?n...)"
                     rows={4}
                     className="w-full bg-slate-50 border rounded-xl p-2.5 outline-hidden focus:ring-1 focus:ring-rose-500 text-xs text-slate-800"
                   />

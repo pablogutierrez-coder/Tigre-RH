@@ -10,7 +10,7 @@ const SURVEY_READY_FINAL_STATES = new Set([
   'Alta confirmada',
 ]);
 
-export const REQUIRED_TRAINING_DAYS = 5;
+export const REQUIRED_TRAINING_DAYS = 10;
 export const REQUIRED_SURVEY_ATTENDANCE_PERCENT = 80;
 
 export const getPresentAttendanceDays = (

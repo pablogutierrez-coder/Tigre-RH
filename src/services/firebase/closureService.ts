@@ -1,4 +1,4 @@
-import { FDR_COLLECTIONS } from '../../constants/firebaseCollections';
+﻿import { FDR_COLLECTIONS } from '../../constants/firebaseCollections';
 import type {
   AttendanceRecord,
   AuditLog,
@@ -26,7 +26,7 @@ interface CloseTrainingParams extends ValidateClosureParams {
   observation?: string;
 }
 
-const VALID_ATTENDANCE = ['Asistió', 'Tardanza', 'Faltó', 'Desistió'];
+const VALID_ATTENDANCE = ['Asistió', 'Tardanza', 'Faltó', 'Desistió', 'Baja', 'Vacaciones'];
 const CLOSED_READY_STATES = ['En curso', 'Activa', 'Campaña cerrada'];
 
 const isFinishedByDate = (session: TrainingSession) => {
@@ -62,7 +62,7 @@ const hasValidAttendance = (
   );
   if (isDeserted(participant, records)) return true;
 
-  return [1, 2, 3, 4, 5].every((day) =>
+  return Array.from({ length: 10 }, (_, index) => index + 1).every((day) =>
     VALID_ATTENDANCE.includes(
       records.find((record) => record.dia === day)?.estado_asistencia || '',
     ),
@@ -217,7 +217,7 @@ export const closeTraining = async ({
     rol: 'Administrador',
     accion: 'Cierre de capacitación',
     modulo: 'Cierre de capacitaciones',
-    detalle: `Se cerró la capacitación "${validationParams.session.nombre_generacion}".`,
+    detalle: `Se cerr? la capacitación "${validationParams.session.nombre_generacion}".`,
     fecha: now,
     campaña: validationParams.session.campaña,
     generacion: validationParams.session.nombre_generacion,

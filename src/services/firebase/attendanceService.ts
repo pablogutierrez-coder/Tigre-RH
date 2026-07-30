@@ -1,4 +1,4 @@
-import { collection, getDocs, query, where } from 'firebase/firestore';
+﻿import { collection, getDocs, query, where } from 'firebase/firestore';
 import { FDR_COLLECTIONS } from '../../constants/firebaseCollections';
 import { db } from '../../lib/firebase';
 import type { AttendanceRecord, AttendanceStatus, Participant } from '../../types';
@@ -78,7 +78,7 @@ export const validateAttendanceComplete = (
     );
     if (hasDesertion) return true;
 
-    return [1, 2, 3, 4, 5].every((day) =>
+    return Array.from({ length: 10 }, (_, index) => index + 1).every((day) =>
       isValidAttendanceStatus(
         records.find((record) => record.dia === day)?.estado_asistencia,
       ),
@@ -94,8 +94,10 @@ export const getAttendanceSummary = async (sessionId: string) => {
       if (record.estado_asistencia === 'Tardanza') summary.tardanza += 1;
       if (record.estado_asistencia === 'Faltó') summary.falto += 1;
       if (record.estado_asistencia === 'Desistió') summary.desistio += 1;
+      if (record.estado_asistencia === 'Baja') summary.desistio += 1;
+      if (record.estado_asistencia === 'Vacaciones') summary.vacaciones += 1;
       return summary;
     },
-    { asistio: 0, tardanza: 0, falto: 0, desistio: 0 },
+    { asistio: 0, tardanza: 0, falto: 0, desistio: 0, vacaciones: 0 },
   );
 };
