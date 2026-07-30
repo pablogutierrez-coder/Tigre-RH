@@ -86,7 +86,7 @@ export const permissions: Record<string, AppPermissions> = {
     readOnly: false,
   },
   Formador: {
-    canViewDashboard: false,
+    canViewDashboard: true,
     canViewAll: false,
     canCreateTraining: false,
     canEditTraining: false,

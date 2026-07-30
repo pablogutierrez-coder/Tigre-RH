@@ -34,7 +34,7 @@ import {
   RefreshCw,
   Award
 } from 'lucide-react';
-import { TrainingSession, Participant, AttendanceRecord, OperationConfirmation, AttendanceReopenRequest } from '../types';
+import { TrainingSession, Participant, AttendanceRecord, OperationConfirmation, AttendanceReopenRequest, User as AppUser } from '../types';
 import { getTrainingDaysCount, LEGACY_TRAINING_DAYS_COUNT } from '../utils/trainingDays';
 
 interface DashboardProps {
@@ -45,6 +45,7 @@ interface DashboardProps {
   reopens: AttendanceReopenRequest[];
   trainers: { id: string; nombre: string }[];
   recruiters: { id: string; nombre: string }[];
+  currentUser: AppUser;
 }
 
 const normalizeAttendanceStatus = (status?: string) =>
@@ -63,6 +64,7 @@ export default function Dashboard({
   confirmations,
   reopens,
   trainers,
+  currentUser,
 }: DashboardProps) {
   // Filters state
   const [filterCampaña, setFilterCampaña] = useState<string>('todos');
@@ -80,11 +82,43 @@ export default function Dashboard({
       session.id,
     );
 
+  const roleScopedSessions = useMemo(() => {
+    if (currentUser.rol === 'Formador') {
+      return sessions.filter((session) => session.formador_id === currentUser.id);
+    }
+    if (currentUser.rol === 'Reclutador') {
+      return sessions.filter((session) => session.reclutador_id === currentUser.id);
+    }
+    if (currentUser.rol === 'Coordinador') {
+      return sessions.filter((session) =>
+        participants.some((participant) =>
+          participant.training_session_id === session.id &&
+          (
+            participant.coordinador === currentUser.nombre ||
+            participant.coordinador === currentUser.usuario ||
+            participant.coordinador === currentUser.correo
+          ),
+        ),
+      );
+    }
+    return sessions;
+  }, [sessions, participants, currentUser]);
+
+  const scopedTrainerIds = useMemo(
+    () => new Set(roleScopedSessions.map((session) => session.formador_id).filter(Boolean)),
+    [roleScopedSessions],
+  );
+
+  const visibleTrainers = useMemo(
+    () => trainers.filter((trainer) => scopedTrainerIds.has(trainer.id)),
+    [trainers, scopedTrainerIds],
+  );
+
   const filterOptions = useMemo(() => ({
-    campañas: Array.from(new Set(sessions.map((session) => session.campaña).filter(Boolean))).sort(),
-    convocatorias: Array.from(new Set(sessions.map(getSessionConvocatoria).filter(Boolean))).sort(),
-    generaciones: Array.from(new Set(sessions.map((session) => session.nombre_generacion).filter(Boolean))).sort(),
-  }), [sessions]);
+    campañas: Array.from(new Set(roleScopedSessions.map((session) => session.campaña).filter(Boolean))).sort(),
+    convocatorias: Array.from(new Set(roleScopedSessions.map(getSessionConvocatoria).filter(Boolean))).sort(),
+    generaciones: Array.from(new Set(roleScopedSessions.map((session) => session.nombre_generacion).filter(Boolean))).sort(),
+  }), [roleScopedSessions]);
 
   // Reset Filters
   const handleResetFilters = () => {
@@ -97,7 +131,7 @@ export default function Dashboard({
 
   // Filtered Sessions
   const filteredSessions = useMemo(() => {
-    return sessions.filter(s => {
+    return roleScopedSessions.filter(s => {
       if (filterCampaña !== 'todos' && s.campaña !== filterCampaña) return false;
       if (filterFormador !== 'todos' && s.formador_id !== filterFormador) return false;
       if (filterConvocatoria !== 'todos' && getSessionConvocatoria(s) !== filterConvocatoria) return false;
@@ -105,7 +139,7 @@ export default function Dashboard({
       if (filterFecha && (filterFecha < s.fecha_inicio || filterFecha > s.fecha_fin)) return false;
       return true;
     });
-  }, [sessions, filterCampaña, filterFormador, filterConvocatoria, filterGeneracion, filterFecha]);
+  }, [roleScopedSessions, filterCampaña, filterFormador, filterConvocatoria, filterGeneracion, filterFecha]);
 
   const filteredSessionIds = useMemo(() => new Set(filteredSessions.map(s => s.id)), [filteredSessions]);
   const filteredSessionById = useMemo(() => new Map(filteredSessions.map(s => [s.id, s])), [filteredSessions]);
@@ -267,7 +301,7 @@ export default function Dashboard({
 
   // 3. Comparativo por Formador
   const formadorData = useMemo(() => {
-    return trainers.map(t => {
+    return visibleTrainers.map(t => {
       const trainerSessions = filteredSessions.filter(s => s.formador_id === t.id);
       const sIds = new Set(trainerSessions.map(s => s.id));
       const tParts = participants.filter(p => sIds.has(p.training_session_id));
@@ -296,7 +330,7 @@ export default function Dashboard({
         'Efectividad %': efectividad
       };
     });
-  }, [filteredSessions, trainers, participants, attendance, validConfirmations]);
+  }, [filteredSessions, visibleTrainers, participants, attendance, validConfirmations]);
 
   // 4. Deserciones por Motivo
   const desercionesPorMotivo = useMemo(() => {
@@ -464,8 +498,8 @@ export default function Dashboard({
                 onChange={(e) => setFilterFormador(e.target.value)}
                 className="w-full text-xs glass-input text-slate-700 rounded-lg p-2 outline-hidden"
               >
-                <option value="todos">Todos los Formadores</option>
-                {trainers.map(t => (
+                <option value="todos">{currentUser.rol === 'Formador' ? 'Mis capacitaciones' : 'Todos los Formadores'}</option>
+                {visibleTrainers.map(t => (
                   <option key={t.id} value={t.id}>{t.nombre}</option>
                 ))}
               </select>

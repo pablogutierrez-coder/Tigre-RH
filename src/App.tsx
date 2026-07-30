@@ -1905,7 +1905,7 @@ export default function App() {
                       },
                     ];
                     const formationGroups = [
-                      { title: 'Monitoreo', items: [['dashboard', 'Dashboard de Formación', LayoutDashboard, ['Administrador', 'Analista', 'Coordinador', 'Sistemas']]] },
+                      { title: 'Monitoreo', items: [['dashboard', 'Dashboard de Formación', LayoutDashboard, ['Administrador', 'Analista', 'Coordinador', 'Sistemas', 'Formador']]] },
                       {
                         title: activeUser.rol === 'Formador' ? 'Aula FDR' : 'Operación FDR',
                         items: [
@@ -2054,7 +2054,7 @@ export default function App() {
               )}
 
               {/* View 1: General Dashboard */}
-              {currentView === 'dashboard' && (activeUser.rol === 'Administrador' || activeUser.rol === 'Analista' || activeUser.rol === 'Coordinador' || activeUser.rol === 'Sistemas') && (
+              {currentView === 'dashboard' && permissions[activeUser.rol]?.canViewDashboard && (
                 <Dashboard
                   sessions={sessions}
                   participants={participants}
@@ -2063,6 +2063,7 @@ export default function App() {
                   reopens={reopens}
                   trainers={trainersList}
                   recruiters={recruitersList}
+                  currentUser={activeUser}
                 />
               )}
 
