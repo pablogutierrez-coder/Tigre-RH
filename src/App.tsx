@@ -156,6 +156,7 @@ const getDefaultRouteForUser = (user: User): { currentView: string; selectionVie
     { area: 'formacion', moduleId: 'altas', currentView: 'altas' },
     { area: 'formacion', moduleId: 'reaperturas', currentView: 'reaperturas' },
     { area: 'formacion', moduleId: 'encuestas', currentView: 'encuestas' },
+    { area: 'formacion', moduleId: 'reportes', currentView: 'reportes' },
     { area: 'administrador', moduleId: 'usuarios', currentView: 'usuarios' },
     { area: 'administrador', moduleId: 'reportes', currentView: 'reportes' },
     { area: 'administrador', moduleId: 'auditoria', currentView: 'auditoria' },
@@ -185,6 +186,7 @@ const getFormationViewForUser = (user: User): string => {
     { moduleId: 'altas', currentView: 'altas' },
     { moduleId: 'reaperturas', currentView: 'reaperturas' },
     { moduleId: 'encuestas', currentView: 'encuestas' },
+    { moduleId: 'reportes', currentView: 'reportes' },
   ];
   return formationRoutes.find(route => userHasModuleAccess(user, 'formacion', route.moduleId))?.currentView || 'capacitaciónes';
 };
@@ -1981,6 +1983,12 @@ export default function App() {
                         title: 'Encuestas',
                         items: [
                           ['encuestas', 'Encuestas de Satisfacción', ClipboardCheck, ['Administrador', 'Analista', 'Coordinador', 'Sistemas', 'Formador', 'Reclutador']],
+                        ],
+                      },
+                      {
+                        title: 'Reportes',
+                        items: [
+                          ['reportes', 'Reportes Exportables', FileSpreadsheet, ['Administrador', 'Analista', 'Coordinador', 'Sistemas']],
                         ],
                       },
                     ];

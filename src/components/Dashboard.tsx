@@ -89,20 +89,8 @@ export default function Dashboard({
     if (currentUser.rol === 'Reclutador') {
       return sessions.filter((session) => session.reclutador_id === currentUser.id);
     }
-    if (currentUser.rol === 'Coordinador') {
-      return sessions.filter((session) =>
-        participants.some((participant) =>
-          participant.training_session_id === session.id &&
-          (
-            participant.coordinador === currentUser.nombre ||
-            participant.coordinador === currentUser.usuario ||
-            participant.coordinador === currentUser.correo
-          ),
-        ),
-      );
-    }
     return sessions;
-  }, [sessions, participants, currentUser]);
+  }, [sessions, currentUser]);
 
   const scopedTrainerIds = useMemo(
     () => new Set(roleScopedSessions.map((session) => session.formador_id).filter(Boolean)),

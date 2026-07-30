@@ -105,7 +105,7 @@ export const permissions: Record<string, AppPermissions> = {
   },
   Coordinador: {
     canViewDashboard: true,
-    canViewAll: false,
+    canViewAll: true,
     canCreateTraining: true,
     canEditTraining: true,
     canDeleteTraining: false,
