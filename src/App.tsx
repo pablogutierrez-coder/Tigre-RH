@@ -124,15 +124,78 @@ const getDefaultAreasForRole = (role: User['rol']): UserArea[] => {
 const hasConfiguredUserAccess = (user: User) =>
   Boolean((user.areas && user.areas.length > 0) || (user.module_access && user.module_access.length > 0));
 
+const userHasExplicitModuleAccess = (user: User, area: UserArea, moduleId: string) =>
+  Boolean(user.module_access?.includes(`${area}:${moduleId}`));
+
 const userHasAreaAccess = (user: User, area: UserArea) => {
   if (!hasConfiguredUserAccess(user)) return getDefaultAreasForRole(user.rol).includes(area);
-  return Boolean(user.areas?.includes(area));
+  return Boolean(user.areas?.includes(area) || user.module_access?.some(moduleId => moduleId.startsWith(`${area}:`)));
 };
 
 const userHasModuleAccess = (user: User, area: UserArea, moduleId: string) => {
   if (!userHasAreaAccess(user, area)) return false;
   if (!user.module_access || user.module_access.length === 0) return true;
   return user.module_access.includes(`${area}:${moduleId}`);
+};
+
+const getDefaultRouteForUser = (user: User): { currentView: string; selectionView?: SelectionViewMode } => {
+  const orderedRoutes: Array<{ area: UserArea; moduleId: string; currentView: string; selectionView?: SelectionViewMode }> = [
+    { area: 'seleccion', moduleId: 'dashboard', currentView: 'seleccion', selectionView: 'dashboard' },
+    { area: 'seleccion', moduleId: 'convocatorias', currentView: 'seleccion', selectionView: 'convocatorias' },
+    { area: 'seleccion', moduleId: 'postulantes', currentView: 'seleccion', selectionView: 'postulantes' },
+    { area: 'seleccion', moduleId: 'seguimientos', currentView: 'seleccion', selectionView: 'seguimientos' },
+    { area: 'seleccion', moduleId: 'agenda', currentView: 'seleccion', selectionView: 'agenda' },
+    { area: 'seleccion', moduleId: 'evaluaciones', currentView: 'seleccion', selectionView: 'evaluaciones' },
+    { area: 'seleccion', moduleId: 'aptos', currentView: 'seleccion', selectionView: 'aptos' },
+    { area: 'seleccion', moduleId: 'base', currentView: 'seleccion', selectionView: 'base' },
+    { area: 'seleccion', moduleId: 'asignacion', currentView: 'seleccion', selectionView: 'asignacion' },
+    { area: 'seleccion', moduleId: 'historial', currentView: 'seleccion', selectionView: 'historial' },
+    { area: 'formacion', moduleId: 'dashboard', currentView: 'dashboard' },
+    { area: 'formacion', moduleId: 'capacitaciónes', currentView: 'capacitaciónes' },
+    { area: 'formacion', moduleId: 'asistencia', currentView: 'capacitaciónes' },
+    { area: 'formacion', moduleId: 'altas', currentView: 'altas' },
+    { area: 'formacion', moduleId: 'reaperturas', currentView: 'reaperturas' },
+    { area: 'formacion', moduleId: 'encuestas', currentView: 'encuestas' },
+    { area: 'administrador', moduleId: 'usuarios', currentView: 'usuarios' },
+    { area: 'administrador', moduleId: 'reportes', currentView: 'reportes' },
+    { area: 'administrador', moduleId: 'auditoria', currentView: 'auditoria' },
+  ];
+
+  const explicitlyAssigned = orderedRoutes.find(route => userHasExplicitModuleAccess(user, route.area, route.moduleId));
+  if (explicitlyAssigned) return explicitlyAssigned;
+
+  const accessible = orderedRoutes.find(route => userHasModuleAccess(user, route.area, route.moduleId));
+  if (accessible) return accessible;
+
+  if (user.rol === 'Reclutador' || user.rol === 'Analista') return { currentView: 'seleccion', selectionView: 'dashboard' };
+  if (user.rol === 'Formador') return { currentView: 'capacitaciónes' };
+  return { currentView: 'dashboard' };
+};
+
+const getSelectionViewForUser = (user: User): SelectionViewMode => {
+  const selectionModules: SelectionViewMode[] = ['dashboard', 'convocatorias', 'postulantes', 'seguimientos', 'agenda', 'evaluaciones', 'aptos', 'base', 'asignacion', 'historial'];
+  return selectionModules.find(moduleId => userHasModuleAccess(user, 'seleccion', moduleId)) || 'dashboard';
+};
+
+const getFormationViewForUser = (user: User): string => {
+  const formationRoutes = [
+    { moduleId: 'dashboard', currentView: 'dashboard' },
+    { moduleId: 'capacitaciónes', currentView: 'capacitaciónes' },
+    { moduleId: 'asistencia', currentView: 'capacitaciónes' },
+    { moduleId: 'altas', currentView: 'altas' },
+    { moduleId: 'reaperturas', currentView: 'reaperturas' },
+    { moduleId: 'encuestas', currentView: 'encuestas' },
+  ];
+  return formationRoutes.find(route => userHasModuleAccess(user, 'formacion', route.moduleId))?.currentView || 'capacitaciónes';
+};
+
+const getAdminViewForUser = (user: User): string => {
+  const adminRoutes = [
+    { moduleId: 'usuarios', currentView: 'usuarios' },
+    { moduleId: 'reportes', currentView: 'reportes' },
+    { moduleId: 'auditoria', currentView: 'auditoria' },
+  ];
+  return adminRoutes.find(route => userHasModuleAccess(user, 'administrador', route.moduleId))?.currentView || 'usuarios';
 };
 
 const LOCAL_DATA_KEYS = [
@@ -208,7 +271,7 @@ export default function App() {
       const updated = prevParts.map(p => {
         const session = sessions.find((item) => item.id === p.training_session_id);
         const pAttendance = attendance.filter(a => a.participant_id === p.id && a.training_session_id === p.training_session_id);
-        const hasConf = confirmations.some(c => c.participant_id === p.id && c.estado_alta === 'Alta confirmada');
+        const activeConfirmation = confirmations.find(c => c.participant_id === p.id && !c.isDeleted && c.estado_alta !== 'Eliminada');
         
         const days = getTrainingDays(session).map(d => {
           const rec = pAttendance.find(a => a.dia === d);
@@ -217,8 +280,10 @@ export default function App() {
 
         let computedStatus: Participant['estado_final'] = 'Pendiente de gestión';
 
-        if (hasConf) {
+        if (activeConfirmation?.estado_alta === 'Alta confirmada' || p.estado_alta === 'Alta confirmada') {
           computedStatus = 'Alta confirmada';
+        } else if (activeConfirmation?.estado_alta === 'No alta' || p.estado_alta === 'No alta') {
+          computedStatus = 'Completó capacitación';
         } else if (days.some(isDropoutAttendanceStatus)) {
           computedStatus = 'Desistió';
         } else if (p.resultado_formacion === 'No apto') {
@@ -331,15 +396,9 @@ export default function App() {
   useEffect(() => {
     if (activeUser) {
       localStorage.setItem('fdr_active_user', JSON.stringify(activeUser));
-      // Set default views based on role
-      if (activeUser.rol === 'Reclutador' || activeUser.rol === 'Analista') {
-        setCurrentView('seleccion');
-        setSelectionView('dashboard');
-      } else if (activeUser.rol === 'Formador') {
-        setCurrentView('capacitaciónes');
-      } else {
-        setCurrentView('dashboard');
-      }
+      const route = getDefaultRouteForUser(activeUser);
+      setCurrentView(route.currentView);
+      if (route.selectionView) setSelectionView(route.selectionView);
     } else {
       localStorage.removeItem('fdr_active_user');
     }
@@ -1297,7 +1356,7 @@ export default function App() {
     // Update participant final state mapping
     const nextEstadoFinal =
       conf.estado_alta === 'Alta confirmada' ? 'Alta confirmada' :
-      conf.estado_alta === 'No alta' ? 'Desistió' : 'Pendiente de alta';
+      conf.estado_alta === 'No alta' ? 'Completó capacitación' : 'Pendiente de alta';
     setParticipants(prev => prev.map(p => {
       if (p.id === pId) return {
         ...p,
@@ -1793,9 +1852,9 @@ export default function App() {
                   </div>
                 </div>
                 <div className="flex-1 w-full px-2 space-y-2">
-                  {activeUser.rol !== 'Formador' && userHasAreaAccess(activeUser, 'seleccion') && (
+                  {userHasAreaAccess(activeUser, 'seleccion') && (
                     <button
-                      onClick={() => { setCurrentView('seleccion'); setSelectionView('dashboard'); setSelectedSessionId(null); }}
+                      onClick={() => { setCurrentView('seleccion'); setSelectionView(getSelectionViewForUser(activeUser)); setSelectedSessionId(null); }}
                       className={`group w-full rounded-2xl px-2 py-3 flex flex-col items-center gap-1 text-[10px] font-black transition ${
                         currentView === 'seleccion' ? 'bg-white text-slate-950 shadow-lg' : 'text-white/65 hover:bg-white/10 hover:text-white'
                       }`}
@@ -1807,7 +1866,10 @@ export default function App() {
                   )}
                   {userHasAreaAccess(activeUser, 'formacion') && (
                     <button
-                      onClick={() => { setCurrentView(activeUser.rol === 'Administrador' || activeUser.rol === 'Coordinador' || activeUser.rol === 'Sistemas' ? 'dashboard' : 'capacitaciónes'); setSelectedSessionId(null); }}
+                      onClick={() => {
+                        setCurrentView(getFormationViewForUser(activeUser));
+                        setSelectedSessionId(null);
+                      }}
                       className={`group w-full rounded-2xl px-2 py-3 flex flex-col items-center gap-1 text-[10px] font-black transition ${
                         currentView !== 'seleccion' && !(activeUser.rol === 'Administrador' && ['usuarios', 'reportes', 'auditoria'].includes(currentView)) ? 'bg-white text-slate-950 shadow-lg' : 'text-white/65 hover:bg-white/10 hover:text-white'
                       }`}
@@ -1819,7 +1881,7 @@ export default function App() {
                   )}
                   {activeUser.rol === 'Administrador' && userHasAreaAccess(activeUser, 'administrador') && (
                     <button
-                      onClick={() => { setCurrentView('usuarios'); setSelectedSessionId(null); }}
+                      onClick={() => { setCurrentView(getAdminViewForUser(activeUser)); setSelectedSessionId(null); }}
                       className={`group w-full rounded-2xl px-2 py-3 flex flex-col items-center gap-1 text-[10px] font-black transition ${
                         ['usuarios', 'reportes', 'auditoria'].includes(currentView) ? 'bg-white text-slate-950 shadow-lg' : 'text-white/65 hover:bg-white/10 hover:text-white'
                       }`}
@@ -1874,7 +1936,7 @@ export default function App() {
 
                 <nav className="flex-1 p-4 space-y-5 overflow-y-auto" id="sidebar-nav">
                   {(() => {
-                    const inSelection = currentView === 'seleccion' && activeUser.rol !== 'Formador' && userHasAreaAccess(activeUser, 'seleccion');
+                    const inSelection = currentView === 'seleccion' && userHasAreaAccess(activeUser, 'seleccion');
                     const inAdmin = activeUser.rol === 'Administrador' && ['usuarios', 'reportes', 'auditoria'].includes(currentView) && userHasAreaAccess(activeUser, 'administrador');
                     const activeArea: UserArea = inSelection ? 'seleccion' : inAdmin ? 'administrador' : 'formacion';
                     const selectionGroups = [
@@ -1936,7 +1998,9 @@ export default function App() {
                     return groups.map((group) => {
                       const visibleItems = group.items.filter((item) => {
                         const roles = item[3] as string[] | undefined;
-                        return (inSelection || inAdmin || !roles || roles.includes(activeUser.rol)) &&
+                        const moduleId = String(item[0]);
+                        const explicitlyAssigned = userHasExplicitModuleAccess(activeUser, activeArea, moduleId);
+                        return (explicitlyAssigned || inSelection || inAdmin || !roles || roles.includes(activeUser.rol)) &&
                           userHasModuleAccess(activeUser, activeArea, String(item[0]));
                       });
                       if (visibleItems.length === 0) return null;
@@ -2044,7 +2108,7 @@ export default function App() {
                 </div>
               )}
 
-              {currentView === 'seleccion' && activeUser.rol !== 'Formador' && (
+              {currentView === 'seleccion' && userHasAreaAccess(activeUser, 'seleccion') && (
                 <Seleccion
                   currentUser={activeUser}
                   users={users}
@@ -2054,7 +2118,7 @@ export default function App() {
               )}
 
               {/* View 1: General Dashboard */}
-              {currentView === 'dashboard' && permissions[activeUser.rol]?.canViewDashboard && (
+              {currentView === 'dashboard' && (permissions[activeUser.rol]?.canViewDashboard || userHasModuleAccess(activeUser, 'formacion', 'dashboard')) && (
                 <Dashboard
                   sessions={sessions}
                   participants={participants}

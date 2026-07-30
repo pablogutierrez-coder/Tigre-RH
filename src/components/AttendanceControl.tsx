@@ -364,7 +364,11 @@ export default function AttendanceControl({
         computedStatus = 'En riesgo';
       } else if (rowAttendance.filter(a => isPresentStatus(a?.estado_asistencia)).length === trainingDays.length) {
         const conf = confirmationsMap[p.id];
-        computedStatus = conf?.estado_alta === 'Alta confirmada' ? 'Alta confirmada' : 'Pendiente de alta';
+        computedStatus = conf?.estado_alta === 'Alta confirmada' || p.estado_alta === 'Alta confirmada'
+          ? 'Alta confirmada'
+          : conf?.estado_alta === 'No alta' || p.estado_alta === 'No alta' || p.resultado_formacion === 'No apto'
+            ? 'Completó capacitación'
+            : 'Pendiente de alta';
       } else if (rowAttendance.some(a => isPresentStatus(a?.estado_asistencia))) {
         computedStatus = 'En formación';
       }
@@ -1131,7 +1135,12 @@ export default function AttendanceControl({
                   } else if (rowAttendance.some(a => isAbsenceStatus(a?.estado_asistencia))) {
                     computedStatus = 'En riesgo';
                   } else if (rowAttendance.filter(a => isPresentStatus(a?.estado_asistencia)).length === trainingDays.length) {
-                    computedStatus = part.estado_final === 'Alta confirmada' ? 'Alta confirmada' : 'Pendiente de alta';
+                    const conf = confirmationsMap[part.id];
+                    computedStatus = conf?.estado_alta === 'Alta confirmada' || part.estado_alta === 'Alta confirmada' || part.estado_final === 'Alta confirmada'
+                      ? 'Alta confirmada'
+                      : conf?.estado_alta === 'No alta' || part.estado_alta === 'No alta' || part.resultado_formacion === 'No apto'
+                        ? 'Completó capacitación'
+                        : 'Pendiente de alta';
                   } else if (rowAttendance.some(a => isPresentStatus(a?.estado_asistencia))) {
                     computedStatus = 'En formación';
                   }

@@ -135,8 +135,16 @@ export default function AltaConfirmation({
   // Main list of filtered candidates
   const filteredCandidates = useMemo(() => {
     return participants.filter(p => {
-      // Requirement 14: Only participants marked as 'Apto' in Resultado formación can proceed to Alta Confirmation
-      if (p.resultado_formacion !== 'Apto') return false;
+      // Altas must mirror attendance eligibility and any existing alta records.
+      const conf = confirmationsMap[p.id];
+      const draft = drafts[p.id];
+      const finalAltaStatus = draft?.estado_alta || p.estado_alta || (conf ? conf.estado_alta : 'Pendiente de alta');
+      const hasAltaRecord = Boolean(conf || draft || p.estado_alta);
+      const completedTraining = p.resultado_formacion === 'Apto' || p.estado_final === 'Pendiente de alta' || p.estado_final === 'Alta confirmada';
+      const blockedByTraining = p.resultado_formacion === 'No apto' || p.estado_final === 'Desistió' || p.estado_final === 'No asistió';
+
+      if (!completedTraining && !hasAltaRecord) return false;
+      if (blockedByTraining && !hasAltaRecord) return false;
 
       const s = sessionMap[p.training_session_id];
       if (!s) return false;
@@ -163,10 +171,6 @@ export default function AltaConfirmation({
       if (!matchesSearch) return false;
 
       // 6. Alta Status Filter
-      const conf = confirmationsMap[p.id];
-      const draft = drafts[p.id];
-      const finalAltaStatus = draft?.estado_alta || (conf ? conf.estado_alta : 'Pendiente de alta');
-
       if (selectedEstadoAlta !== 'todos' && finalAltaStatus !== selectedEstadoAlta) return false;
 
       return true;
