@@ -68,7 +68,7 @@ interface AttendanceControlProps {
 }
 
 const MOTIVOS_DESERCION = [
-  'No se present?',
+  'No se presentó',
   'Abandono durante capacitación',
   'No acepta condiciones',
   'Otra propuesta laboral',
@@ -152,7 +152,7 @@ export default function AttendanceControl({
   const [obsModalValue, setObsModalValue] = useState('');
 
   const [showReopenModal, setShowReopenModal] = useState(false);
-  const [reopenMotivo, setReopenMotivo] = useState('Se me pas? el horario de registro');
+  const [reopenMotivo, setReopenMotivo] = useState('Se me pasó el horario de registro');
   const [reopenComentario, setReopenComentario] = useState('');
 
   // Bulk actions status and Bulk Dialog Modal
@@ -290,7 +290,7 @@ export default function AttendanceControl({
 
   const handleEarlyAlta = (part: Participant) => {
     if (!onUpdateParticipantOutcome) return;
-    if (!window.confirm(`Marcar alta anticipada para ${part.nombres} ${part.apellidos}? Se bloquear? la nota y quedar? apto para encuesta.`)) return;
+    if (!window.confirm(`Marcar alta anticipada para ${part.nombres} ${part.apellidos}? Se bloqueará la nota y quedará apto para encuesta.`)) return;
     onUpdateParticipantOutcome(
       part.id,
       'Apto',
@@ -409,10 +409,10 @@ export default function AttendanceControl({
   }, [filteredParts, attendanceMap, selectedDay]);
 
   const attendanceWindowLabel = useMemo(() => {
-    const [hour, minute] = (session.hora_capacitacion || '09:00').split(':').map(Number);
+    const [hour, minute] = (session.hora_capacitación || '09:00').split(':').map(Number);
     const end = hour * 60 + minute + 30;
-    return `${session.hora_capacitacion || '09:00'} a ${String(Math.floor(end / 60) % 24).padStart(2, '0')}:${String(end % 60).padStart(2, '0')}`;
-  }, [session.hora_capacitacion]);
+    return `${session.hora_capacitación || '09:00'} a ${String(Math.floor(end / 60) % 24).padStart(2, '0')}:${String(end % 60).padStart(2, '0')}`;
+  }, [session.hora_capacitación]);
 
   // Check if modification is locked based on Role, Simulated Time and Reopens
   const isTimeLocked = useMemo(() => {
@@ -430,7 +430,7 @@ export default function AttendanceControl({
       const min = simulatedTime.minute;
       const totalMinutes = hour * 60 + min;
 
-      const [startHour, startMinute] = (session.hora_capacitacion || '09:00')
+      const [startHour, startMinute] = (session.hora_capacitación || '09:00')
         .split(':')
         .map(Number);
       const startMinutes = startHour * 60 + startMinute;
@@ -443,7 +443,7 @@ export default function AttendanceControl({
       // Check for approved reopen
       const hasApprovedReopen = reopens.some(r =>
         r.training_session_id === session.id &&
-        r.dia_capacitacion === selectedDay &&
+        r.dia_capacitación === selectedDay &&
         r.estado === 'aprobada'
       );
 
@@ -559,8 +559,8 @@ export default function AttendanceControl({
       training_session_id: session.id,
       campaña: session.campaña,
       generacion: session.nombre_generacion,
-      fecha_capacitacion: getDayDate(selectedDay),
-      dia_capacitacion: selectedDay,
+      fecha_capacitación: getDayDate(selectedDay),
+      dia_capacitación: selectedDay,
       motivo: reopenMotivo,
       comentario: reopenComentario
     });
@@ -631,7 +631,7 @@ export default function AttendanceControl({
     return reopens
       .filter(r =>
         r.training_session_id === session.id &&
-        r.dia_capacitacion === selectedDay
+        r.dia_capacitación === selectedDay
       )
       .sort((a, b) => new Date(b.fecha_solicitud).getTime() - new Date(a.fecha_solicitud).getTime())[0];
   }, [reopens, session.id, selectedDay]);
@@ -859,7 +859,7 @@ export default function AttendanceControl({
               <Check className="w-4 h-4" />
             </div>
             <div>
-              <span className="font-bold">?Asistencias Sincronizadas!</span> Las marcas del Día {selectedDay} se han guardado de forma segura en la base de datos de FDR.
+              <span className="font-bold">¡Asistencias Sincronizadas!</span> Las marcas del Día {selectedDay} se han guardado de forma segura en la base de datos de FDR.
             </div>
           </div>
           <button 
@@ -1601,7 +1601,7 @@ export default function AttendanceControl({
             </div>
 
             <p className="text-slate-600 text-xs">
-              Env?a una solicitud formal al administrador para abrir la edici?n de asistencia del{' '}
+              Envía una solicitud formal al administrador para abrir la edición de asistencia del{' '}
               <strong>Día {selectedDay}</strong> en la campaña <strong>{session.campaña}</strong> ({session.nombre_generacion}).
             </p>
 
@@ -1613,21 +1613,21 @@ export default function AttendanceControl({
                   onChange={(e) => setReopenMotivo(e.target.value)}
                   className="w-full bg-slate-50 border rounded-xl p-2.5 outline-hidden focus:ring-1 focus:ring-amber-500"
                 >
-                  <option value="Se me pas? el horario de registro">Se me pas? el horario de registro</option>
+                  <option value="Se me pasó el horario de registro">Se me pasó el horario de registro</option>
                   <option value="Error al registrar asistencia">Error al registrar asistencia</option>
-                  <option value="Problemas t?cnicos">Problemas t?cnicos</option>
-                  <option value="Participante se incorpor? tarde">Participante se incorpor? tarde</option>
-                  <option value="Validaci?n pendiente con reclutamiento">Validaci?n pendiente con reclutamiento</option>
+                  <option value="Problemas técnicos">Problemas técnicos</option>
+                  <option value="Participante se incorporó tarde">Participante se incorporó tarde</option>
+                  <option value="Validación pendiente con reclutamiento">Validación pendiente con reclutamiento</option>
                   <option value="Otro motivo">Otro motivo</option>
                 </select>
               </div>
 
               <div>
-                <label className="block font-bold text-slate-600 mb-1">Comentarios o Justificaci?n *</label>
+                <label className="block font-bold text-slate-600 mb-1">Comentarios o Justificación *</label>
                 <textarea
                   value={reopenComentario}
                   onChange={(e) => setReopenComentario(e.target.value)}
-                  placeholder="Escriba los detalles de por qu? requiere editar la asistencia..."
+                  placeholder="Escriba los detalles de por qué requiere editar la asistencia..."
                   rows={3}
                   className="w-full bg-slate-50 border rounded-xl p-2.5 outline-hidden focus:ring-1 focus:ring-amber-500"
                 />
@@ -1681,11 +1681,11 @@ export default function AttendanceControl({
 
             <div className="space-y-3 text-xs">
               <div>
-                <label className="block font-bold text-slate-600 mb-1">Descripci?n de la Novedad *</label>
+                <label className="block font-bold text-slate-600 mb-1">Descripción de la Novedad *</label>
                 <textarea
                   value={obsModalValue}
                   onChange={(e) => setObsModalValue(e.target.value)}
-                  placeholder={obsModalStatus === 'Faltó' ? 'Indicar motivo (ej: Celular apagado, problema m?dico con certificado, no responde...)' : 'Detalle la tardanza (ej: Ingres? 15 minutos tarde por congestión vehicular...)'}
+                  placeholder={obsModalStatus === 'Faltó' ? 'Indicar motivo (ej: Celular apagado, problema médico con certificado, no responde...)' : 'Detalle la tardanza (ej: Ingresó 15 minutos tarde por congestión vehicular...)'}
                   rows={3}
                   className="w-full bg-slate-50 border rounded-xl p-2.5 outline-hidden focus:ring-1 focus:ring-indigo-500 text-xs text-slate-800"
                 />
@@ -1767,7 +1767,7 @@ export default function AttendanceControl({
                 <textarea
                   value={bulkComentario}
                   onChange={(e) => setBulkComentario(e.target.value)}
-                  placeholder={bulkStatus === 'Desistió' || bulkStatus === 'Baja' || bulkStatus === 'Faltó' ? 'Escribe la justificaci?n o comentario para este grupo...' : 'Ingresa comentarios o novedades si aplica...'}
+                  placeholder={bulkStatus === 'Desistió' || bulkStatus === 'Baja' || bulkStatus === 'Faltó' ? 'Escribe la justificación o comentario para este grupo...' : 'Ingresa comentarios o novedades si aplica...'}
                   rows={3}
                   className="w-full bg-slate-50 border rounded-xl p-2.5 outline-hidden focus:ring-1 focus:ring-indigo-500 text-xs text-slate-800"
                 />
@@ -1853,7 +1853,7 @@ export default function AttendanceControl({
                       setOutcomeComment(e.target.value);
                       if (e.target.value.trim()) setOutcomeError('');
                     }}
-                    placeholder="Escriba un comentario sobre el desempe?o sobresaliente, actitud y potencial del ejecutivo..."
+                    placeholder="Escriba un comentario sobre el desempeño sobresaliente, actitud y potencial del ejecutivo..."
                     rows={4}
                     className="w-full bg-slate-50 border rounded-xl p-2.5 outline-hidden focus:ring-1 focus:ring-emerald-500 text-xs text-slate-800"
                   />
@@ -1868,7 +1868,7 @@ export default function AttendanceControl({
                       setOutcomeReason(e.target.value);
                       if (e.target.value.trim()) setOutcomeError('');
                     }}
-                    placeholder="Detalle el motivo por el cual el ejecutivo no califica (ej: No supera evaluaciones t?cnicas, inasistencias acumuladas, bajo nivel de comunicaci?n...)"
+                    placeholder="Detalle el motivo por el cual el ejecutivo no califica (ej: No supera evaluaciones técnicas, inasistencias acumuladas, bajo nivel de comunicación...)"
                     rows={4}
                     className="w-full bg-slate-50 border rounded-xl p-2.5 outline-hidden focus:ring-1 focus:ring-rose-500 text-xs text-slate-800"
                   />

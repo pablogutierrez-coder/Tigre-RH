@@ -252,11 +252,11 @@ export default function Dashboard({
         name: camp,
         Cargados: total,
         'Asist. Día 1': d1.size,
-        'Asist. Dia 10': d5.size,
+        'Asist. Día 10': d5.size,
         Desistidos: desistidos,
         Altas: altas,
-        'Retenci?n %': retencion,
-        'Conversi?n %': conversion
+        'Retención %': retencion,
+        'Conversión %': conversion
       };
     });
   }, [filteredSessions, participants, attendance, validConfirmations]);
@@ -436,9 +436,9 @@ export default function Dashboard({
               </select>
             </div>
 
-            {/* Generaci?n */}
+            {/* Generación */}
             <div>
-              <label className="block text-xs font-medium text-slate-500 mb-1">Generaci?n</label>
+              <label className="block text-xs font-medium text-slate-500 mb-1">Generación</label>
               <select
                 value={filterGeneracion}
                 onChange={(e) => setFilterGeneracion(e.target.value)}
@@ -513,10 +513,10 @@ export default function Dashboard({
           <div className="absolute inset-x-0 top-0 h-1 bg-cyan-500"></div>
           <div className="flex justify-between items-start">
             <div>
-              <p className="text-slate-400 font-medium text-xs uppercase tracking-wider">Dia 10 / Dia 1</p>
+              <p className="text-slate-400 font-medium text-xs uppercase tracking-wider">Día 10 / Dia 1</p>
               <h3 className="text-slate-900 text-3xl font-black mt-1">{metrics.ultimoDiaVsDia1}%</h3>
               <p className="text-xs text-emerald-600 font-medium mt-1">
-                {metrics.asistieronUltimoDia} de {metrics.asistieronDia1} llegaron al Dia 10
+                {metrics.asistieronUltimoDia} de {metrics.asistieronDia1} llegaron al Día 10
               </p>
             </div>
             <div className="bg-cyan-50 rounded-xl p-2.5 text-cyan-600 border border-cyan-100">
@@ -530,7 +530,7 @@ export default function Dashboard({
           <div className="absolute inset-x-0 top-0 h-1 bg-fuchsia-500"></div>
           <div className="flex justify-between items-start">
             <div>
-              <p className="text-slate-400 font-medium text-xs uppercase tracking-wider">Altas / Dia 10</p>
+              <p className="text-slate-400 font-medium text-xs uppercase tracking-wider">Altas / Día 10</p>
               <h3 className="text-slate-900 text-3xl font-black mt-1">{metrics.altasVsUltimoDia}%</h3>
               <p className="text-xs text-fuchsia-600 font-medium mt-1">
                 {metrics.altasConfirmadas} altas confirmadas
@@ -587,7 +587,7 @@ export default function Dashboard({
               <TrendingUp className="text-indigo-600 w-4.5 h-4.5" />
               Embudo de Formación
             </h3>
-            <span className="text-slate-400 text-xs font-mono">Conversi?n</span>
+            <span className="text-slate-400 text-xs font-mono">Conversión</span>
           </div>
           <div className="flex-1 min-h-[300px]">
             <ResponsiveContainer width="100%" height={300}>
@@ -633,7 +633,7 @@ export default function Dashboard({
                 <Legend iconSize={10} wrapperStyle={{ fontSize: 11 }} />
                 <Bar dataKey="Cargados" fill="#818cf8" radius={[4, 4, 0, 0]} />
                 <Bar dataKey="Asist. Día 1" fill="#3b82f6" radius={[4, 4, 0, 0]} />
-                <Bar dataKey="Asist. Dia 10" fill="#10b981" radius={[4, 4, 0, 0]} />
+                <Bar dataKey="Asist. Día 10" fill="#10b981" radius={[4, 4, 0, 0]} />
                 <Bar dataKey="Altas" fill="#ec4899" radius={[4, 4, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
@@ -642,7 +642,7 @@ export default function Dashboard({
             {campañaData.map(c => (
               <div key={c.name} className="text-center">
                 <p className="text-[10px] text-slate-500 font-semibold uppercase truncate">{c.name}</p>
-                <p className="text-xs font-bold text-slate-700">Conv: {c['Conversi?n %']}%</p>
+                <p className="text-xs font-bold text-slate-700">Conv: {c['Conversión %']}%</p>
               </div>
             ))}
           </div>
@@ -688,12 +688,12 @@ export default function Dashboard({
               <UserX className="text-rose-500 w-4.5 h-4.5" />
               Deserciones por Motivo
             </h3>
-            <span className="text-slate-400 text-xs font-mono">Distribuci?n</span>
+            <span className="text-slate-400 text-xs font-mono">Distribución</span>
           </div>
           <div className="flex-1 min-h-[220px] flex items-center justify-center">
             {desercionesPorMotivo.length === 0 ? (
               <div className="text-center text-slate-400 py-10">
-                <p className="text-sm">No se registran deserciones en este per?odo</p>
+                <p className="text-sm">No se registran deserciones en este período</p>
               </div>
             ) : (
               <ResponsiveContainer width="100%" height={220}>
@@ -736,12 +736,12 @@ export default function Dashboard({
 
       {/* Resultados de Formación (Aptitud) Panel */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Distribuci?n de Aptitud Card */}
+        {/* Distribución de Aptitud Card */}
         <div className="glass-card flex flex-col p-5 rounded-2xl">
           <div className="flex justify-between items-center mb-4">
             <h3 className="text-slate-800 font-bold text-base flex items-center gap-1.5">
               <Award className="text-emerald-600 w-4.5 h-4.5" />
-              Resultados de Calificaci?n (Dia 10)
+              Resultados de Calificación (Día 10)
             </h3>
             <span className="text-slate-400 text-xs font-mono">Aptitud</span>
           </div>
@@ -750,7 +750,7 @@ export default function Dashboard({
             {metrics.totalConResultado === 0 ? (
               <div className="text-center text-slate-400 py-10">
                 <p className="text-sm">No se registran calificaciones de aptitud todavía</p>
-                <p className="text-[11px] text-slate-400 mt-1">Marque Apto/No apto en el Dia 10 de asistencia</p>
+                <p className="text-[11px] text-slate-400 mt-1">Marque Apto/No apto en el Día 10 de asistencia</p>
               </div>
             ) : (
               <ResponsiveContainer width="100%" height={220}>
@@ -803,7 +803,7 @@ export default function Dashboard({
           <div className="flex justify-between items-center mb-4">
             <h3 className="text-slate-800 font-bold text-base flex items-center gap-1.5">
               <Users className="text-indigo-600 w-4.5 h-4.5" />
-              Detalle de Novedades de Calificaci?n
+              Detalle de Novedades de Calificación
             </h3>
             <span className="text-slate-400 text-xs font-mono">Comentarios</span>
           </div>
@@ -815,7 +815,7 @@ export default function Dashboard({
                 return (
                   <div className="flex flex-col items-center justify-center text-slate-400 h-full py-16">
                     <p className="text-sm">Sin comentarios de aptitud recientes</p>
-                    <p className="text-[11px] text-slate-400 mt-0.5">Las justificaciones de Aptitud/No aptitud se ver?n aquí</p>
+                    <p className="text-[11px] text-slate-400 mt-0.5">Las justificaciones de Aptitud/No aptitud se verán aquí</p>
                   </div>
                 );
               }
@@ -850,7 +850,7 @@ export default function Dashboard({
         <div className="flex justify-between items-center mb-4">
           <h3 className="text-slate-800 font-bold text-base flex items-center gap-1.5">
             <Layers className="text-blue-600 w-4.5 h-4.5" />
-            Evoluci?n de Capacitación FDR (Semanal)
+            Evolución de Capacitación FDR (Semanal)
           </h3>
           <span className="text-slate-400 text-xs font-mono">Tendencias</span>
         </div>
@@ -858,8 +858,8 @@ export default function Dashboard({
           {evolutionData.length === 0 ? (
             <div className="h-[220px] flex flex-col items-center justify-center text-center text-slate-400">
               <Layers className="w-8 h-8 mb-2 text-slate-300" />
-              <p className="text-sm font-medium">Sin datos de evoluci?n todavía</p>
-              <p className="text-[11px] mt-1">Las tendencias aparecer?n cuando existan capacitaciones y altas registradas.</p>
+              <p className="text-sm font-medium">Sin datos de evolución todavía</p>
+              <p className="text-[11px] mt-1">Las tendencias aparecerán cuando existan capacitaciones y altas registradas.</p>
             </div>
           ) : (
             <ResponsiveContainer width="100%" height={220}>

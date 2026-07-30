@@ -217,7 +217,7 @@ export const closeTraining = async ({
     rol: 'Administrador',
     accion: 'Cierre de capacitación',
     modulo: 'Cierre de capacitaciones',
-    detalle: `Se cerr? la capacitación "${validationParams.session.nombre_generacion}".`,
+    detalle: `Se cerró la capacitación "${validationParams.session.nombre_generacion}".`,
     fecha: now,
     campaña: validationParams.session.campaña,
     generacion: validationParams.session.nombre_generacion,
