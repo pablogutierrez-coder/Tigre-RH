@@ -13,6 +13,7 @@ import { selectionRoutes } from './routes/selectionRoutes.js';
 import { surveyEmailRoutes } from './routes/surveyEmailRoutes.js';
 import { surveyRoutes } from './routes/surveyRoutes.js';
 import { trainingRoutes } from './routes/trainingRoutes.js';
+import { trainingVariableRoutes } from './routes/trainingVariableRoutes.js';
 import { userRoutes } from './routes/userRoutes.js';
 
 const app = express();
@@ -84,6 +85,7 @@ app.use('/api/selection', selectionRoutes);
 app.use('/api/surveys', surveyRoutes);
 app.use('/api/survey-emails', surveyEmailRoutes);
 app.use('/api/trainings', trainingRoutes);
+app.use('/api/formacion/variables', trainingVariableRoutes);
 app.use('/api/users', userRoutes);
 
 if (frontendDistPath) {

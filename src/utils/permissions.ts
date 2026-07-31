@@ -18,6 +18,8 @@ export interface AppPermissions {
   canReopenClosedTraining?: boolean;
   canCloseTraining?: boolean;
   canViewHighsReadOnly?: boolean;
+  canManageTrainingVariables?: boolean;
+  canViewTrainingVariables?: boolean;
   readOnly?: boolean;
 }
 
@@ -41,6 +43,8 @@ export const permissions: Record<string, AppPermissions> = {
     canExportReports: true,
     canReopenClosedTraining: true,
     canCloseTraining: true,
+    canManageTrainingVariables: true,
+    canViewTrainingVariables: true,
     readOnly: false,
   },
   Analista: {
@@ -62,6 +66,8 @@ export const permissions: Record<string, AppPermissions> = {
     canExportReports: true,
     canReopenClosedTraining: true,
     canCloseTraining: false,
+    canManageTrainingVariables: false,
+    canViewTrainingVariables: false,
     readOnly: false,
   },
   Reclutador: {
@@ -83,6 +89,8 @@ export const permissions: Record<string, AppPermissions> = {
     canReopenClosedTraining: false,
     canCloseTraining: false,
     canViewHighsReadOnly: true,
+    canManageTrainingVariables: false,
+    canViewTrainingVariables: false,
     readOnly: false,
   },
   Formador: {
@@ -101,6 +109,8 @@ export const permissions: Record<string, AppPermissions> = {
     canExportReports: false,
     canReopenClosedTraining: false,
     canCloseTraining: true,
+    canManageTrainingVariables: false,
+    canViewTrainingVariables: true,
     readOnly: false,
   },
   Coordinador: {
@@ -122,6 +132,8 @@ export const permissions: Record<string, AppPermissions> = {
     canReopenClosedTraining: false,
     canCloseTraining: false,
     canViewHighsReadOnly: false,
+    canManageTrainingVariables: true,
+    canViewTrainingVariables: true,
     readOnly: false,
   },
   Sistemas: {
@@ -140,6 +152,8 @@ export const permissions: Record<string, AppPermissions> = {
     canExportReports: true,
     canReopenClosedTraining: false,
     canCloseTraining: false,
+    canManageTrainingVariables: false,
+    canViewTrainingVariables: false,
     readOnly: true,
   },
 };

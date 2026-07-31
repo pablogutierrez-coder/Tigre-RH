@@ -22,6 +22,42 @@ export interface User {
   module_access?: string[];
 }
 
+export type TrainingVariableEvaluationStatus = 'BORRADOR' | 'CERRADO' | 'REABIERTO' | 'ANULADO';
+
+export interface TrainingVariableEvaluation {
+  id: string;
+  anio: number;
+  mes: number;
+  id_formador: string;
+  nombre_formador: string;
+  id_coordinador: string;
+  nombre_coordinador: string;
+  fecha_creacion: string;
+  fecha_modificacion: string;
+  fecha_cierre?: string;
+  estado: TrainingVariableEvaluationStatus;
+  observacion_general?: string;
+  porcentaje_retencion: number;
+  cumplimiento_retencion: number;
+  aporte_retencion: number;
+  porcentaje_produccion_individual: number;
+  porcentaje_produccion_grupal: number;
+  aporte_produccion: number;
+  porcentaje_satisfaccion: number;
+  cumplimiento_satisfaccion: number;
+  aporte_satisfaccion: number;
+  porcentaje_administrativo: number;
+  observacion_administrativa?: string;
+  aporte_administrativo: number;
+  cumplimiento_total: number;
+  comision_base: number;
+  bloques_sobrecumplimiento: number;
+  bono_sobrecumplimiento: number;
+  comision_total: number;
+  usuario_creacion: string;
+  usuario_modificacion: string;
+}
+
 export interface Campaign {
   id: string;
   nombre: string;

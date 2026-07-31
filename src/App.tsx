@@ -43,7 +43,8 @@ import {
   Clock3,
   ClipboardCheck,
   BriefcaseBusiness,
-  UserCheck
+  UserCheck,
+  Calculator
 } from 'lucide-react';
 
 // Subcomponents
@@ -59,6 +60,7 @@ import Auditoria from './components/Auditoria';
 import Encuestas from './components/Encuestas';
 import PublicSurveyForm from './components/PublicSurveyForm';
 import Seleccion, { type SelectionViewMode } from './components/Seleccion';
+import TrainingVariables from './components/TrainingVariables';
 
 import { getPeruNow, formatPeruDate, isAttendanceWindowOpen } from './utils/time';
 import { permissions } from './utils/permissions';
@@ -135,6 +137,7 @@ const userHasAreaAccess = (user: User, area: UserArea) => {
 const userHasModuleAccess = (user: User, area: UserArea, moduleId: string) => {
   if (!userHasAreaAccess(user, area)) return false;
   if (area === 'formacion' && moduleId === 'reportes' && permissions[user.rol]?.canExportReports) return true;
+  if (area === 'formacion' && moduleId === 'variables' && permissions[user.rol]?.canViewTrainingVariables) return true;
   if (!user.module_access || user.module_access.length === 0) return true;
   return user.module_access.includes(`${area}:${moduleId}`);
 };
@@ -157,6 +160,7 @@ const getDefaultRouteForUser = (user: User): { currentView: string; selectionVie
     { area: 'formacion', moduleId: 'altas', currentView: 'altas' },
     { area: 'formacion', moduleId: 'reaperturas', currentView: 'reaperturas' },
     { area: 'formacion', moduleId: 'encuestas', currentView: 'encuestas' },
+    { area: 'formacion', moduleId: 'variables', currentView: 'variables' },
     { area: 'formacion', moduleId: 'reportes', currentView: 'reportes' },
     { area: 'administrador', moduleId: 'usuarios', currentView: 'usuarios' },
     { area: 'administrador', moduleId: 'reportes', currentView: 'reportes' },
@@ -187,6 +191,7 @@ const getFormationViewForUser = (user: User): string => {
     { moduleId: 'altas', currentView: 'altas' },
     { moduleId: 'reaperturas', currentView: 'reaperturas' },
     { moduleId: 'encuestas', currentView: 'encuestas' },
+    { moduleId: 'variables', currentView: 'variables' },
     { moduleId: 'reportes', currentView: 'reportes' },
   ];
   return formationRoutes.find(route => userHasModuleAccess(user, 'formacion', route.moduleId))?.currentView || 'capacitaciónes';
@@ -1987,6 +1992,12 @@ export default function App() {
                         ],
                       },
                       {
+                        title: 'Medición',
+                        items: [
+                          ['variables', 'Medición de Variables', Calculator, ['Administrador', 'Coordinador', 'Formador']],
+                        ],
+                      },
+                      {
                         title: 'Reportes',
                         items: [
                           ['reportes', 'Reportes Exportables', FileSpreadsheet, ['Administrador', 'Analista', 'Coordinador', 'Sistemas']],
@@ -2247,6 +2258,13 @@ export default function App() {
                   onAddSurvey={handleAddSurvey}
                   onAuditLog={addAuditLog}
                   onOpenPublicSurvey={handleOpenPublicSurvey}
+                />
+              )}
+
+              {currentView === 'variables' && permissions[activeUser.rol]?.canViewTrainingVariables && (
+                <TrainingVariables
+                  currentUser={activeUser}
+                  users={users}
                 />
               )}
 

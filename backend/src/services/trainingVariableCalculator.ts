@@ -1,0 +1,69 @@
+export interface TrainingVariableCalculationInput {
+  porcentaje_retencion: number;
+  porcentaje_produccion_individual: number;
+  porcentaje_produccion_grupal: number;
+  porcentaje_satisfaccion: number;
+  porcentaje_administrativo: number;
+  observacion_administrativa?: string;
+}
+
+const toBasisPoints = (value: number) => Math.round(Number(value) * 100);
+const fromBasisPoints = (value: number) => Math.round(value) / 100;
+const divideRound = (numerator: number, denominator: number) => Math.round(numerator / denominator);
+const moneyFromCents = (cents: number) => Math.round(cents) / 100;
+
+const assertPercentRange = (label: string, value: number, max = 100) => {
+  if (!Number.isFinite(value) || value < 0 || value > max) {
+    throw new Error(`${label} debe estar entre 0% y ${max}%.`);
+  }
+};
+
+export const calculateTrainingVariableEvaluation = (input: TrainingVariableCalculationInput) => {
+  assertPercentRange('La retención obtenida', input.porcentaje_retencion);
+  assertPercentRange('La producción individual', input.porcentaje_produccion_individual);
+  if (!Number.isFinite(input.porcentaje_produccion_grupal) || input.porcentaje_produccion_grupal < 0) {
+    throw new Error('La producción grupal debe ser igual o mayor a 0%.');
+  }
+  assertPercentRange('La satisfacción', input.porcentaje_satisfaccion);
+  assertPercentRange('El cumplimiento administrativo', input.porcentaje_administrativo);
+  if (input.porcentaje_administrativo < 100 && !input.observacion_administrativa?.trim()) {
+    throw new Error('El sustento administrativo es obligatorio cuando la calificación es menor a 100%.');
+  }
+
+  const retencionBp = toBasisPoints(input.porcentaje_retencion);
+  const produccionGrupalBp = toBasisPoints(input.porcentaje_produccion_grupal);
+  const satisfaccionBp = toBasisPoints(input.porcentaje_satisfaccion);
+  const administrativoBp = toBasisPoints(input.porcentaje_administrativo);
+
+  const cumplimientoRetencionBp = divideRound(retencionBp * 10000, 4000);
+  const aporteRetencionBp = divideRound(cumplimientoRetencionBp * 4000, 10000);
+  const aporteProduccionBp = divideRound(produccionGrupalBp * 4000, 10000);
+  const cumplimientoSatisfaccionBp = divideRound(satisfaccionBp * 10000, 9000);
+  const aporteSatisfaccionBp = divideRound(cumplimientoSatisfaccionBp * 1000, 10000);
+  const aporteAdministrativoBp = divideRound(administrativoBp * 1000, 10000);
+  const cumplimientoTotalBp =
+    aporteRetencionBp + aporteProduccionBp + aporteSatisfaccionBp + aporteAdministrativoBp;
+
+  const comisionBaseCents = 30000;
+  const bloquesSobrecumplimiento = cumplimientoTotalBp > 10000
+    ? Math.floor((cumplimientoTotalBp - 10000) / 1000)
+    : 0;
+  const bonoSobrecumplimientoCents = bloquesSobrecumplimiento * 5000;
+  const comisionTotalCents = cumplimientoTotalBp <= 10000
+    ? divideRound(comisionBaseCents * cumplimientoTotalBp, 10000)
+    : comisionBaseCents + bonoSobrecumplimientoCents;
+
+  return {
+    cumplimiento_retencion: fromBasisPoints(cumplimientoRetencionBp),
+    aporte_retencion: fromBasisPoints(aporteRetencionBp),
+    aporte_produccion: fromBasisPoints(aporteProduccionBp),
+    cumplimiento_satisfaccion: fromBasisPoints(cumplimientoSatisfaccionBp),
+    aporte_satisfaccion: fromBasisPoints(aporteSatisfaccionBp),
+    aporte_administrativo: fromBasisPoints(aporteAdministrativoBp),
+    cumplimiento_total: fromBasisPoints(cumplimientoTotalBp),
+    comision_base: moneyFromCents(comisionBaseCents),
+    bloques_sobrecumplimiento: bloquesSobrecumplimiento,
+    bono_sobrecumplimiento: moneyFromCents(bonoSobrecumplimientoCents),
+    comision_total: moneyFromCents(comisionTotalCents),
+  };
+};

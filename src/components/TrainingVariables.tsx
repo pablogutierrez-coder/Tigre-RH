@@ -1,0 +1,596 @@
+import React, { useEffect, useMemo, useState } from 'react';
+import {
+  AlertTriangle,
+  Calculator,
+  CheckCircle,
+  Eye,
+  FileText,
+  Lock,
+  Pencil,
+  Plus,
+  RotateCcw,
+  Save,
+  Search,
+  Trash2,
+  X,
+} from 'lucide-react';
+import type { TrainingVariableEvaluation, User } from '../types';
+import {
+  annulTrainingVariableEvaluation,
+  closeTrainingVariableEvaluation,
+  createTrainingVariableEvaluation,
+  listTrainingVariableEvaluations,
+  reopenTrainingVariableEvaluation,
+  type TrainingVariablePayload,
+  updateTrainingVariableEvaluation,
+} from '../services/trainingVariableService';
+import { calculateTrainingVariablePreview } from '../utils/trainingVariableCalculator';
+
+interface TrainingVariablesProps {
+  currentUser: User;
+  users: User[];
+}
+
+type FormState = TrainingVariablePayload;
+
+const monthNames = [
+  'Enero',
+  'Febrero',
+  'Marzo',
+  'Abril',
+  'Mayo',
+  'Junio',
+  'Julio',
+  'Agosto',
+  'Septiembre',
+  'Octubre',
+  'Noviembre',
+  'Diciembre',
+];
+
+const currentYear = new Date().getFullYear();
+const years = Array.from({ length: 7 }, (_, index) => currentYear - 3 + index);
+
+const emptyForm = (trainer?: User, currentUser?: User): FormState => ({
+  anio: currentYear,
+  mes: new Date().getMonth() + 1,
+  id_formador: trainer?.id || '',
+  nombre_formador: trainer?.nombre || '',
+  observacion_general: '',
+  porcentaje_retencion: 0,
+  porcentaje_produccion_individual: 0,
+  porcentaje_produccion_grupal: 0,
+  porcentaje_satisfaccion: 0,
+  porcentaje_administrativo: 100,
+  observacion_administrativa: currentUser ? '' : '',
+});
+
+const numberValue = (value: unknown) => Number.isFinite(Number(value)) ? Number(value) : 0;
+const percent = (value: number) => `${numberValue(value).toFixed(2)}%`;
+const money = (value: number) => `S/ ${numberValue(value).toFixed(2)}`;
+const periodLabel = (evaluation: Pick<TrainingVariableEvaluation, 'anio' | 'mes'>) =>
+  `${monthNames[evaluation.mes - 1]} ${evaluation.anio}`;
+
+const statusBadge = (status: TrainingVariableEvaluation['estado']) => {
+  const classes = {
+    BORRADOR: 'bg-slate-100 text-slate-700',
+    CERRADO: 'bg-emerald-100 text-emerald-800',
+    REABIERTO: 'bg-amber-100 text-amber-800',
+    ANULADO: 'bg-rose-100 text-rose-800',
+  };
+  return `px-2.5 py-1 rounded-full text-[10px] font-black ${classes[status]}`;
+};
+
+const scoreBadge = (value: number) => {
+  if (value >= 110) return 'bg-indigo-100 text-indigo-800 border-indigo-200';
+  if (value >= 100) return 'bg-emerald-100 text-emerald-800 border-emerald-200';
+  if (value >= 80) return 'bg-amber-100 text-amber-800 border-amber-200';
+  return 'bg-rose-100 text-rose-800 border-rose-200';
+};
+
+export default function TrainingVariables({ currentUser, users }: TrainingVariablesProps) {
+  const [evaluations, setEvaluations] = useState<TrainingVariableEvaluation[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
+  const [searchTerm, setSearchTerm] = useState('');
+  const [filterYear, setFilterYear] = useState('todos');
+  const [filterMonth, setFilterMonth] = useState('todos');
+  const [filterTrainer, setFilterTrainer] = useState('todos');
+  const [filterCoordinator, setFilterCoordinator] = useState('todos');
+  const [filterStatus, setFilterStatus] = useState('todos');
+  const [page, setPage] = useState(1);
+  const [modalMode, setModalMode] = useState<'create' | 'edit' | 'detail' | null>(null);
+  const [editing, setEditing] = useState<TrainingVariableEvaluation | null>(null);
+  const [form, setForm] = useState<FormState>(emptyForm(undefined, currentUser));
+
+  const isAdmin = currentUser.rol === 'Administrador';
+  const isCoordinator = currentUser.rol === 'Coordinador';
+  const isTrainer = currentUser.rol === 'Formador';
+  const canManage = isAdmin || isCoordinator;
+  const isReadOnly = modalMode === 'detail' || isTrainer || editing?.estado === 'CERRADO' || editing?.estado === 'ANULADO';
+
+  const trainers = useMemo(
+    () => users.filter((user) => user.rol === 'Formador' && user.estado === 'Activo').sort((a, b) => a.nombre.localeCompare(b.nombre)),
+    [users],
+  );
+
+  const coordinators = useMemo(
+    () => Array.from(new Set(evaluations.map((evaluation) => evaluation.nombre_coordinador).filter(Boolean))).sort(),
+    [evaluations],
+  );
+
+  const preview = useMemo(() => calculateTrainingVariablePreview(form), [form]);
+
+  const loadEvaluations = async () => {
+    setLoading(true);
+    setError('');
+    try {
+      const response = await listTrainingVariableEvaluations();
+      setEvaluations(response.evaluations);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'No se pudieron cargar las evaluaciones.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    void loadEvaluations();
+  }, []);
+
+  const filteredEvaluations = useMemo(() => {
+    const normalizedSearch = searchTerm.trim().toLowerCase();
+    return evaluations.filter((evaluation) => {
+      if (filterYear !== 'todos' && evaluation.anio !== Number(filterYear)) return false;
+      if (filterMonth !== 'todos' && evaluation.mes !== Number(filterMonth)) return false;
+      if (filterTrainer !== 'todos' && evaluation.id_formador !== filterTrainer) return false;
+      if (filterCoordinator !== 'todos' && evaluation.nombre_coordinador !== filterCoordinator) return false;
+      if (filterStatus !== 'todos' && evaluation.estado !== filterStatus) return false;
+      if (!normalizedSearch) return true;
+      return (
+        evaluation.nombre_formador.toLowerCase().includes(normalizedSearch) ||
+        evaluation.nombre_coordinador.toLowerCase().includes(normalizedSearch) ||
+        periodLabel(evaluation).toLowerCase().includes(normalizedSearch)
+      );
+    });
+  }, [evaluations, filterCoordinator, filterMonth, filterStatus, filterTrainer, filterYear, searchTerm]);
+
+  const pageSize = 8;
+  const totalPages = Math.max(1, Math.ceil(filteredEvaluations.length / pageSize));
+  const pageItems = filteredEvaluations.slice((page - 1) * pageSize, page * pageSize);
+
+  useEffect(() => {
+    setPage(1);
+  }, [filterCoordinator, filterMonth, filterStatus, filterTrainer, filterYear, searchTerm]);
+
+  const openCreate = () => {
+    setEditing(null);
+    setForm(emptyForm(trainers[0], currentUser));
+    setModalMode('create');
+  };
+
+  const openEdit = (evaluation: TrainingVariableEvaluation) => {
+    setEditing(evaluation);
+    setForm({
+      anio: evaluation.anio,
+      mes: evaluation.mes,
+      id_formador: evaluation.id_formador,
+      nombre_formador: evaluation.nombre_formador,
+      observacion_general: evaluation.observacion_general || '',
+      porcentaje_retencion: evaluation.porcentaje_retencion,
+      porcentaje_produccion_individual: evaluation.porcentaje_produccion_individual,
+      porcentaje_produccion_grupal: evaluation.porcentaje_produccion_grupal,
+      porcentaje_satisfaccion: evaluation.porcentaje_satisfaccion,
+      porcentaje_administrativo: evaluation.porcentaje_administrativo,
+      observacion_administrativa: evaluation.observacion_administrativa || '',
+    });
+    setModalMode('edit');
+  };
+
+  const openDetail = (evaluation: TrainingVariableEvaluation) => {
+    openEdit(evaluation);
+    setModalMode('detail');
+  };
+
+  const updateForm = <K extends keyof FormState>(key: K, value: FormState[K]) => {
+    setForm((prev) => ({ ...prev, [key]: value }));
+  };
+
+  const updateTrainer = (trainerId: string) => {
+    const trainer = trainers.find((item) => item.id === trainerId);
+    updateForm('id_formador', trainer?.id || '');
+    updateForm('nombre_formador', trainer?.nombre || '');
+  };
+
+  const validateForm = () => {
+    if (!form.id_formador) return 'Selecciona un formador.';
+    if (form.porcentaje_retencion < 0 || form.porcentaje_retencion > 100) return 'La retención debe estar entre 0% y 100%.';
+    if (form.porcentaje_produccion_individual < 0 || form.porcentaje_produccion_individual > 100) return 'La producción individual debe estar entre 0% y 100%.';
+    if (form.porcentaje_produccion_grupal < 0) return 'La producción grupal debe ser igual o mayor a 0%.';
+    if (form.porcentaje_satisfaccion < 0 || form.porcentaje_satisfaccion > 100) return 'La satisfacción debe estar entre 0% y 100%.';
+    if (form.porcentaje_administrativo < 0 || form.porcentaje_administrativo > 100) return 'El cumplimiento administrativo debe estar entre 0% y 100%.';
+    if (form.porcentaje_administrativo < 100 && !form.observacion_administrativa?.trim()) {
+      return 'El sustento administrativo es obligatorio cuando la calificación es menor a 100%.';
+    }
+    const duplicate = evaluations.some((evaluation) =>
+      evaluation.id !== editing?.id &&
+      evaluation.id_formador === form.id_formador &&
+      evaluation.anio === form.anio &&
+      evaluation.mes === form.mes &&
+      evaluation.estado !== 'ANULADO',
+    );
+    if (duplicate) return 'Ya existe una evaluación activa para ese formador y periodo.';
+    return '';
+  };
+
+  const handleSave = async () => {
+    const validation = validateForm();
+    if (validation) {
+      alert(validation);
+      return;
+    }
+    setSaving(true);
+    try {
+      const response = editing
+        ? await updateTrainingVariableEvaluation(editing.id, form)
+        : await createTrainingVariableEvaluation(form);
+      setEvaluations((prev) => {
+        const exists = prev.some((item) => item.id === response.evaluation.id);
+        return exists
+          ? prev.map((item) => item.id === response.evaluation.id ? response.evaluation : item)
+          : [response.evaluation, ...prev];
+      });
+      setModalMode(null);
+      setEditing(null);
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'No se pudo guardar la evaluación.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const replaceEvaluation = (next: TrainingVariableEvaluation) => {
+    setEvaluations((prev) => prev.map((item) => item.id === next.id ? next : item));
+  };
+
+  const handleClose = async (evaluation: TrainingVariableEvaluation) => {
+    if (!confirm('Una vez cerrada la evaluación, el coordinador no podrá modificarla. ¿Deseas continuar?')) return;
+    setSaving(true);
+    try {
+      const response = await closeTrainingVariableEvaluation(evaluation.id);
+      replaceEvaluation(response.evaluation);
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'No se pudo cerrar la evaluación.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleReopen = async (evaluation: TrainingVariableEvaluation) => {
+    setSaving(true);
+    try {
+      const response = await reopenTrainingVariableEvaluation(evaluation.id);
+      replaceEvaluation(response.evaluation);
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'No se pudo reabrir la evaluación.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleAnnul = async (evaluation: TrainingVariableEvaluation) => {
+    if (!confirm('Esta evaluación quedará anulada y no contará como evaluación activa. ¿Deseas continuar?')) return;
+    setSaving(true);
+    try {
+      const response = await annulTrainingVariableEvaluation(evaluation.id);
+      replaceEvaluation(response.evaluation);
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'No se pudo anular la evaluación.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const inputClass = 'w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-800 outline-none focus:border-violet-500 focus:ring-4 focus:ring-violet-100 disabled:bg-slate-50 disabled:text-slate-500';
+  const labelClass = 'text-xs font-black uppercase tracking-wide text-slate-500';
+
+  return (
+    <div className="space-y-6">
+      <div className="flex flex-col xl:flex-row xl:items-start xl:justify-between gap-4">
+        <div>
+          <p className="text-[11px] font-black uppercase tracking-[0.22em] text-fuchsia-600">Formación</p>
+          <h2 className="text-3xl font-black text-slate-950 flex items-center gap-3">
+            <Calculator className="w-8 h-8 text-fuchsia-600" />
+            Módulo de Medición de Variables
+          </h2>
+          <p className="text-slate-500 mt-1">
+            Registro manual mensual de KPI, ponderaciones y comisión por formador.
+          </p>
+        </div>
+        {canManage && (
+          <button
+            onClick={openCreate}
+            className="inline-flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-fuchsia-600 to-indigo-600 px-5 py-3 text-sm font-black text-white shadow-lg shadow-indigo-200 hover:opacity-95"
+          >
+            <Plus className="w-5 h-5" />
+            Nueva evaluación
+          </button>
+        )}
+      </div>
+
+      <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-6 gap-3">
+          <div className="xl:col-span-2 relative">
+            <Search className="absolute left-3 top-3 h-5 w-5 text-slate-400" />
+            <input
+              value={searchTerm}
+              onChange={(event) => setSearchTerm(event.target.value)}
+              placeholder="Buscar formador, coordinador o periodo..."
+              className={`${inputClass} pl-10`}
+            />
+          </div>
+          <select value={filterYear} onChange={(event) => setFilterYear(event.target.value)} className={inputClass}>
+            <option value="todos">Todos los años</option>
+            {years.map((year) => <option key={year} value={year}>{year}</option>)}
+          </select>
+          <select value={filterMonth} onChange={(event) => setFilterMonth(event.target.value)} className={inputClass}>
+            <option value="todos">Todos los meses</option>
+            {monthNames.map((month, index) => <option key={month} value={index + 1}>{month}</option>)}
+          </select>
+          <select value={filterTrainer} onChange={(event) => setFilterTrainer(event.target.value)} className={inputClass}>
+            <option value="todos">Todos los formadores</option>
+            {trainers.map((trainer) => <option key={trainer.id} value={trainer.id}>{trainer.nombre}</option>)}
+          </select>
+          <select value={filterStatus} onChange={(event) => setFilterStatus(event.target.value)} className={inputClass}>
+            <option value="todos">Todos los estados</option>
+            {['BORRADOR', 'CERRADO', 'REABIERTO', 'ANULADO'].map((status) => <option key={status} value={status}>{status}</option>)}
+          </select>
+          <select value={filterCoordinator} onChange={(event) => setFilterCoordinator(event.target.value)} className={inputClass}>
+            <option value="todos">Todos los coordinadores</option>
+            {coordinators.map((coordinator) => <option key={coordinator} value={coordinator}>{coordinator}</option>)}
+          </select>
+        </div>
+      </section>
+
+      <section className="rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden">
+        <div className="overflow-x-auto">
+          <table className="min-w-[1180px] w-full text-sm">
+            <thead className="bg-slate-50 text-[11px] uppercase tracking-wide text-slate-500">
+              <tr>
+                {['Periodo', 'Formador', 'Coordinador', 'Retención', 'Prod. individual', 'Prod. grupal', 'Satisfacción', 'Administrativo', 'Total', 'Comisión', 'Estado', 'Cierre', 'Acciones'].map((header) => (
+                  <th key={header} className="px-4 py-3 text-left font-black">{header}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100">
+              {loading ? (
+                <tr><td colSpan={13} className="px-4 py-10 text-center text-slate-500">Cargando evaluaciones...</td></tr>
+              ) : error ? (
+                <tr><td colSpan={13} className="px-4 py-10 text-center text-rose-600">{error}</td></tr>
+              ) : pageItems.length === 0 ? (
+                <tr><td colSpan={13} className="px-4 py-10 text-center text-slate-500">No hay evaluaciones con los filtros seleccionados.</td></tr>
+              ) : pageItems.map((evaluation) => (
+                <tr key={evaluation.id} className="hover:bg-slate-50/80">
+                  <td className="px-4 py-3 font-bold text-slate-900">{periodLabel(evaluation)}</td>
+                  <td className="px-4 py-3 text-slate-700">{evaluation.nombre_formador}</td>
+                  <td className="px-4 py-3 text-slate-700">{evaluation.nombre_coordinador}</td>
+                  <td className="px-4 py-3">{percent(evaluation.porcentaje_retencion)}</td>
+                  <td className="px-4 py-3">{percent(evaluation.porcentaje_produccion_individual)}</td>
+                  <td className="px-4 py-3">{percent(evaluation.porcentaje_produccion_grupal)}</td>
+                  <td className="px-4 py-3">{percent(evaluation.porcentaje_satisfaccion)}</td>
+                  <td className="px-4 py-3">{percent(evaluation.porcentaje_administrativo)}</td>
+                  <td className="px-4 py-3">
+                    <span className={`inline-flex rounded-full border px-2.5 py-1 text-xs font-black ${scoreBadge(evaluation.cumplimiento_total)}`}>
+                      {percent(evaluation.cumplimiento_total)}
+                    </span>
+                  </td>
+                  <td className="px-4 py-3 font-black text-slate-900">{money(evaluation.comision_total)}</td>
+                  <td className="px-4 py-3"><span className={statusBadge(evaluation.estado)}>{evaluation.estado}</span></td>
+                  <td className="px-4 py-3 text-slate-500">{evaluation.fecha_cierre ? new Date(evaluation.fecha_cierre).toLocaleDateString('es-PE') : '-'}</td>
+                  <td className="px-4 py-3">
+                    <div className="flex items-center gap-2">
+                      <button onClick={() => openDetail(evaluation)} className="p-2 rounded-lg text-slate-500 hover:bg-slate-100" title="Ver detalle"><Eye className="w-4 h-4" /></button>
+                      {canManage && evaluation.estado !== 'CERRADO' && evaluation.estado !== 'ANULADO' && (
+                        <button onClick={() => openEdit(evaluation)} className="p-2 rounded-lg text-indigo-600 hover:bg-indigo-50" title="Editar"><Pencil className="w-4 h-4" /></button>
+                      )}
+                      {canManage && evaluation.estado !== 'CERRADO' && evaluation.estado !== 'ANULADO' && (
+                        <button onClick={() => handleClose(evaluation)} disabled={saving} className="p-2 rounded-lg text-emerald-700 hover:bg-emerald-50" title="Cerrar"><CheckCircle className="w-4 h-4" /></button>
+                      )}
+                      {isAdmin && evaluation.estado === 'CERRADO' && (
+                        <button onClick={() => handleReopen(evaluation)} disabled={saving} className="p-2 rounded-lg text-amber-700 hover:bg-amber-50" title="Reabrir"><RotateCcw className="w-4 h-4" /></button>
+                      )}
+                      {isAdmin && evaluation.estado !== 'ANULADO' && (
+                        <button onClick={() => handleAnnul(evaluation)} disabled={saving} className="p-2 rounded-lg text-rose-700 hover:bg-rose-50" title="Anular"><Trash2 className="w-4 h-4" /></button>
+                      )}
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+        <div className="flex items-center justify-between border-t border-slate-100 px-4 py-3 text-sm text-slate-500">
+          <span>Mostrando {pageItems.length} de {filteredEvaluations.length} evaluaciones</span>
+          <div className="flex items-center gap-2">
+            <button onClick={() => setPage((value) => Math.max(1, value - 1))} disabled={page === 1} className="rounded-lg border border-slate-200 px-3 py-1.5 disabled:opacity-40">Anterior</button>
+            <span className="font-bold text-slate-700">{page} / {totalPages}</span>
+            <button onClick={() => setPage((value) => Math.min(totalPages, value + 1))} disabled={page === totalPages} className="rounded-lg border border-slate-200 px-3 py-1.5 disabled:opacity-40">Siguiente</button>
+          </div>
+        </div>
+      </section>
+
+      {modalMode && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/50 p-4">
+          <div className="w-full max-w-6xl max-h-[92vh] overflow-y-auto rounded-3xl bg-white shadow-2xl">
+            <div className="sticky top-0 z-10 flex items-center justify-between border-b border-slate-100 bg-white px-6 py-5">
+              <div>
+                <h3 className="text-2xl font-black text-slate-950 flex items-center gap-2">
+                  {isReadOnly ? <FileText className="w-6 h-6 text-indigo-600" /> : <Calculator className="w-6 h-6 text-fuchsia-600" />}
+                  {modalMode === 'create' ? 'Nueva evaluación mensual' : modalMode === 'detail' ? 'Detalle de evaluación' : 'Editar evaluación'}
+                </h3>
+                <p className="text-sm text-slate-500">Todos los KPI son manuales y se recalculan al guardar.</p>
+              </div>
+              <button onClick={() => setModalMode(null)} className="rounded-xl p-2 text-slate-400 hover:bg-slate-100"><X className="w-5 h-5" /></button>
+            </div>
+
+            <div className="grid grid-cols-1 xl:grid-cols-[1fr_360px] gap-6 p-6">
+              <div className="space-y-5">
+                <section className="rounded-2xl border border-slate-200 p-4">
+                  <h4 className="font-black text-slate-900 mb-4">Datos generales</h4>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <label className="space-y-1">
+                      <span className={labelClass}>Año</span>
+                      <select disabled={isReadOnly} value={form.anio} onChange={(event) => updateForm('anio', Number(event.target.value))} className={inputClass}>
+                        {years.map((year) => <option key={year} value={year}>{year}</option>)}
+                      </select>
+                    </label>
+                    <label className="space-y-1">
+                      <span className={labelClass}>Mes</span>
+                      <select disabled={isReadOnly} value={form.mes} onChange={(event) => updateForm('mes', Number(event.target.value))} className={inputClass}>
+                        {monthNames.map((month, index) => <option key={month} value={index + 1}>{month}</option>)}
+                      </select>
+                    </label>
+                    <label className="space-y-1">
+                      <span className={labelClass}>Formador</span>
+                      <select disabled={isReadOnly} value={form.id_formador} onChange={(event) => updateTrainer(event.target.value)} className={inputClass}>
+                        <option value="">Seleccionar formador</option>
+                        {trainers.map((trainer) => <option key={trainer.id} value={trainer.id}>{trainer.nombre}</option>)}
+                      </select>
+                    </label>
+                    <label className="md:col-span-3 space-y-1">
+                      <span className={labelClass}>Observación general</span>
+                      <textarea disabled={isReadOnly} value={form.observacion_general || ''} onChange={(event) => updateForm('observacion_general', event.target.value)} rows={3} className={inputClass} />
+                    </label>
+                  </div>
+                </section>
+
+                <section className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                  <KpiCard title="Retención a operación" weight="Peso 40%" meta="Meta 40%">
+                    <PercentInput label="Retención obtenida" value={form.porcentaje_retencion} disabled={isReadOnly} onChange={(value) => updateForm('porcentaje_retencion', value)} />
+                    <ReadMetric label="Cumplimiento" value={percent(preview.cumplimiento_retencion)} />
+                    <ReadMetric label="Aporte" value={`${preview.aporte_retencion.toFixed(2)} puntos`} />
+                  </KpiCard>
+                  <KpiCard title="Producción durante OJT" weight="Peso 40%" meta="Individual informativo">
+                    <PercentInput label="Cumplimiento individual" value={form.porcentaje_produccion_individual} disabled={isReadOnly} onChange={(value) => updateForm('porcentaje_produccion_individual', value)} />
+                    <PercentInput label="Cumplimiento grupal" value={form.porcentaje_produccion_grupal} disabled={isReadOnly} onChange={(value) => updateForm('porcentaje_produccion_grupal', value)} />
+                    <ReadMetric label="Aporte grupal" value={`${preview.aporte_produccion.toFixed(2)} puntos`} />
+                  </KpiCard>
+                  <KpiCard title="Satisfacción de capacitación" weight="Peso 10%" meta="Meta 90%">
+                    <PercentInput label="Satisfacción obtenida" value={form.porcentaje_satisfaccion} disabled={isReadOnly} onChange={(value) => updateForm('porcentaje_satisfaccion', value)} />
+                    <ReadMetric label="Cumplimiento" value={percent(preview.cumplimiento_satisfaccion)} />
+                    <ReadMetric label="Aporte" value={`${preview.aporte_satisfaccion.toFixed(2)} puntos`} />
+                  </KpiCard>
+                  <KpiCard title="Cumplimiento administrativo" weight="Peso 10%" meta="Calificación manual">
+                    <PercentInput label="Cumplimiento administrativo" value={form.porcentaje_administrativo} disabled={isReadOnly} onChange={(value) => updateForm('porcentaje_administrativo', value)} />
+                    <label className="space-y-1 block">
+                      <span className={labelClass}>Sustento {form.porcentaje_administrativo < 100 ? '*' : ''}</span>
+                      <textarea disabled={isReadOnly} value={form.observacion_administrativa || ''} onChange={(event) => updateForm('observacion_administrativa', event.target.value)} rows={3} className={inputClass} />
+                    </label>
+                    <ReadMetric label="Aporte" value={`${preview.aporte_administrativo.toFixed(2)} puntos`} />
+                  </KpiCard>
+                </section>
+              </div>
+
+              <aside className="space-y-4">
+                <section className="rounded-2xl border border-slate-200 bg-slate-50 p-5">
+                  <h4 className="text-lg font-black text-slate-950 mb-4">Resumen de comisión</h4>
+                  <div className="space-y-3">
+                    <ReadMetric label="Aporte retención" value={`${preview.aporte_retencion.toFixed(2)} pts`} />
+                    <ReadMetric label="Aporte producción" value={`${preview.aporte_produccion.toFixed(2)} pts`} />
+                    <ReadMetric label="Aporte satisfacción" value={`${preview.aporte_satisfaccion.toFixed(2)} pts`} />
+                    <ReadMetric label="Aporte administrativo" value={`${preview.aporte_administrativo.toFixed(2)} pts`} />
+                  </div>
+                  <div className={`mt-5 rounded-2xl border p-4 ${scoreBadge(preview.cumplimiento_total)}`}>
+                    <p className="text-xs font-black uppercase tracking-wide">Cumplimiento total</p>
+                    <p className="text-3xl font-black mt-1">{percent(preview.cumplimiento_total)}</p>
+                  </div>
+                  <div className="mt-4 space-y-2 text-sm">
+                    <ReadMetric label="Comisión base" value={money(preview.comision_base)} />
+                    <ReadMetric label="Bloques de sobrecumplimiento" value={String(preview.bloques_sobrecumplimiento)} />
+                    <ReadMetric label="Bono adicional" value={money(preview.bono_sobrecumplimiento)} />
+                    <div className="flex justify-between rounded-xl bg-white p-3 font-black text-slate-950">
+                      <span>Comisión total</span>
+                      <span>{money(preview.comision_total)}</span>
+                    </div>
+                  </div>
+                </section>
+
+                {isReadOnly && (
+                  <div className="flex items-start gap-3 rounded-2xl border border-slate-200 bg-white p-4 text-sm text-slate-600">
+                    <Lock className="w-5 h-5 text-slate-400 mt-0.5" />
+                    <p>Esta vista es solo lectura o la evaluación no permite edición por su estado actual.</p>
+                  </div>
+                )}
+                {!isReadOnly && form.porcentaje_administrativo < 100 && !form.observacion_administrativa?.trim() && (
+                  <div className="flex items-start gap-3 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
+                    <AlertTriangle className="w-5 h-5 mt-0.5" />
+                    <p>Agrega un sustento administrativo para poder guardar.</p>
+                  </div>
+                )}
+              </aside>
+            </div>
+
+            <div className="sticky bottom-0 flex justify-end gap-3 border-t border-slate-100 bg-white px-6 py-4">
+              <button onClick={() => setModalMode(null)} className="rounded-xl bg-slate-100 px-5 py-3 text-sm font-black text-slate-700">Cancelar</button>
+              {!isReadOnly && (
+                <button
+                  onClick={handleSave}
+                  disabled={saving}
+                  className="inline-flex items-center gap-2 rounded-xl bg-indigo-600 px-5 py-3 text-sm font-black text-white disabled:opacity-50"
+                >
+                  <Save className="w-4 h-4" />
+                  {saving ? 'Guardando...' : 'Guardar borrador'}
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function KpiCard({ title, weight, meta, children }: { title: string; weight: string; meta: string; children: React.ReactNode }) {
+  return (
+    <section className="rounded-2xl border border-slate-200 bg-white p-4">
+      <div className="flex items-start justify-between gap-3 mb-4">
+        <div>
+          <h4 className="font-black text-slate-950">{title}</h4>
+          <p className="text-xs text-slate-500 mt-1">{meta}</p>
+        </div>
+        <span className="rounded-full bg-indigo-50 px-2.5 py-1 text-[10px] font-black text-indigo-700">{weight}</span>
+      </div>
+      <div className="space-y-3">{children}</div>
+    </section>
+  );
+}
+
+function PercentInput({ label, value, disabled, onChange }: { label: string; value: number; disabled: boolean; onChange: (value: number) => void }) {
+  return (
+    <label className="space-y-1 block">
+      <span className="text-xs font-black uppercase tracking-wide text-slate-500">{label}</span>
+      <div className="relative">
+        <input
+          type="number"
+          min={0}
+          step="0.01"
+          disabled={disabled}
+          value={value}
+          onChange={(event) => onChange(Number(event.target.value))}
+          className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 pr-10 text-sm font-semibold text-slate-800 outline-none focus:border-violet-500 focus:ring-4 focus:ring-violet-100 disabled:bg-slate-50 disabled:text-slate-500"
+        />
+        <span className="absolute right-3 top-2 text-sm font-bold text-slate-400">%</span>
+      </div>
+    </label>
+  );
+}
+
+function ReadMetric({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="flex items-center justify-between gap-3 text-sm">
+      <span className="text-slate-500">{label}</span>
+      <span className="font-black text-slate-900">{value}</span>
+    </div>
+  );
+}

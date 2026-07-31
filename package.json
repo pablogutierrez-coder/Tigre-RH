@@ -15,6 +15,7 @@
     "backend:dev": "cd backend && npm run dev",
     "backend:build": "cd backend && npm run build",
     "backend:start": "cd backend && npm run start",
+    "test:variables": "cd backend && npm run test:variables",
     "backend:create:admin": "cd backend && npm run create:admin --",
     "backend:repair:user-access": "cd backend && npm run repair:user-access",
     "start": "serve -s dist -l tcp://0.0.0.0:$PORT",
