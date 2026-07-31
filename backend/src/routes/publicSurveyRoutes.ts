@@ -113,6 +113,23 @@ router.get('/:token', async (req, res: Response) => {
   }
 
   const sessionId = String(survey.training_session_id || '');
+  const sessionDoc = sessionId ? await adminDb.collection('sessions').doc(sessionId).get() : null;
+  const session = sessionDoc?.exists ? ({ id: sessionDoc.id, ...sessionDoc.data() } as Record<string, unknown>) : null;
+  const currentSurvey = {
+    ...survey,
+    campaña:
+      readStringField(survey, ['campaña', 'campana', 'campa�a']) ||
+      readStringField(session || {}, ['campaña', 'campana', 'campa�a']),
+    codigo_generacion:
+      readStringField(session || {}, ['generation_code', 'nombre_generacion']) ||
+      readStringField(survey, ['codigo_generacion']),
+    formador_id:
+      readStringField(session || {}, ['formador_id']) ||
+      readStringField(survey, ['formador_id']),
+    formador_nombre:
+      readStringField(session || {}, ['formador_nombre']) ||
+      readStringField(survey, ['formador_nombre']),
+  };
   const participantDoc = await findParticipant(sessionId, dni.data);
   if (!participantDoc) {
     res.status(404).json({
@@ -152,7 +169,7 @@ router.get('/:token', async (req, res: Response) => {
     return;
   }
 
-  res.json({ survey, participant, attendance });
+  res.json({ survey: currentSurvey, participant, attendance });
 });
 
 const responseSchema = z.object({
@@ -188,9 +205,12 @@ router.post('/:token/responses', async (req, res: Response) => {
     res.status(410).json({ message: 'Esta encuesta no se encuentra habilitada.' });
     return;
   }
+  const sessionId = String(survey.training_session_id || '');
+  const sessionDoc = sessionId ? await adminDb.collection('sessions').doc(sessionId).get() : null;
+  const session = sessionDoc?.exists ? ({ id: sessionDoc.id, ...sessionDoc.data() } as Record<string, unknown>) : null;
 
   const participantDoc = await findParticipant(
-    String(survey.training_session_id || ''),
+    sessionId,
     payload.data.dni,
   );
   if (!participantDoc) {
@@ -231,7 +251,18 @@ router.post('/:token/responses', async (req, res: Response) => {
   const finalScore = Number(((totalScore / 50) * 20).toFixed(2));
   const classification =
     finalScore >= 18 ? 'Excelente' : finalScore >= 15 ? 'Bueno' : finalScore >= 11 ? 'Regular' : 'Crítico';
-  const campaignName = readStringField(survey, ['campaña', 'campana', 'campa�a']);
+  const campaignName =
+    readStringField(survey, ['campaña', 'campana', 'campa�a']) ||
+    readStringField(session || {}, ['campaña', 'campana', 'campa�a']);
+  const generationCode =
+    readStringField(session || {}, ['generation_code', 'nombre_generacion']) ||
+    readStringField(survey, ['codigo_generacion']);
+  const trainerId =
+    readStringField(session || {}, ['formador_id']) ||
+    readStringField(survey, ['formador_id']);
+  const trainerName =
+    readStringField(session || {}, ['formador_nombre']) ||
+    readStringField(survey, ['formador_nombre']);
 
   const responseData = {
     id: responseId,
@@ -240,9 +271,9 @@ router.post('/:token/responses', async (req, res: Response) => {
     nombre_ejecutivo: `${participant.nombres || ''} ${participant.apellidos || ''}`.trim(),
     campaña: campaignName,
     campana: campaignName,
-    codigo_generacion: survey.codigo_generacion || '',
-    formador_id: survey.formador_id || '',
-    formador_nombre: survey.formador_nombre || '',
+    codigo_generacion: generationCode,
+    formador_id: trainerId,
+    formador_nombre: trainerName,
     fecha_respuesta: new Date().toISOString(),
     ...payload.data,
     q9: 5,

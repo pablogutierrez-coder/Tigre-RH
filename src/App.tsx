@@ -942,6 +942,37 @@ export default function App() {
       console.error('Error updating training:', error);
       alert(error instanceof Error ? error.message : 'No se pudo editar la capacitación.');
     });
+
+    const syncedSurveyFields: Partial<TrainingSurvey> = {};
+    if (normalizedFields.campaña) syncedSurveyFields.campaña = normalizedFields.campaña;
+    if (normalizedFields.generation_code || normalizedFields.nombre_generacion) {
+      syncedSurveyFields.codigo_generacion =
+        normalizedFields.generation_code || normalizedFields.nombre_generacion;
+    }
+    if (normalizedFields.formador_id) syncedSurveyFields.formador_id = normalizedFields.formador_id;
+    if (normalizedFields.formador_nombre) syncedSurveyFields.formador_nombre = normalizedFields.formador_nombre;
+
+    if (Object.keys(syncedSurveyFields).length > 0) {
+      const relatedSurveys = surveys.filter((survey) => survey.training_session_id === sessionId);
+      setSurveys(prev => prev.map((survey) => {
+        if (survey.training_session_id !== sessionId) return survey;
+        return {
+          ...survey,
+          ...syncedSurveyFields,
+        };
+      }));
+      relatedSurveys.forEach((survey) => {
+        const updatedSurvey = {
+          ...survey,
+          ...syncedSurveyFields,
+        };
+        void updateSurveyStatusRemote(survey.id, updatedSurvey.estado, updatedSurvey).catch((error) => {
+          console.error('Error syncing survey with training:', error);
+          alert(error instanceof Error ? error.message : 'No se pudo sincronizar la encuesta de la capacitación.');
+        });
+      });
+    }
+
     setSessions(prev => prev.map(s => {
       if (s.id === sessionId) {
         return {

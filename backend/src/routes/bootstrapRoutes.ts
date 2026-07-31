@@ -76,20 +76,26 @@ router.get('/', requireAuth, async (req: AuthenticatedRequest, res: Response) =>
     );
     const surveyIds = new Set(surveys.map((survey) => String(survey.id)));
     const surveysById = new Map(allSurveys.map((survey) => [String(survey.id), survey]));
+    const sessionsById = new Map(allSessions.map((session) => [String(session.id), session]));
     const normalizedResponses: Array<Record<string, unknown>> = allResponses.map((response) => {
       const survey = surveysById.get(String(response.training_survey_id || ''));
+      const session = sessionsById.get(String(survey?.training_session_id || ''));
       const campaignName =
         readStringField(response, ['campaña', 'campana', 'campa�a']) ||
-        readStringField(survey, ['campaña', 'campana', 'campa�a']);
+        readStringField(survey, ['campaña', 'campana', 'campa�a']) ||
+        readStringField(session, ['campaña', 'campana', 'campa�a']);
       const generationCode =
-        readStringField(response, ['codigo_generacion']) ||
-        readStringField(survey, ['codigo_generacion']);
+        readStringField(session, ['generation_code', 'nombre_generacion']) ||
+        readStringField(survey, ['codigo_generacion']) ||
+        readStringField(response, ['codigo_generacion']);
       const trainerId =
-        readStringField(response, ['formador_id']) ||
-        readStringField(survey, ['formador_id']);
+        readStringField(session, ['formador_id']) ||
+        readStringField(survey, ['formador_id']) ||
+        readStringField(response, ['formador_id']);
       const trainerName =
-        readStringField(response, ['formador_nombre']) ||
-        readStringField(survey, ['formador_nombre']);
+        readStringField(session, ['formador_nombre']) ||
+        readStringField(survey, ['formador_nombre']) ||
+        readStringField(response, ['formador_nombre']);
 
       return {
         ...response,
