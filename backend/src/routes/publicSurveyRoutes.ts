@@ -18,6 +18,14 @@ const SURVEY_READY_FINAL_STATES = new Set([
 const REQUIRED_TRAINING_DAYS = 5;
 const REQUIRED_ATTENDANCE_PERCENT = 80;
 
+const readStringField = (data: Record<string, unknown>, keys: string[]) => {
+  for (const key of keys) {
+    const value = data[key];
+    if (typeof value === 'string' && value.trim()) return value.trim();
+  }
+  return '';
+};
+
 const findSurvey = async (token: string) => {
   const cleanToken = token.trim().toLowerCase();
   const byToken = await adminDb
@@ -222,15 +230,16 @@ router.post('/:token/responses', async (req, res: Response) => {
   const totalScore = Number((values.reduce((sum, value) => sum + value, 0) * 1.25).toFixed(2));
   const finalScore = Number(((totalScore / 50) * 20).toFixed(2));
   const classification =
-    finalScore >= 18 ? 'Excelente' : finalScore >= 15 ? 'Bueno' : finalScore >= 11 ? 'Regular' : 'Critico';
+    finalScore >= 18 ? 'Excelente' : finalScore >= 15 ? 'Bueno' : finalScore >= 11 ? 'Regular' : 'Crítico';
+  const campaignName = readStringField(survey, ['campaña', 'campana', 'campa�a']);
 
   const responseData = {
     id: responseId,
     training_survey_id: survey.id,
     participant_id: participantDoc.id,
     nombre_ejecutivo: `${participant.nombres || ''} ${participant.apellidos || ''}`.trim(),
-    campana: survey['campa�a'] || survey.campana || '',
-    ['campa�a']: survey['campa�a'] || survey.campana || '',
+    campaña: campaignName,
+    campana: campaignName,
     codigo_generacion: survey.codigo_generacion || '',
     formador_id: survey.formador_id || '',
     formador_nombre: survey.formador_nombre || '',

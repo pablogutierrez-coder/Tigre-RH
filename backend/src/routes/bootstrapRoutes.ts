@@ -15,6 +15,15 @@ const readCollection = async (name: string) => {
   })) as Array<Record<string, unknown>>;
 };
 
+const readStringField = (data: Record<string, unknown> | undefined, keys: string[]) => {
+  if (!data) return '';
+  for (const key of keys) {
+    const value = data[key];
+    if (typeof value === 'string' && value.trim()) return value.trim();
+  }
+  return '';
+};
+
 router.get('/', requireAuth, async (req: AuthenticatedRequest, res: Response) => {
   try {
     const user = req.user!;
@@ -66,6 +75,33 @@ router.get('/', requireAuth, async (req: AuthenticatedRequest, res: Response) =>
       sessionIds.has(String(survey.training_session_id)),
     );
     const surveyIds = new Set(surveys.map((survey) => String(survey.id)));
+    const surveysById = new Map(allSurveys.map((survey) => [String(survey.id), survey]));
+    const normalizedResponses: Array<Record<string, unknown>> = allResponses.map((response) => {
+      const survey = surveysById.get(String(response.training_survey_id || ''));
+      const campaignName =
+        readStringField(response, ['campaña', 'campana', 'campa�a']) ||
+        readStringField(survey, ['campaña', 'campana', 'campa�a']);
+      const generationCode =
+        readStringField(response, ['codigo_generacion']) ||
+        readStringField(survey, ['codigo_generacion']);
+      const trainerId =
+        readStringField(response, ['formador_id']) ||
+        readStringField(survey, ['formador_id']);
+      const trainerName =
+        readStringField(response, ['formador_nombre']) ||
+        readStringField(survey, ['formador_nombre']);
+
+      return {
+        ...response,
+        campaña: campaignName,
+        campana: campaignName,
+        codigo_generacion: generationCode,
+        formador_id: trainerId,
+        formador_nombre: trainerName,
+        classification:
+          response.classification === 'Critico' ? 'Crítico' : response.classification,
+      };
+    });
 
     res.json({
       users:
@@ -93,7 +129,7 @@ router.get('/', requireAuth, async (req: AuthenticatedRequest, res: Response) =>
         ? allLogs
         : [],
       surveys,
-      responses: allResponses.filter((response) =>
+      responses: normalizedResponses.filter((response) =>
         surveyIds.has(String(response.training_survey_id)),
       ),
     });

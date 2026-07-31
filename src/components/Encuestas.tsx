@@ -189,6 +189,7 @@ export default function Encuestas({
   // --- NORMALIZED SURVEY RESPONSES ---
   const normalizedResponses = useMemo(() => {
     return responses.map(r => {
+      const survey = surveys.find(s => s.id === r.training_survey_id);
       const q1 = r.q1 !== undefined ? r.q1 : (r.p1 || 0);
       const q2 = r.q2 !== undefined ? r.q2 : (r.p2 || 0);
       const q3 = r.q3 !== undefined ? r.q3 : (r.p3 || 0);
@@ -212,16 +213,20 @@ export default function Encuestas({
       
       return {
         ...r,
+        campaña: r.campaña || (r as unknown as { campana?: string }).campana || survey?.campaña || '',
+        codigo_generacion: r.codigo_generacion || survey?.codigo_generacion || '',
+        formador_id: r.formador_id || survey?.formador_id || '',
+        formador_nombre: r.formador_nombre || survey?.formador_nombre || '',
         q1, q2, q3, q4, q5, q6, q7, q8,
         total_score,
         final_score_20,
-        classification,
+        classification: classification === 'Critico' ? 'Crítico' : classification,
         promedio_individual: r.promedio_individual !== undefined ? r.promedio_individual : Number((sum_8 / 8).toFixed(2)),
         comentario_positivo: r.comentario_positivo || '',
         aspecto_mejora: r.aspecto_mejora || ''
       };
     });
-  }, [responses]);
+  }, [responses, surveys]);
 
   // --- ACCESS FILTERED VIEW OF DATA ---
   const visibleSessionIds = useMemo(() => {
