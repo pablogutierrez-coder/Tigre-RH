@@ -467,21 +467,37 @@ export default function TrainingVariables({ currentUser, users }: TrainingVariab
 
                 <section className="grid grid-cols-1 lg:grid-cols-2 gap-4">
                   <KpiCard title="Retención a operación" weight="Peso 40%" meta="Meta 40%">
+                    <KpiGuide
+                      measures="Mide la capacidad del formador para lograr que los participantes culminen la capacitación y pasen a operación."
+                      input="Ingresa el porcentaje mensual de retención obtenido. La meta de referencia es 40%; si el valor supera 40%, genera sobrecumplimiento."
+                    />
                     <PercentInput label="Retención obtenida" value={form.porcentaje_retencion} disabled={isReadOnly} onChange={(value) => updateForm('porcentaje_retencion', value)} />
                     <ReadMetric label="Cumplimiento" value={percent(preview.cumplimiento_retencion)} />
                     <ReadMetric label="Aporte" value={`${preview.aporte_retencion.toFixed(2)} puntos`} />
                   </KpiCard>
                   <KpiCard title="Producción durante OJT" weight="Peso 40%" meta="Individual informativo">
+                    <KpiGuide
+                      measures="Mide el desempeño productivo durante OJT según el resultado mensual definido por el coordinador."
+                      input="Ingresa dos porcentajes: el individual solo sirve como referencia; el grupal es el que calcula el aporte ponderado del KPI."
+                    />
                     <PercentInput label="Cumplimiento individual" value={form.porcentaje_produccion_individual} disabled={isReadOnly} onChange={(value) => updateForm('porcentaje_produccion_individual', value)} />
                     <PercentInput label="Cumplimiento grupal" value={form.porcentaje_produccion_grupal} disabled={isReadOnly} onChange={(value) => updateForm('porcentaje_produccion_grupal', value)} />
                     <ReadMetric label="Aporte grupal" value={`${preview.aporte_produccion.toFixed(2)} puntos`} />
                   </KpiCard>
                   <KpiCard title="Satisfacción de capacitación" weight="Peso 10%" meta="Meta 90%">
+                    <KpiGuide
+                      measures="Mide la percepción de calidad de la capacitación recibida por los participantes."
+                      input="Ingresa el porcentaje promedio mensual de satisfacción. La meta mínima es 90%; valores superiores representan sobrecumplimiento."
+                    />
                     <PercentInput label="Satisfacción obtenida" value={form.porcentaje_satisfaccion} disabled={isReadOnly} onChange={(value) => updateForm('porcentaje_satisfaccion', value)} />
                     <ReadMetric label="Cumplimiento" value={percent(preview.cumplimiento_satisfaccion)} />
                     <ReadMetric label="Aporte" value={`${preview.aporte_satisfaccion.toFixed(2)} puntos`} />
                   </KpiCard>
                   <KpiCard title="Cumplimiento administrativo" weight="Peso 10%" meta="Calificación manual">
+                    <KpiGuide
+                      measures="Mide el cumplimiento de responsabilidades operativas y administrativas del formador durante el mes."
+                      input="Ingresa una calificación manual de 0% a 100%. Si es menor a 100%, debes registrar el sustento u observación."
+                    />
                     <PercentInput label="Cumplimiento administrativo" value={form.porcentaje_administrativo} disabled={isReadOnly} onChange={(value) => updateForm('porcentaje_administrativo', value)} />
                     <label className="space-y-1 block">
                       <span className={labelClass}>Sustento {form.porcentaje_administrativo < 100 ? '*' : ''}</span>
@@ -563,6 +579,21 @@ function KpiCard({ title, weight, meta, children }: { title: string; weight: str
       </div>
       <div className="space-y-3">{children}</div>
     </section>
+  );
+}
+
+function KpiGuide({ measures, input }: { measures: string; input: string }) {
+  return (
+    <div className="space-y-2 rounded-xl border border-slate-200 bg-slate-50 p-3 text-xs leading-relaxed text-slate-600">
+      <p>
+        <span className="font-black text-slate-800">Qué se mide: </span>
+        {measures}
+      </p>
+      <p>
+        <span className="font-black text-slate-800">Qué registrar: </span>
+        {input}
+      </p>
+    </div>
   );
 }
 
