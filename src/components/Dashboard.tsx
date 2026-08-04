@@ -56,6 +56,8 @@ const normalizeAttendanceStatus = (status?: string) =>
     .trim();
 
 const isPresentAttendance = (status?: string) => ['asistio', 'tardanza'].includes(normalizeAttendanceStatus(status));
+const isDesertionAttendance = (status?: string) => ['desistio', 'baja'].includes(normalizeAttendanceStatus(status));
+const isDesertionFinalState = (status?: string) => normalizeAttendanceStatus(status) === 'desistio';
 
 export default function Dashboard({
   sessions,
@@ -160,12 +162,16 @@ export default function Dashboard({
     // Days attendance counts
     const d1Attendants = new Set<string>();
     const lastDayAttendants = new Set<string>();
+    const desertionFromDay2 = new Set<string>();
 
     filteredAttendance.forEach(a => {
       if (isPresentAttendance(a.estado_asistencia)) {
         if (a.dia === 1) d1Attendants.add(a.participant_id);
         const session = filteredSessionById.get(a.training_session_id);
         if (session && a.dia === getTrainingDaysCount(session)) lastDayAttendants.add(a.participant_id);
+      }
+      if (a.dia >= 2 && isDesertionAttendance(a.estado_asistencia)) {
+        desertionFromDay2.add(a.participant_id);
       }
     });
 
@@ -178,8 +184,20 @@ export default function Dashboard({
       p.estado_final === 'Alta confirmada'
     ).length;
 
-    const desistidos = filteredParticipants.filter(p => p.estado_final === 'Desistió').length;
     const altasConfirmadas = filteredConfirmations.filter(c => c.estado_alta === 'Alta confirmada').length;
+    const noAltas = new Set(
+      filteredConfirmations
+        .filter(c => c.estado_alta === 'No alta')
+        .map(c => c.participant_id),
+    );
+    const desistidos = filteredParticipants.filter(p =>
+      d1Attendants.has(p.id) &&
+      (
+        desertionFromDay2.has(p.id) ||
+        noAltas.has(p.id) ||
+        isDesertionFinalState(p.estado_final)
+      )
+    ).length;
     const pendientesAlta = filteredParticipants.filter(p => p.estado_final === 'Pendiente de alta').length;
 
     const aptos = filteredParticipants.filter(p => p.resultado_formacion === 'Apto').length;
@@ -190,7 +208,7 @@ export default function Dashboard({
     const convocadosVsDia1 = totalCargados > 0 ? Math.round((asistieronDia1 / totalCargados) * 100) : 0;
     const ultimoDiaVsDia1 = asistieronDia1 > 0 ? Math.round((asistieronUltimoDia / asistieronDia1) * 100) : 0;
     const altasVsUltimoDia = asistieronUltimoDia > 0 ? Math.round((altasConfirmadas / asistieronUltimoDia) * 100) : 0;
-    const desercionRate = totalCargados > 0 ? Math.round((desistidos / totalCargados) * 100) : 0;
+    const desercionRate = asistieronDia1 > 0 ? Math.round((desistidos / asistieronDia1) * 100) : 0;
 
     const reqPendientes = reopens.filter(r => r.estado === 'pendiente').length;
     const reqAprobadas = reopens.filter(r => r.estado === 'aprobada').length;
@@ -258,9 +276,9 @@ export default function Dashboard({
       const campPartIds = new Set(campParts.map(p => p.id));
 
       const total = campParts.length;
-      const desistidos = campParts.filter(p => p.estado_final === 'Desistió').length;
       const d1 = new Set();
       const lastDay = new Set();
+      const desertionFromDay2 = new Set<string>();
 
       attendance.forEach(a => {
         if (campPartIds.has(a.participant_id) && isPresentAttendance(a.estado_asistencia)) {
@@ -268,9 +286,25 @@ export default function Dashboard({
           if (a.dia === 1) d1.add(a.participant_id);
           if (session && a.dia === getTrainingDaysCount(session)) lastDay.add(a.participant_id);
         }
+        if (campPartIds.has(a.participant_id) && a.dia >= 2 && isDesertionAttendance(a.estado_asistencia)) {
+          desertionFromDay2.add(a.participant_id);
+        }
       });
 
       const altas = validConfirmations.filter(c => campPartIds.has(c.participant_id) && c.estado_alta === 'Alta confirmada').length;
+      const noAltas = new Set(
+        validConfirmations
+          .filter(c => campPartIds.has(c.participant_id) && c.estado_alta === 'No alta')
+          .map(c => c.participant_id),
+      );
+      const desistidos = campParts.filter(p =>
+        d1.has(p.id) &&
+        (
+          desertionFromDay2.has(p.id) ||
+          noAltas.has(p.id) ||
+          isDesertionFinalState(p.estado_final)
+        )
+      ).length;
       const retencion = d1.size > 0 ? Math.round((lastDay.size / d1.size) * 100) : 0;
       const conversion = lastDay.size > 0 ? Math.round((altas / lastDay.size) * 100) : 0;
 
@@ -296,17 +330,35 @@ export default function Dashboard({
       const tPartIds = new Set(tParts.map(p => p.id));
 
       const total = tParts.length;
-      const desistidos = tParts.filter(p => p.estado_final === 'Desistió').length;
+      const d1 = new Set<string>();
       const lastDay = new Set();
+      const desertionFromDay2 = new Set<string>();
 
       attendance.forEach(a => {
         if (tPartIds.has(a.participant_id) && isPresentAttendance(a.estado_asistencia)) {
           const session = trainerSessions.find((item) => item.id === a.training_session_id);
+          if (a.dia === 1) d1.add(a.participant_id);
           if (session && a.dia === getTrainingDaysCount(session)) lastDay.add(a.participant_id);
+        }
+        if (tPartIds.has(a.participant_id) && a.dia >= 2 && isDesertionAttendance(a.estado_asistencia)) {
+          desertionFromDay2.add(a.participant_id);
         }
       });
 
       const altas = validConfirmations.filter(c => tPartIds.has(c.participant_id) && c.estado_alta === 'Alta confirmada').length;
+      const noAltas = new Set(
+        validConfirmations
+          .filter(c => tPartIds.has(c.participant_id) && c.estado_alta === 'No alta')
+          .map(c => c.participant_id),
+      );
+      const desistidos = tParts.filter(p =>
+        d1.has(p.id) &&
+        (
+          desertionFromDay2.has(p.id) ||
+          noAltas.has(p.id) ||
+          isDesertionFinalState(p.estado_final)
+        )
+      ).length;
       const efectividad = lastDay.size > 0 ? Math.round((altas / lastDay.size) * 100) : 0;
 
       return {
@@ -323,17 +375,37 @@ export default function Dashboard({
   // 4. Deserciones por Motivo
   const desercionesPorMotivo = useMemo(() => {
     const motivosCounts: { [key: string]: number } = {};
+    const attendedDay1 = new Set(
+      filteredAttendance
+        .filter(a => a.dia === 1 && isPresentAttendance(a.estado_asistencia))
+        .map(a => a.participant_id),
+    );
     const motivoPorParticipante = new Map<string, string>();
 
     filteredAttendance.forEach(a => {
-      if ((a.estado_asistencia === 'Desistió' || a.estado_asistencia === 'Baja') && a.motivo_desercion && !motivoPorParticipante.has(a.participant_id)) {
+      if (a.dia >= 2 && isDesertionAttendance(a.estado_asistencia) && a.motivo_desercion && !motivoPorParticipante.has(a.participant_id)) {
         motivoPorParticipante.set(a.participant_id, a.motivo_desercion);
       }
     });
 
+    const noAltaPorParticipante = new Map<string, string>();
+    filteredConfirmations.forEach((confirmation) => {
+      if (confirmation.estado_alta === 'No alta') {
+        noAltaPorParticipante.set(
+          confirmation.participant_id,
+          confirmation.motivo_no_alta || confirmation.observacion || 'No alta en operación',
+        );
+      }
+    });
+
     filteredParticipants.forEach((participant) => {
-      if (participant.estado_final !== 'Desistió') return;
-      const motivo = participant.motivo_desercion || motivoPorParticipante.get(participant.id) || 'Sin motivo registrado';
+      if (!attendedDay1.has(participant.id)) return;
+      const motivo =
+        motivoPorParticipante.get(participant.id) ||
+        noAltaPorParticipante.get(participant.id) ||
+        (isDesertionFinalState(participant.estado_final) ? participant.motivo_desercion : '') ||
+        '';
+      if (!motivo) return;
       motivosCounts[motivo] = (motivosCounts[motivo] || 0) + 1;
     });
 
@@ -344,7 +416,7 @@ export default function Dashboard({
       value: motivosCounts[motivo],
       color: colors[index % colors.length]
     })).sort((a, b) => b.value - a.value);
-  }, [filteredAttendance, filteredParticipants]);
+  }, [filteredAttendance, filteredParticipants, filteredConfirmations]);
 
   const desercionesPorMotivoTotal = useMemo(
     () => desercionesPorMotivo.reduce((sum, item) => sum + item.value, 0),
@@ -574,10 +646,10 @@ export default function Dashboard({
           <div className="absolute inset-x-0 top-0 h-1 bg-rose-500"></div>
           <div className="flex justify-between items-start">
             <div>
-              <p className="text-slate-400 font-medium text-xs uppercase tracking-wider">Deserciones</p>
+              <p className="text-slate-400 font-medium text-xs uppercase tracking-wider">Deserción Día 2 - Alta</p>
               <h3 className="text-slate-900 text-3xl font-black mt-1">{metrics.desistidos}</h3>
               <p className="text-xs text-rose-500 font-medium mt-1">
-                {metrics.desercionRate}% deserción total
+                {metrics.desercionRate}% sobre quienes llegaron al Día 1
               </p>
             </div>
             <div className="bg-rose-50 rounded-xl p-2.5 text-rose-600 border border-rose-100">
@@ -715,12 +787,12 @@ export default function Dashboard({
               <UserX className="text-rose-500 w-4.5 h-4.5" />
               Deserciones por Motivo
             </h3>
-            <span className="text-slate-400 text-xs font-mono">Distribución</span>
+            <span className="text-slate-400 text-xs font-mono">Día 2 a alta</span>
           </div>
           <div className="flex-1 min-h-[220px] flex items-center justify-center">
             {desercionesPorMotivo.length === 0 ? (
               <div className="text-center text-slate-400 py-10">
-                <p className="text-sm">No se registran deserciones en este período</p>
+                <p className="text-sm">No se registran deserciones desde Día 2 hasta alta en este período</p>
               </div>
             ) : (
               <ResponsiveContainer width="100%" height={220}>
