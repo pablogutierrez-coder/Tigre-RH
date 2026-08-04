@@ -161,12 +161,14 @@ export default function Dashboard({
 
     // Days attendance counts
     const d1Attendants = new Set<string>();
+    const d2Attendants = new Set<string>();
     const lastDayAttendants = new Set<string>();
     const desertionFromDay2 = new Set<string>();
 
     filteredAttendance.forEach(a => {
       if (isPresentAttendance(a.estado_asistencia)) {
         if (a.dia === 1) d1Attendants.add(a.participant_id);
+        if (a.dia === 2) d2Attendants.add(a.participant_id);
         const session = filteredSessionById.get(a.training_session_id);
         if (session && a.dia === getTrainingDaysCount(session)) lastDayAttendants.add(a.participant_id);
       }
@@ -176,6 +178,7 @@ export default function Dashboard({
     });
 
     const asistieronDia1 = d1Attendants.size;
+    const asistieronDia2 = d2Attendants.size;
     const asistieronUltimoDia = lastDayAttendants.size;
 
     const completaron = filteredParticipants.filter(p =>
@@ -191,7 +194,7 @@ export default function Dashboard({
         .map(c => c.participant_id),
     );
     const desistidos = filteredParticipants.filter(p =>
-      d1Attendants.has(p.id) &&
+      d2Attendants.has(p.id) &&
       (
         desertionFromDay2.has(p.id) ||
         noAltas.has(p.id) ||
@@ -208,7 +211,7 @@ export default function Dashboard({
     const convocadosVsDia1 = totalCargados > 0 ? Math.round((asistieronDia1 / totalCargados) * 100) : 0;
     const ultimoDiaVsDia1 = asistieronDia1 > 0 ? Math.round((asistieronUltimoDia / asistieronDia1) * 100) : 0;
     const altasVsUltimoDia = asistieronUltimoDia > 0 ? Math.round((altasConfirmadas / asistieronUltimoDia) * 100) : 0;
-    const desercionRate = asistieronDia1 > 0 ? Math.round((desistidos / asistieronDia1) * 100) : 0;
+    const desercionRate = asistieronDia2 > 0 ? Math.round((desistidos / asistieronDia2) * 100) : 0;
 
     const reqPendientes = reopens.filter(r => r.estado === 'pendiente').length;
     const reqAprobadas = reopens.filter(r => r.estado === 'aprobada').length;
@@ -217,6 +220,7 @@ export default function Dashboard({
     return {
       totalCargados,
       asistieronDia1,
+      asistieronDia2,
       asistieronUltimoDia,
       completaron,
       desistidos,
@@ -647,9 +651,9 @@ export default function Dashboard({
           <div className="flex justify-between items-start">
             <div>
               <p className="text-slate-400 font-medium text-xs uppercase tracking-wider">Deserción Día 2 - Alta</p>
-              <h3 className="text-slate-900 text-3xl font-black mt-1">{metrics.desistidos}</h3>
+              <h3 className="text-slate-900 text-3xl font-black mt-1">{metrics.desercionRate}%</h3>
               <p className="text-xs text-rose-500 font-medium mt-1">
-                {metrics.desercionRate}% sobre quienes llegaron al Día 1
+                {metrics.desistidos} de {metrics.asistieronDia2} no llegaron al alta
               </p>
             </div>
             <div className="bg-rose-50 rounded-xl p-2.5 text-rose-600 border border-rose-100">
