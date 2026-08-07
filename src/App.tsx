@@ -126,20 +126,41 @@ const getDefaultAreasForRole = (role: User['rol']): UserArea[] => {
 const hasConfiguredUserAccess = (user: User) =>
   Boolean((user.areas && user.areas.length > 0) || (user.module_access && user.module_access.length > 0));
 
+const getModuleAccessKey = (area: UserArea, moduleId: string) => {
+  if (area === 'formacion' && moduleId === 'capacitaciónes') return 'formacion:capacitaciones';
+  return `${area}:${moduleId}`;
+};
+
+const REQUIRED_ROLE_MODULES: Partial<Record<User['rol'], string[]>> = {
+  Analista: [
+    'formacion:dashboard',
+    'formacion:capacitaciones',
+    'formacion:asistencia',
+    'formacion:altas',
+    'formacion:encuestas',
+    'formacion:reportes',
+  ],
+};
+
+const userHasRoleRequiredModuleAccess = (user: User, area: UserArea, moduleId: string) =>
+  Boolean(REQUIRED_ROLE_MODULES[user.rol]?.includes(getModuleAccessKey(area, moduleId)));
+
 const userHasExplicitModuleAccess = (user: User, area: UserArea, moduleId: string) =>
-  Boolean(user.module_access?.includes(`${area}:${moduleId}`));
+  Boolean(user.module_access?.includes(getModuleAccessKey(area, moduleId)));
 
 const userHasAreaAccess = (user: User, area: UserArea) => {
+  if (REQUIRED_ROLE_MODULES[user.rol]?.some(moduleId => moduleId.startsWith(`${area}:`))) return true;
   if (!hasConfiguredUserAccess(user)) return getDefaultAreasForRole(user.rol).includes(area);
   return Boolean(user.areas?.includes(area) || user.module_access?.some(moduleId => moduleId.startsWith(`${area}:`)));
 };
 
 const userHasModuleAccess = (user: User, area: UserArea, moduleId: string) => {
   if (!userHasAreaAccess(user, area)) return false;
+  if (userHasRoleRequiredModuleAccess(user, area, moduleId)) return true;
   if (area === 'formacion' && moduleId === 'reportes' && permissions[user.rol]?.canExportReports) return true;
   if (area === 'formacion' && moduleId === 'variables' && permissions[user.rol]?.canViewTrainingVariables) return true;
   if (!user.module_access || user.module_access.length === 0) return true;
-  return user.module_access.includes(`${area}:${moduleId}`);
+  return user.module_access.includes(getModuleAccessKey(area, moduleId));
 };
 
 const getDefaultRouteForUser = (user: User): { currentView: string; selectionView?: SelectionViewMode } => {
