@@ -339,10 +339,18 @@ export default function AttendanceControl({
       alert('Este postulante no tiene CV cargado.');
       return;
     }
+    const previewWindow = window.open('', '_blank');
+    if (!previewWindow) {
+      alert('Habilita las ventanas emergentes para visualizar el CV.');
+      return;
+    }
     try {
       const url = await getParticipantCvUrlRemote(part.id);
-      window.open(url, '_blank', 'noopener,noreferrer');
+      previewWindow.opener = null;
+      previewWindow.location.href = url;
+      window.setTimeout(() => URL.revokeObjectURL(url), 60_000);
     } catch (error) {
+      previewWindow.close();
       console.error('Error opening CV:', error);
       alert(error instanceof Error ? error.message : 'No se pudo abrir el CV del postulante.');
     }

@@ -3,6 +3,11 @@ import { randomUUID } from 'node:crypto';
 import { z } from 'zod';
 import { adminDb, adminRealtimeDb, adminStorage } from '../firebaseAdmin.js';
 import {
+  deleteCvFromGoogleDrive,
+  downloadCvFromGoogleDrive,
+  uploadCvToGoogleDrive,
+} from '../services/googleDriveService.js';
+import {
   type AuthenticatedRequest,
   requireAuth,
   requireRole,
@@ -45,6 +50,26 @@ const safePathSegment = (value: string) =>
 const isAllowedCvFile = (fileName: string, contentType: string) =>
   cvContentTypes.has(contentType) || /\.(pdf|doc|docx)$/i.test(fileName);
 
+const getGoogleDriveUploadError = (error: unknown) => {
+  const detail = error instanceof Error ? error.message : 'error desconocido';
+  const normalized = detail.toLowerCase();
+
+  if (normalized.includes('file not found') || normalized.includes('notfound')) {
+    return 'La carpeta de Google Drive no existe o no fue compartida con la cuenta de servicio del backend.';
+  }
+  if (normalized.includes('storagequotaexceeded') || normalized.includes('service accounts do not have storage quota')) {
+    return 'La cuenta de servicio no tiene cuota propia. Usa una carpeta de una Unidad compartida y agrégala como Administrador de contenido.';
+  }
+  if (normalized.includes('access not configured') || normalized.includes('has not been used') || normalized.includes('disabled')) {
+    return 'La API de Google Drive no está habilitada en el proyecto de Google Cloud del backend.';
+  }
+  if (normalized.includes('insufficient') || normalized.includes('permission')) {
+    return 'La cuenta de servicio del backend no tiene permisos de edición sobre la carpeta de Google Drive.';
+  }
+
+  return detail;
+};
+
 const getStorageBucketCandidates = (preferredBucket?: string) => {
   const projectId = process.env.FIREBASE_PROJECT_ID || process.env.VITE_FIREBASE_PROJECT_ID;
   return Array.from(new Set([
@@ -54,38 +79,6 @@ const getStorageBucketCandidates = (preferredBucket?: string) => {
     process.env.FIREBASE_STORAGE_BUCKET,
     projectId ? `${projectId}.appspot.com` : undefined,
   ].filter((bucket): bucket is string => Boolean(bucket))));
-};
-
-const saveCvInAvailableBucket = async (
-  path: string,
-  buffer: Buffer,
-  contentType: string,
-  metadata: Record<string, string>,
-) => {
-  const candidates = getStorageBucketCandidates();
-  if (!candidates.length) {
-    throw new Error('Firebase Storage no esta configurado en el backend.');
-  }
-
-  let lastError: unknown;
-  for (const bucketName of candidates) {
-    try {
-      await adminStorage.bucket(bucketName).file(path).save(buffer, {
-        resumable: false,
-        contentType,
-        metadata: { metadata },
-      });
-      return bucketName;
-    } catch (error) {
-      lastError = error;
-      const message = error instanceof Error ? error.message.toLowerCase() : '';
-      if (!message.includes('bucket') || !message.includes('does not exist')) throw error;
-    }
-  }
-
-  throw lastError instanceof Error
-    ? lastError
-    : new Error('No se encontro un bucket de Firebase Storage disponible.');
 };
 
 const ownsSession = async (req: AuthenticatedRequest, sessionId: string) => {
@@ -152,6 +145,9 @@ router.put(
     if (req.user!.rol === 'Formador') {
       delete parsed.data.cv_file_name;
       delete parsed.data.cv_file_path;
+      delete parsed.data.cv_storage_provider;
+      delete parsed.data.cv_drive_file_id;
+      delete parsed.data.cv_drive_folder_id;
       delete parsed.data.cv_content_type;
       delete parsed.data.cv_uploaded_at;
       delete parsed.data.cv_uploaded_by;
@@ -195,15 +191,18 @@ router.post(
       .map((value) => String(value || '').trim())
       .filter(Boolean)
       .join(' ');
-    const path = `cv/${safePathSegment(participantName || req.params.id)}/${recordId}/${safeFileName(parsed.data.file_name)}`;
-    const bucketName = await saveCvInAvailableBucket(path, buffer, parsed.data.content_type, {
+    const driveFile = await uploadCvToGoogleDrive({
+      buffer,
+      fileName: `${safePathSegment(participantName || req.params.id)}_${safeFileName(parsed.data.file_name)}`,
+      mimeType: parsed.data.content_type,
       participantId: req.params.id,
-      trainingSessionId: access.sessionId,
+      recordId,
       uploadedBy: req.user!.uid,
     });
 
     const uploadedAt = new Date().toISOString();
-    const fileAccessUrl = `/api/operations/participants/${req.params.id}/cv-url`;
+    const fileAccessUrl = `/api/operations/participants/${req.params.id}/cv-content`;
+    const path = `google-drive://${driveFile.id}`;
     const cvRecord = {
       id: recordId,
       userId: req.user!.uid,
@@ -211,12 +210,15 @@ router.post(
       nombrePostulante: participantName,
       cvFile: {
         id: recordId,
-        name: parsed.data.file_name,
-        mimeType: parsed.data.content_type,
-        size: buffer.length,
-        storageProvider: 'firebase_storage',
+        name: driveFile.name,
+        mimeType: driveFile.mimeType,
+        size: driveFile.size,
+        storageProvider: 'google_drive',
         storagePath: path,
-        bucket: bucketName,
+        bucket: driveFile.folderId,
+        driveFileId: driveFile.id,
+        driveFolderId: driveFile.folderId,
+        webViewLink: driveFile.webViewLink,
         url: fileAccessUrl,
         publicUrl: fileAccessUrl,
         downloadUrl: fileAccessUrl,
@@ -228,52 +230,87 @@ router.post(
       updatedAt: uploadedAt,
     };
 
-    try {
-      await adminRealtimeDb.ref().update({
-        [`shared/cv_records_v1/${recordId}`]: cvRecord,
-        [`shared/cv_record_${recordId}`]: cvRecord,
-      });
-    } catch (error) {
-      await adminStorage.bucket(bucketName).file(path).delete({ ignoreNotFound: true }).catch(() => undefined);
-      throw new Error(`No se pudo guardar la metadata del CV en Realtime Database: ${error instanceof Error ? error.message : 'error desconocido'}`);
-    }
-
     const nextParticipant = {
       ...access.participant,
       cv_record_id: recordId,
-      cv_file_name: parsed.data.file_name,
+      cv_file_name: driveFile.name,
       cv_file_path: path,
-      cv_bucket: bucketName,
-      cv_content_type: parsed.data.content_type,
-      cv_file_size: buffer.length,
+      cv_bucket: driveFile.folderId,
+      cv_storage_provider: 'google_drive',
+      cv_drive_file_id: driveFile.id,
+      cv_drive_folder_id: driveFile.folderId,
+      cv_content_type: driveFile.mimeType,
+      cv_file_size: driveFile.size,
       cv_uploaded_at: uploadedAt,
       cv_uploaded_by: req.user!.uid,
     };
     try {
+      await adminDb.collection('cv_records').doc(recordId).set(cvRecord);
       await access.participantDoc.ref.set(nextParticipant, { merge: true });
-    } catch (error) {
-      await Promise.allSettled([
-        adminStorage.bucket(bucketName).file(path).delete({ ignoreNotFound: true }),
-        adminRealtimeDb.ref().update({
+      if (process.env.FIREBASE_DATABASE_URL) {
+        void adminRealtimeDb.ref().update({
+          [`shared/cv_records_v1/${recordId}`]: cvRecord,
+          [`shared/cv_record_${recordId}`]: cvRecord,
+        }).catch((metadataError) => console.warn('Realtime Database CV metadata was not mirrored:', metadataError));
+      }
+    } catch (persistenceError) {
+      const rollbackTasks: Promise<unknown>[] = [
+        deleteCvFromGoogleDrive(driveFile.id),
+        adminDb.collection('cv_records').doc(recordId).delete(),
+      ];
+      if (process.env.FIREBASE_DATABASE_URL) {
+        rollbackTasks.push(adminRealtimeDb.ref().update({
           [`shared/cv_records_v1/${recordId}`]: null,
           [`shared/cv_record_${recordId}`]: null,
-        }),
-      ]);
-      throw error;
+        }));
+      }
+      await Promise.allSettled(rollbackTasks);
+      throw persistenceError;
     }
     res.json({ ok: true, participant: nextParticipant });
     } catch (error) {
       console.error('Error uploading participant CV:', error);
-      const errorMessage = error instanceof Error ? error.message : '';
-      const storageIsMissing = errorMessage.toLowerCase().includes('bucket does not exist');
       res.status(500).json({
-        message: storageIsMissing
-          ? `No se pudo guardar el CV en Firebase Storage: ${errorMessage}.`
-          : error instanceof Error
-          ? errorMessage.startsWith('No se pudo guardar la metadata')
-            ? errorMessage
-            : `No se pudo guardar el CV en Firebase Storage: ${errorMessage}.`
-          : 'No se pudo guardar el CV en Firebase Storage: error desconocido.',
+        message: `No se pudo guardar el CV en Google Drive: ${getGoogleDriveUploadError(error)}`,
+      });
+    }
+  },
+);
+
+router.get(
+  '/participants/:id/cv-content',
+  requireAuth,
+  requireRole(cvViewerRoles),
+  async (req: AuthenticatedRequest, res: Response) => {
+    try {
+      const access = await canAccessParticipant(req, req.params.id);
+      if (!access) {
+        res.status(404).json({ message: 'CV no encontrado.' });
+        return;
+      }
+
+      const provider = String(access.participant.cv_storage_provider || '');
+      const driveFileId = String(access.participant.cv_drive_file_id || '');
+      if (provider !== 'google_drive' || !driveFileId) {
+        res.status(404).json({ message: 'El CV no está almacenado en Google Drive.' });
+        return;
+      }
+
+      const fileBuffer = await downloadCvFromGoogleDrive(driveFileId);
+      const contentType = String(access.participant.cv_content_type || 'application/octet-stream');
+      const fileName = String(access.participant.cv_file_name || 'cv');
+      res
+        .set('Content-Type', contentType)
+        .set('Content-Length', String(fileBuffer.length))
+        .set('Content-Disposition', `inline; filename*=UTF-8''${encodeURIComponent(fileName)}`)
+        .set('Cache-Control', 'private, max-age=300')
+        .send(fileBuffer);
+    } catch (error) {
+      console.error('Error downloading participant CV from Google Drive:', error);
+      res.status(500).json({
+        message: error instanceof Error
+          ? `No se pudo abrir el CV desde Google Drive: ${error.message}`
+          : 'No se pudo abrir el CV desde Google Drive.',
       });
     }
   },

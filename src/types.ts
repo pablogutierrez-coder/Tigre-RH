@@ -144,6 +144,9 @@ export interface Participant {
   cv_file_name?: string;
   cv_file_path?: string;
   cv_bucket?: string;
+  cv_storage_provider?: 'firebase_storage' | 'google_drive';
+  cv_drive_file_id?: string;
+  cv_drive_folder_id?: string;
   cv_content_type?: string;
   cv_file_size?: number;
   cv_uploaded_at?: string;

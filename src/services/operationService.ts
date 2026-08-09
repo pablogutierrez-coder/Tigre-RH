@@ -100,8 +100,16 @@ export const uploadParticipantCvRemote = async (
 };
 
 export const getParticipantCvUrlRemote = async (participantId: string) => {
-  const data = await get<{ url: string }>(`/api/operations/participants/${participantId}/cv-url`);
-  return data.url;
+  const token = await auth?.currentUser?.getIdToken();
+  if (!token) throw new Error('Sesion no disponible.');
+  const response = await fetch(`${API_BASE_URL}/api/operations/participants/${participantId}/cv-content`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!response.ok) {
+    const data = await response.json().catch(() => null);
+    throw new Error(data?.message || 'No se pudo obtener el CV.');
+  }
+  return URL.createObjectURL(await response.blob());
 };
 
 export const deleteParticipantRemote = (participantId: string) =>
