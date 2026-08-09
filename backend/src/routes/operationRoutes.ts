@@ -34,6 +34,49 @@ const safeFileName = (fileName: string) =>
 const isAllowedCvFile = (fileName: string, contentType: string) =>
   cvContentTypes.has(contentType) || /\.(pdf|doc|docx)$/i.test(fileName);
 
+const getStorageBucketCandidates = (preferredBucket?: string) => {
+  const projectId = process.env.FIREBASE_PROJECT_ID || process.env.VITE_FIREBASE_PROJECT_ID;
+  return Array.from(new Set([
+    preferredBucket,
+    process.env.VITE_FIREBASE_STORAGE_BUCKET,
+    projectId ? `${projectId}.firebasestorage.app` : undefined,
+    process.env.FIREBASE_STORAGE_BUCKET,
+    projectId ? `${projectId}.appspot.com` : undefined,
+  ].filter((bucket): bucket is string => Boolean(bucket))));
+};
+
+const saveCvInAvailableBucket = async (
+  path: string,
+  buffer: Buffer,
+  contentType: string,
+  metadata: Record<string, string>,
+) => {
+  const candidates = getStorageBucketCandidates();
+  if (!candidates.length) {
+    throw new Error('Firebase Storage no esta configurado en el backend.');
+  }
+
+  let lastError: unknown;
+  for (const bucketName of candidates) {
+    try {
+      await adminStorage.bucket(bucketName).file(path).save(buffer, {
+        resumable: false,
+        contentType,
+        metadata: { metadata },
+      });
+      return bucketName;
+    } catch (error) {
+      lastError = error;
+      const message = error instanceof Error ? error.message.toLowerCase() : '';
+      if (!message.includes('bucket') || !message.includes('does not exist')) throw error;
+    }
+  }
+
+  throw lastError instanceof Error
+    ? lastError
+    : new Error('No se encontro un bucket de Firebase Storage disponible.');
+};
+
 const ownsSession = async (req: AuthenticatedRequest, sessionId: string) => {
   const session = await adminDb.collection('sessions').doc(sessionId).get();
   if (!session.exists) return false;
@@ -137,27 +180,17 @@ router.post(
     }
 
     const path = `participant-cv/${req.params.id}/${Date.now()}-${safeFileName(parsed.data.file_name)}`;
-    const bucketName = process.env.FIREBASE_STORAGE_BUCKET || process.env.VITE_FIREBASE_STORAGE_BUCKET;
-    if (!bucketName) {
-      res.status(500).json({ message: 'Firebase Storage no esta configurado en el backend.' });
-      return;
-    }
-    await adminStorage.bucket(bucketName).file(path).save(buffer, {
-      resumable: false,
-      contentType: parsed.data.content_type,
-      metadata: {
-        metadata: {
-          participantId: req.params.id,
-          trainingSessionId: access.sessionId,
-          uploadedBy: req.user!.uid,
-        },
-      },
+    const bucketName = await saveCvInAvailableBucket(path, buffer, parsed.data.content_type, {
+      participantId: req.params.id,
+      trainingSessionId: access.sessionId,
+      uploadedBy: req.user!.uid,
     });
 
     const nextParticipant = {
       ...access.participant,
       cv_file_name: parsed.data.file_name,
       cv_file_path: path,
+      cv_bucket: bucketName,
       cv_content_type: parsed.data.content_type,
       cv_uploaded_at: new Date().toISOString(),
       cv_uploaded_by: req.user!.uid,
@@ -166,9 +199,13 @@ router.post(
     res.json({ ok: true, participant: nextParticipant });
     } catch (error) {
       console.error('Error uploading participant CV:', error);
+      const errorMessage = error instanceof Error ? error.message : '';
+      const storageIsMissing = errorMessage.toLowerCase().includes('bucket does not exist');
       res.status(500).json({
-        message: error instanceof Error
-          ? `No se pudo cargar el CV: ${error.message}`
+        message: storageIsMissing
+          ? 'Firebase Storage aun no esta creado para este proyecto. Inicializalo en Firebase Console > Storage y vuelve a intentar.'
+          : error instanceof Error
+          ? `No se pudo cargar el CV: ${errorMessage}`
           : 'No se pudo cargar el CV.',
       });
     }
@@ -188,10 +225,19 @@ router.get(
       return;
     }
 
-    const bucketName = process.env.FIREBASE_STORAGE_BUCKET || process.env.VITE_FIREBASE_STORAGE_BUCKET;
-    if (!bucketName) {
+    const bucketCandidates = getStorageBucketCandidates(String(access.participant.cv_bucket || ''));
+    if (!bucketCandidates.length) {
       res.status(500).json({ message: 'Firebase Storage no esta configurado en el backend.' });
       return;
+    }
+
+    let bucketName = bucketCandidates[0];
+    for (const candidate of bucketCandidates) {
+      const [exists] = await adminStorage.bucket(candidate).file(cvPath).exists();
+      if (exists) {
+        bucketName = candidate;
+        break;
+      }
     }
 
     const [url] = await adminStorage.bucket(bucketName).file(cvPath).getSignedUrl({
