@@ -88,6 +88,22 @@ app.use('/api/trainings', trainingRoutes);
 app.use('/api/formacion/variables', trainingVariableRoutes);
 app.use('/api/users', userRoutes);
 
+app.use((
+  error: unknown,
+  _req: express.Request,
+  res: express.Response,
+  _next: express.NextFunction,
+) => {
+  console.error('Unhandled backend error:', error);
+  const message = error instanceof Error ? error.message : 'Error interno del servidor.';
+  const isPayloadTooLarge = 'type' in Object(error) && Object(error).type === 'entity.too.large';
+  res.status(isPayloadTooLarge ? 413 : 500).json({
+    message: isPayloadTooLarge
+      ? 'El archivo es demasiado grande. Usa un CV de máximo 10 MB.'
+      : message,
+  });
+});
+
 if (frontendDistPath) {
   app.use(express.static(frontendDistPath));
   app.get('*', (_req, res) => {

@@ -112,9 +112,15 @@ router.post(
   requireAuth,
   requireRole(cvAllowedRoles),
   async (req: AuthenticatedRequest, res: Response) => {
-    const parsed = cvUploadSchema.safeParse(req.body);
+    try {
+      const parsed = cvUploadSchema.safeParse(req.body);
+      if (!parsed.success) {
+        res.status(400).json({ message: 'Datos del CV invalidos.' });
+        return;
+      }
+
     const access = await canAccessParticipant(req, req.params.id);
-    if (!parsed.success || !access || access.sessionId !== parsed.data.training_session_id) {
+    if (!access || access.sessionId !== parsed.data.training_session_id) {
       res.status(403).json({ message: 'No puedes cargar CV para este participante.' });
       return;
     }
@@ -131,7 +137,12 @@ router.post(
     }
 
     const path = `participant-cv/${req.params.id}/${Date.now()}-${safeFileName(parsed.data.file_name)}`;
-    await adminStorage.bucket().file(path).save(buffer, {
+    const bucketName = process.env.FIREBASE_STORAGE_BUCKET || process.env.VITE_FIREBASE_STORAGE_BUCKET;
+    if (!bucketName) {
+      res.status(500).json({ message: 'Firebase Storage no esta configurado en el backend.' });
+      return;
+    }
+    await adminStorage.bucket(bucketName).file(path).save(buffer, {
       resumable: false,
       contentType: parsed.data.content_type,
       metadata: {
@@ -153,6 +164,14 @@ router.post(
     };
     await access.participantDoc.ref.set(nextParticipant, { merge: true });
     res.json({ ok: true, participant: nextParticipant });
+    } catch (error) {
+      console.error('Error uploading participant CV:', error);
+      res.status(500).json({
+        message: error instanceof Error
+          ? `No se pudo cargar el CV: ${error.message}`
+          : 'No se pudo cargar el CV.',
+      });
+    }
   },
 );
 
@@ -161,6 +180,7 @@ router.get(
   requireAuth,
   requireRole(cvViewerRoles),
   async (req: AuthenticatedRequest, res: Response) => {
+    try {
     const access = await canAccessParticipant(req, req.params.id);
     const cvPath = String(access?.participant.cv_file_path || '');
     if (!access || !cvPath) {
@@ -168,11 +188,25 @@ router.get(
       return;
     }
 
-    const [url] = await adminStorage.bucket().file(cvPath).getSignedUrl({
+    const bucketName = process.env.FIREBASE_STORAGE_BUCKET || process.env.VITE_FIREBASE_STORAGE_BUCKET;
+    if (!bucketName) {
+      res.status(500).json({ message: 'Firebase Storage no esta configurado en el backend.' });
+      return;
+    }
+
+    const [url] = await adminStorage.bucket(bucketName).file(cvPath).getSignedUrl({
       action: 'read',
       expires: Date.now() + 15 * 60 * 1000,
     });
     res.json({ url });
+    } catch (error) {
+      console.error('Error generating participant CV URL:', error);
+      res.status(500).json({
+        message: error instanceof Error
+          ? `No se pudo abrir el CV: ${error.message}`
+          : 'No se pudo abrir el CV.',
+      });
+    }
   },
 );
 
