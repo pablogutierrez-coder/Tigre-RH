@@ -20,6 +20,35 @@ const save = async (path: string, body: unknown) => {
   if (!response.ok) throw new Error(data?.message || 'No se pudo guardar el registro.');
 };
 
+const post = async <T>(path: string, body: unknown): Promise<T> => {
+  const token = await auth?.currentUser?.getIdToken();
+  if (!token) throw new Error('Sesion no disponible.');
+  const response = await fetch(`${API_BASE_URL}${path}`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify(body),
+  });
+  const data = await response.json().catch(() => null);
+  if (!response.ok) throw new Error(data?.message || 'No se pudo procesar la solicitud.');
+  return data as T;
+};
+
+const get = async <T>(path: string): Promise<T> => {
+  const token = await auth?.currentUser?.getIdToken();
+  if (!token) throw new Error('Sesion no disponible.');
+  const response = await fetch(`${API_BASE_URL}${path}`, {
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+  });
+  const data = await response.json().catch(() => null);
+  if (!response.ok) throw new Error(data?.message || 'No se pudo obtener la informacion.');
+  return data as T;
+};
+
 const remove = async (path: string) => {
   const token = await auth?.currentUser?.getIdToken();
   if (!token) throw new Error('Sesion no disponible.');
@@ -41,6 +70,39 @@ export const persistConfirmation = (confirmation: OperationConfirmation) =>
 
 export const persistParticipant = (participant: Participant) =>
   save(`/api/operations/participants/${participant.id}`, participant);
+
+const fileToBase64 = (file: File) =>
+  new Promise<string>((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onerror = () => reject(new Error('No se pudo leer el archivo seleccionado.'));
+    reader.onload = () => {
+      const result = String(reader.result || '');
+      resolve(result.includes(',') ? result.split(',').pop() || '' : result);
+    };
+    reader.readAsDataURL(file);
+  });
+
+export const uploadParticipantCvRemote = async (
+  participantId: string,
+  trainingSessionId: string,
+  file: File,
+) => {
+  const data = await post<{ participant: Participant }>(
+    `/api/operations/participants/${participantId}/cv`,
+    {
+      training_session_id: trainingSessionId,
+      file_name: file.name,
+      content_type: file.type || 'application/octet-stream',
+      base64: await fileToBase64(file),
+    },
+  );
+  return data.participant;
+};
+
+export const getParticipantCvUrlRemote = async (participantId: string) => {
+  const data = await get<{ url: string }>(`/api/operations/participants/${participantId}/cv-url`);
+  return data.url;
+};
 
 export const deleteParticipantRemote = (participantId: string) =>
   remove(`/api/operations/participants/${participantId}`);

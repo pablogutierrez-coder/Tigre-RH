@@ -36,7 +36,7 @@ import {
 import { TrainingSession, Participant, AttendanceRecord, AttendanceStatus, User as AppUser, AttendanceReopenRequest, OperationConfirmation } from '../types';
 import { permissions } from '../utils/permissions';
 import { getTrainingDays, getTrainingDaysCount } from '../utils/trainingDays';
-import { getDownloadUrl, uploadParticipantCvFile } from '../services/firebase/fileService';
+import { getParticipantCvUrlRemote, uploadParticipantCvRemote } from '../services/operationService';
 import * as XLSX from 'xlsx';
 
 interface AttendanceControlProps {
@@ -325,7 +325,7 @@ export default function AttendanceControl({
       return;
     }
     try {
-      const url = await getDownloadUrl(part.cv_file_path);
+      const url = await getParticipantCvUrlRemote(part.id);
       window.open(url, '_blank', 'noopener,noreferrer');
     } catch (error) {
       console.error('Error opening CV:', error);
@@ -347,21 +347,11 @@ export default function AttendanceControl({
     }
     try {
       setIsUploadingCv(true);
-      const path = await uploadParticipantCvFile(editingParticipant.id, file, {
-        contentType: file.type || undefined,
-        customMetadata: {
-          participantId: editingParticipant.id,
-          uploadedBy: currentUser.id,
-        },
-      });
-      const nextParticipant: Participant = {
-        ...editingParticipant,
-        cv_file_name: file.name,
-        cv_file_path: path,
-        cv_content_type: file.type,
-        cv_uploaded_at: new Date().toISOString(),
-        cv_uploaded_by: currentUser.id,
-      };
+      const nextParticipant = await uploadParticipantCvRemote(
+        editingParticipant.id,
+        editingParticipant.training_session_id,
+        file,
+      );
       await onUpdateParticipantDetails(nextParticipant);
       setEditingParticipant(nextParticipant);
     } catch (error) {

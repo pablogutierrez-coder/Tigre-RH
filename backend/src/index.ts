@@ -52,7 +52,7 @@ app.use(
     },
   }),
 );
-app.use(express.json());
+app.use(express.json({ limit: '15mb' }));
 
 app.get('/health', (_req, res) => {
   res.json({ ok: true, frontend: Boolean(frontendDistPath) });

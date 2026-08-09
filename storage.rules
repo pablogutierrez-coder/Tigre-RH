@@ -44,5 +44,11 @@ service firebase.storage {
       allow read, create, update: if isAdmin() || (signedIn() && request.auth.uid == uid);
       allow delete: if isAdmin();
     }
+
+    match /participant-cv/{participantId}/{fileName} {
+      allow read: if isAdmin() || hasAnyRole(['Analista', 'Reclutador', 'Coordinador', 'Formador']);
+      allow create, update: if isAdmin() || hasAnyRole(['Analista', 'Reclutador', 'Coordinador']);
+      allow delete: if isAdmin();
+    }
   }
 }
