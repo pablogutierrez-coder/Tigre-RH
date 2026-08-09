@@ -1,6 +1,7 @@
 import { Router, type Response } from 'express';
+import { randomUUID } from 'node:crypto';
 import { z } from 'zod';
-import { adminDb, adminStorage } from '../firebaseAdmin.js';
+import { adminDb, adminRealtimeDb, adminStorage } from '../firebaseAdmin.js';
 import {
   type AuthenticatedRequest,
   requireAuth,
@@ -30,6 +31,16 @@ const safeFileName = (fileName: string) =>
     .replace(/[\u0300-\u036f]/g, '')
     .replace(/[^a-zA-Z0-9._-]/g, '_')
     .slice(0, 160);
+
+const safePathSegment = (value: string) =>
+  value
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-zA-Z0-9_-]/g, '_')
+    .replace(/_+/g, '_')
+    .replace(/^_|_$/g, '')
+    .toUpperCase()
+    .slice(0, 100) || 'POSTULANTE';
 
 const isAllowedCvFile = (fileName: string, contentType: string) =>
   cvContentTypes.has(contentType) || /\.(pdf|doc|docx)$/i.test(fileName);
@@ -168,34 +179,88 @@ router.post(
       return;
     }
     if (!isAllowedCvFile(parsed.data.file_name, parsed.data.content_type)) {
-      res.status(400).json({ message: 'Solo se permiten archivos PDF, DOC o DOCX.' });
+      res.status(400).json({ message: 'Formato no permitido. Sube un archivo PDF, DOC o DOCX.' });
       return;
     }
 
     const buffer = Buffer.from(parsed.data.base64, 'base64');
     const maxSizeBytes = 10 * 1024 * 1024;
     if (!buffer.length || buffer.length > maxSizeBytes) {
-      res.status(400).json({ message: 'El CV debe pesar como máximo 10 MB.' });
+      res.status(400).json({ message: 'El CV supera el tamaño máximo permitido de 10 MB.' });
       return;
     }
 
-    const path = `participant-cv/${req.params.id}/${Date.now()}-${safeFileName(parsed.data.file_name)}`;
+    const recordId = randomUUID();
+    const participantName = [access.participant.nombres, access.participant.apellidos]
+      .map((value) => String(value || '').trim())
+      .filter(Boolean)
+      .join(' ');
+    const path = `cv/${safePathSegment(participantName || req.params.id)}/${recordId}/${safeFileName(parsed.data.file_name)}`;
     const bucketName = await saveCvInAvailableBucket(path, buffer, parsed.data.content_type, {
       participantId: req.params.id,
       trainingSessionId: access.sessionId,
       uploadedBy: req.user!.uid,
     });
 
+    const uploadedAt = new Date().toISOString();
+    const fileAccessUrl = `/api/operations/participants/${req.params.id}/cv-url`;
+    const cvRecord = {
+      id: recordId,
+      userId: req.user!.uid,
+      postulanteId: req.params.id,
+      nombrePostulante: participantName,
+      cvFile: {
+        id: recordId,
+        name: parsed.data.file_name,
+        mimeType: parsed.data.content_type,
+        size: buffer.length,
+        storageProvider: 'firebase_storage',
+        storagePath: path,
+        bucket: bucketName,
+        url: fileAccessUrl,
+        publicUrl: fileAccessUrl,
+        downloadUrl: fileAccessUrl,
+        previewUrl: fileAccessUrl,
+        uploadedAt,
+        uploadedBy: req.user!.uid,
+      },
+      createdAt: uploadedAt,
+      updatedAt: uploadedAt,
+    };
+
+    try {
+      await adminRealtimeDb.ref().update({
+        [`shared/cv_records_v1/${recordId}`]: cvRecord,
+        [`shared/cv_record_${recordId}`]: cvRecord,
+      });
+    } catch (error) {
+      await adminStorage.bucket(bucketName).file(path).delete({ ignoreNotFound: true }).catch(() => undefined);
+      throw new Error(`No se pudo guardar la metadata del CV en Realtime Database: ${error instanceof Error ? error.message : 'error desconocido'}`);
+    }
+
     const nextParticipant = {
       ...access.participant,
+      cv_record_id: recordId,
       cv_file_name: parsed.data.file_name,
       cv_file_path: path,
       cv_bucket: bucketName,
       cv_content_type: parsed.data.content_type,
-      cv_uploaded_at: new Date().toISOString(),
+      cv_file_size: buffer.length,
+      cv_uploaded_at: uploadedAt,
       cv_uploaded_by: req.user!.uid,
     };
-    await access.participantDoc.ref.set(nextParticipant, { merge: true });
+    try {
+      await access.participantDoc.ref.set(nextParticipant, { merge: true });
+    } catch (error) {
+      await Promise.allSettled([
+        adminStorage.bucket(bucketName).file(path).delete({ ignoreNotFound: true }),
+        adminRealtimeDb.ref().update({
+          [`shared/cv_records_v1/${recordId}`]: null,
+          [`shared/cv_record_${recordId}`]: null,
+        }),
+      ]);
+      throw error;
+    }
     res.json({ ok: true, participant: nextParticipant });
     } catch (error) {
       console.error('Error uploading participant CV:', error);
@@ -203,10 +268,12 @@ router.post(
       const storageIsMissing = errorMessage.toLowerCase().includes('bucket does not exist');
       res.status(500).json({
         message: storageIsMissing
-          ? 'Firebase Storage aun no esta creado para este proyecto. Inicializalo en Firebase Console > Storage y vuelve a intentar.'
+          ? `No se pudo guardar el CV en Firebase Storage: ${errorMessage}.`
           : error instanceof Error
-          ? `No se pudo cargar el CV: ${errorMessage}`
-          : 'No se pudo cargar el CV.',
+          ? errorMessage.startsWith('No se pudo guardar la metadata')
+            ? errorMessage
+            : `No se pudo guardar el CV en Firebase Storage: ${errorMessage}.`
+          : 'No se pudo guardar el CV en Firebase Storage: error desconocido.',
       });
     }
   },

@@ -140,9 +140,12 @@ export interface Participant {
   observacion_evaluacion?: string;
 
   // Curriculum Vitae
+  cv_record_id?: string;
   cv_file_name?: string;
   cv_file_path?: string;
+  cv_bucket?: string;
   cv_content_type?: string;
+  cv_file_size?: number;
   cv_uploaded_at?: string;
   cv_uploaded_by?: string;
 }

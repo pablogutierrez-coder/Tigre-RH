@@ -99,6 +99,13 @@ const isDropoutStatus = (status?: string) => ['desistio', 'baja'].includes(norma
 const isHolidayStatus = (status?: string) => normalizeStatus(status) === 'feriado';
 const isPendingStatus = (status?: string) => ['', 'seleccionar', 'pendiente'].includes(normalizeStatus(status));
 const CV_ALLOWED_UPLOAD_ROLES = ['Administrador', 'Analista', 'Reclutador', 'Coordinador'];
+const CV_MAX_SIZE_BYTES = 10 * 1024 * 1024;
+const CV_ALLOWED_TYPES = [
+  'application/pdf',
+  'application/msword',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+];
+const CV_ALLOWED_EXTENSIONS = /\.(pdf|doc|docx)$/i;
 
 const ATTENDANCE_OPTIONS: Array<{ value: AttendanceStatus; label: string }> = [
   { value: 'Asistió', label: 'Asistió' },
@@ -189,6 +196,7 @@ export default function AttendanceControl({
   const [editingParticipant, setEditingParticipant] = useState<Participant | null>(null);
   const [evidencePreview, setEvidencePreview] = useState<{ src: string; name: string } | null>(null);
   const [isUploadingCv, setIsUploadingCv] = useState(false);
+  const [selectedCvFile, setSelectedCvFile] = useState<File | null>(null);
   const [participantDraft, setParticipantDraft] = useState({
     nombres: '',
     apellidos: '',
@@ -275,6 +283,7 @@ export default function AttendanceControl({
   };
 
   const openParticipantEditor = (part: Participant) => {
+    setSelectedCvFile(null);
     setEditingParticipant(part);
     setParticipantDraft({
       nombres: part.nombres || '',
@@ -317,6 +326,12 @@ export default function AttendanceControl({
     }
   };
 
+  const closeParticipantEditor = () => {
+    if (isUploadingCv) return;
+    setSelectedCvFile(null);
+    setEditingParticipant(null);
+  };
+
   const canUploadCv = CV_ALLOWED_UPLOAD_ROLES.includes(currentUser.rol);
 
   const handleViewCv = async (part: Participant) => {
@@ -333,16 +348,36 @@ export default function AttendanceControl({
     }
   };
 
-  const handleCvFileChange = async (file?: File) => {
-    if (!file || !editingParticipant || !onUpdateParticipantDetails || !canUploadCv) return;
-    const allowedTypes = [
-      'application/pdf',
-      'application/msword',
-      'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-    ];
-    const allowedExtensions = /\.(pdf|doc|docx)$/i;
-    if (!allowedTypes.includes(file.type) && !allowedExtensions.test(file.name)) {
-      alert('Solo se permiten archivos PDF, DOC o DOCX.');
+  const handleCvFileChange = (file?: File) => {
+    if (!file) {
+      setSelectedCvFile(null);
+      return;
+    }
+    if (!CV_ALLOWED_TYPES.includes(file.type) && !CV_ALLOWED_EXTENSIONS.test(file.name)) {
+      setSelectedCvFile(null);
+      alert('Formato no permitido. Sube un archivo PDF, DOC o DOCX.');
+      return;
+    }
+    if (file.size > CV_MAX_SIZE_BYTES) {
+      setSelectedCvFile(null);
+      alert('El CV supera el tamaño máximo permitido de 10 MB.');
+      return;
+    }
+    setSelectedCvFile(file);
+  };
+
+  const handleSaveCv = async () => {
+    if (!selectedCvFile) {
+      alert('Selecciona un archivo CV antes de guardar.');
+      return;
+    }
+    if (!editingParticipant || !onUpdateParticipantDetails || !canUploadCv) return;
+    if (!CV_ALLOWED_TYPES.includes(selectedCvFile.type) && !CV_ALLOWED_EXTENSIONS.test(selectedCvFile.name)) {
+      alert('Formato no permitido. Sube un archivo PDF, DOC o DOCX.');
+      return;
+    }
+    if (selectedCvFile.size > CV_MAX_SIZE_BYTES) {
+      alert('El CV supera el tamaño máximo permitido de 10 MB.');
       return;
     }
     try {
@@ -350,13 +385,17 @@ export default function AttendanceControl({
       const nextParticipant = await uploadParticipantCvRemote(
         editingParticipant.id,
         editingParticipant.training_session_id,
-        file,
+        selectedCvFile,
       );
       await onUpdateParticipantDetails(nextParticipant);
       setEditingParticipant(nextParticipant);
+      setSelectedCvFile(null);
+      alert('CV guardado correctamente.');
     } catch (error) {
       console.error('Error uploading CV:', error);
-      alert(error instanceof Error ? error.message : 'No se pudo cargar el CV.');
+      alert(error instanceof Error
+        ? error.message
+        : 'No se pudo guardar el CV en Firebase Storage: error desconocido.');
     } finally {
       setIsUploadingCv(false);
     }
@@ -1549,7 +1588,7 @@ export default function AttendanceControl({
                 </p>
               </div>
               <button
-                onClick={() => setEditingParticipant(null)}
+                onClick={closeParticipantEditor}
                 className="text-slate-400 hover:text-slate-700 text-xl leading-none"
               >
                 x
@@ -1588,9 +1627,11 @@ export default function AttendanceControl({
                 <div>
                   <h4 className="text-sm font-black text-slate-800">Curriculum Vitae / CV</h4>
                   <p className="text-[11px] text-slate-500">
-                    {editingParticipant.cv_file_name
-                      ? `Archivo actual: ${editingParticipant.cv_file_name}`
-                      : 'No hay CV cargado para este postulante.'}
+                    {selectedCvFile
+                      ? `Archivo seleccionado: ${selectedCvFile.name}`
+                      : editingParticipant.cv_file_name
+                        ? `Archivo actual: ${editingParticipant.cv_file_name}`
+                        : 'No hay CV cargado para este postulante.'}
                   </p>
                 </div>
                 <div className="flex items-center gap-2">
@@ -1607,15 +1648,26 @@ export default function AttendanceControl({
                   {canUploadCv && (
                     <label className={`inline-flex items-center gap-1.5 rounded-xl px-3 py-2 text-xs font-bold text-white border border-transparent ${isUploadingCv ? 'bg-slate-400 cursor-wait' : 'bg-indigo-600 hover:bg-indigo-700 cursor-pointer'}`}>
                       <FileUp className="w-4 h-4" />
-                      {editingParticipant.cv_file_path ? 'Reemplazar CV' : 'Cargar CV'}
+                      {selectedCvFile ? 'Cambiar archivo' : 'Seleccionar CV'}
                       <input
                         type="file"
                         accept=".pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
                         disabled={isUploadingCv}
-                        onChange={(event) => void handleCvFileChange(event.target.files?.[0])}
+                        onChange={(event) => handleCvFileChange(event.target.files?.[0])}
                         className="hidden"
                       />
                     </label>
+                  )}
+                  {canUploadCv && (
+                    <button
+                      type="button"
+                      onClick={() => void handleSaveCv()}
+                      disabled={isUploadingCv}
+                      className={`inline-flex items-center gap-1.5 rounded-xl px-3 py-2 text-xs font-bold text-white ${isUploadingCv ? 'bg-slate-400 cursor-wait' : 'bg-emerald-600 hover:bg-emerald-700'}`}
+                    >
+                      <FileUp className="w-4 h-4" />
+                      {isUploadingCv ? 'Guardando CV...' : 'Guardar CV'}
+                    </button>
                   )}
                 </div>
               </div>
@@ -1628,7 +1680,7 @@ export default function AttendanceControl({
 
             <div className="flex justify-end gap-3 pt-3">
               <button
-                onClick={() => setEditingParticipant(null)}
+                onClick={closeParticipantEditor}
                 className="bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold text-xs px-4 py-2 rounded-xl"
               >
                 Cancelar
@@ -1638,7 +1690,7 @@ export default function AttendanceControl({
                 disabled={isUploadingCv}
                 className={`text-white font-bold text-xs px-5 py-2 rounded-xl ${isUploadingCv ? 'bg-slate-400 cursor-wait' : 'bg-indigo-600 hover:bg-indigo-700'}`}
               >
-                {isUploadingCv ? 'Cargando CV...' : 'Guardar datos'}
+                Guardar datos
               </button>
             </div>
           </div>
