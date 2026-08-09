@@ -12,15 +12,33 @@ const canManageTraining = [
   requireAuth,
   requireRole(['Administrador', 'Analista', 'Reclutador', 'Coordinador']),
 ];
+const canPatchTraining = [
+  requireAuth,
+  requireRole(['Administrador', 'Analista', 'Reclutador', 'Coordinador', 'Formador']),
+];
 const entitySchema = z.object({ id: z.string().min(1) }).passthrough();
+
+const getTrainingCode = (session: Record<string, unknown>) =>
+  String(session.generation_code || session.nombre_generacion || '').trim();
+
+const hasDuplicateTrainingCode = async (code: string, sessionId: string) => {
+  if (!code) return false;
+  const [byGenerationCode, byName] = await Promise.all([
+    adminDb.collection('sessions').where('generation_code', '==', code).limit(1).get(),
+    adminDb.collection('sessions').where('nombre_generacion', '==', code).limit(1).get(),
+  ]);
+  return [...byGenerationCode.docs, ...byName.docs].some((doc) => doc.id !== sessionId);
+};
 
 const assertTrainingAccess = async (
   req: AuthenticatedRequest,
   sessionId: string,
 ) => {
-  if (req.user!.rol !== 'Reclutador') return true;
+  if (req.user!.rol !== 'Reclutador' && req.user!.rol !== 'Formador') return true;
   const session = await adminDb.collection('sessions').doc(sessionId).get();
-  return session.exists && session.data()?.reclutador_id === req.user!.uid;
+  if (!session.exists) return false;
+  if (req.user!.rol === 'Formador') return session.data()?.formador_id === req.user!.uid;
+  return session.data()?.reclutador_id === req.user!.uid;
 };
 
 router.post('/', canManageTraining, async (req: AuthenticatedRequest, res: Response) => {
@@ -36,6 +54,12 @@ router.post('/', canManageTraining, async (req: AuthenticatedRequest, res: Respo
   }
 
   const { session, survey, participants, attendance } = parsed.data;
+  const trainingCode = getTrainingCode(session);
+  if (await hasDuplicateTrainingCode(trainingCode, session.id)) {
+    res.status(409).json({ message: `Ya existe una capacitacion con el codigo ${trainingCode}.` });
+    return;
+  }
+
   if (req.user!.rol === 'Reclutador') {
     session.reclutador_id = req.user!.uid;
     session.reclutador_nombre = req.user!.nombre;
@@ -54,7 +78,7 @@ router.post('/', canManageTraining, async (req: AuthenticatedRequest, res: Respo
   res.status(201).json({ ok: true });
 });
 
-router.patch('/:sessionId', canManageTraining, async (req: AuthenticatedRequest, res: Response) => {
+router.patch('/:sessionId', canPatchTraining, async (req: AuthenticatedRequest, res: Response) => {
   if (!(await assertTrainingAccess(req, req.params.sessionId))) {
     res.status(403).json({ message: 'Solo puedes editar tus propias capacitaciones.' });
     return;
@@ -65,9 +89,14 @@ router.patch('/:sessionId', canManageTraining, async (req: AuthenticatedRequest,
     return;
   }
   delete changes.data.id;
-  if (req.user!.rol === 'Reclutador') {
-    delete changes.data.reclutador_id;
-    delete changes.data.reclutador_nombre;
+  if (req.user!.rol !== 'Administrador') {
+    const keys = Object.keys(changes.data);
+    const statusOnly = keys.length === 1 && keys[0] === 'estado';
+    const allowedStatus = ['Capacitación cerrada', 'En curso'].includes(String(changes.data.estado || ''));
+    if (!statusOnly || !allowedStatus) {
+      res.status(403).json({ message: 'Solo el Administrador puede editar datos de la capacitación.' });
+      return;
+    }
   }
   await adminDb.collection('sessions').doc(req.params.sessionId).set(changes.data, { merge: true });
   res.json({ ok: true });

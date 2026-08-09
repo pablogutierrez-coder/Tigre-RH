@@ -28,6 +28,7 @@ import {
 import { TrainingSession, Participant, User as AppUser, AttendanceStatus, AttendanceRecord, TrainingSurvey, SurveyResponse } from '../types';
 import { permissions } from '../utils/permissions';
 import { getTrainingDays, getTrainingDaysCount } from '../utils/trainingDays';
+import { BPO_CAMPAIGNS, getCampaignPrefix, normalizeCampaignName } from '../constants/campaigns';
 
 interface CapacitacionesProps {
   sessions: TrainingSession[];
@@ -76,13 +77,6 @@ const DEMO_CSV_TEMPLATES = [
   }
 ];
 
-const CAMPAIGN_CODE_MAP: Record<string, string> = {
-  "Entel Empresas": "ENTEL",
-  "Culqi": "CULQI",
-  "Prosegur": "PROSEGUR",
-  "Equifax": "EQUIFAX",
-};
-
 const getTrainingIdentifier = (
   session?: Pick<TrainingSession, 'generation_code' | 'nombre_generacion'>,
 ) => session?.generation_code?.trim() || session?.nombre_generacion?.trim() || 'Sin código';
@@ -112,7 +106,7 @@ export default function Capacitaciones({
   // Form State
   const [fechaInicio, setFechaInicio] = useState('2026-07-02');
   const [fechaFin, setFechaFin] = useState('2026-07-06');
-  const [campaña, setCampaña] = useState('Entel Empresas');
+  const [campaña, setCampaña] = useState<string>(BPO_CAMPAIGNS[0]);
   const [tipoCapacitacion, setTipoCapacitacion] = useState('Capacitación regular');
   const [formadorId, setFormadorId] = useState('');
   const [reclutadorId, setReclutadorId] = useState(
@@ -180,7 +174,7 @@ export default function Capacitaciones({
       if (!status || status === 'Seleccionar' || status === 'Pendiente' || (status as string) === 'Marcar' || (status as string) === '') {
         return false;
       }
-      return ['Asistió', 'Faltó', 'Tardanza', 'Desistió', 'Baja', 'Vacaciones', 'Feriado'].includes(status);
+      return ['Asistió', 'Faltó', 'Tardanza', 'Desistió', 'Baja', 'Feriado'].includes(status);
     };
 
     const isAttendanceComplete = sessionParts.length > 0 && sessionParts.every(p => {
@@ -272,7 +266,7 @@ export default function Capacitaciones({
       if (!record) return false;
       const status = record.estado_asistencia;
       if (!status || status === 'Seleccionar' || status === 'Pendiente' || (status as string) === 'Marcar' || (status as string) === '') return false;
-      return ['Asistió', 'Faltó', 'Tardanza', 'Desistió', 'Baja', 'Vacaciones', 'Feriado'].includes(status);
+      return ['Asistió', 'Faltó', 'Tardanza', 'Desistió', 'Baja', 'Feriado'].includes(status);
     };
 
     const isAttendanceComplete = sParts.length > 0 && sParts.every(p => requiredDays.every(d => checkAttendanceDay(p, d)));
@@ -415,17 +409,6 @@ export default function Capacitaciones({
   const [validatedParticipants, setValidatedParticipants] = useState<Omit<Participant, 'id'>[]>([]);
   const [validationErrors, setValidationErrors] = useState<string[]>([]);
 
-  // Helper to extract 2-letter prefix for Campaign
-  const getCampaignPrefix = (camp: string): string => {
-    const map: Record<string, string> = {
-      'Entel Empresas': 'EN',
-      'Culqi': 'CU',
-      'Prosegur': 'PR',
-      'Equifax': 'EQ'
-    };
-    return map[camp] || camp.substring(0, 2).toUpperCase();
-  };
-
   // Helper to parse date into parts YYYY, MM, DD
   const parseDateParts = (dateStr: string) => {
     if (!dateStr) return { year: '2026', month: '01', day: '01' };
@@ -449,16 +432,33 @@ export default function Capacitaciones({
       const prefix = getCampaignPrefix(campaignName);
       const { year, month, day } = parseDateParts(startDate);
       const baseCode = `CAP-${prefix}${year}${day}${month}`;
+      const targetCampaign = normalizeCampaignName(campaignName);
 
-      const sameDayTrainings = sessions.filter(
-        (s) =>
-          s.id !== excludeSessionId &&
-          s.generation_code &&
-          s.generation_code.startsWith(baseCode)
+      const usedCodes = new Set(
+        sessions
+          .filter((s) => s.id !== excludeSessionId)
+          .map((s) => getTrainingIdentifier(s)),
       );
+      const maxHistoricalSuffix = sessions
+        .filter((s) => {
+          if (s.id === excludeSessionId) return false;
+          return normalizeCampaignName(s.campaña) === targetCampaign;
+        })
+        .reduce((max, s) => {
+          const code = getTrainingIdentifier(s);
+          if (!code.startsWith(`CAP-${prefix}`)) return max;
+          const match = code.match(/-(\d{2,})$/);
+          const suffix = match ? Number(match[1]) : 0;
+          return Number.isFinite(suffix) ? Math.max(max, suffix) : max;
+        }, 0);
 
-      const count = sameDayTrainings.length;
-      return count > 0 ? `${baseCode}-${String(count + 1).padStart(2, "0")}` : `${baseCode}-01`;
+      let nextSuffix = maxHistoricalSuffix + 1;
+      let candidate = `${baseCode}-${String(nextSuffix).padStart(2, "0")}`;
+      while (usedCodes.has(candidate)) {
+        nextSuffix += 1;
+        candidate = `${baseCode}-${String(nextSuffix).padStart(2, "0")}`;
+      }
+      return candidate;
     } catch {
       return '';
     }
@@ -503,11 +503,7 @@ export default function Capacitaciones({
     setCampaña(newCamp);
 
     if (onAuditLog && oldCamp !== newCamp) {
-      const prefix = getCampaignPrefix(newCamp);
-      const { year, month, day } = parseDateParts(fechaInicio);
-      const baseCode = `CAP-${prefix}${year}${day}${month}`;
-      const sameDayTrainings = sessions.filter(s => s.generation_code && s.generation_code.startsWith(baseCode));
-      const recalculatedCode = sameDayTrainings.length > 0 ? `${baseCode}-${String(sameDayTrainings.length + 1).padStart(2, "0")}` : `${baseCode}-01`;
+      const recalculatedCode = buildTrainingCode(newCamp, fechaInicio);
 
       onAuditLog(
         'Cambio de campaña antes de guardar',
@@ -575,10 +571,14 @@ export default function Capacitaciones({
     // 1. Detect Campaign and Generation from file name
     let suggestedCampaña = campaña;
     const uppercaseFileName = fileName.toUpperCase();
-    if (uppercaseFileName.includes('ENTEL EMPRESAS')) {
-      suggestedCampaña = 'Entel Empresas';
-    } else if (uppercaseFileName.includes('PROSEGUR')) {
-      suggestedCampaña = 'Prosegur';
+    if (uppercaseFileName.includes('RUC 20')) {
+      suggestedCampaña = 'Entel Empresas RUC 20';
+    } else if (uppercaseFileName.includes('ENTEL EMPRESAS')) {
+      suggestedCampaña = BPO_CAMPAIGNS[0];
+    } else if (uppercaseFileName.includes('FIJA')) {
+      suggestedCampaña = 'Fija';
+    } else if (uppercaseFileName.includes('GPON')) {
+      suggestedCampaña = 'GPON';
     } else if (uppercaseFileName.includes('CULQI')) {
       suggestedCampaña = 'Culqi';
     }
@@ -1291,10 +1291,7 @@ export default function Capacitaciones({
                   className="w-full glass-input text-slate-700 rounded-xl px-3 py-2.5 text-sm outline-hidden"
                 >
                   <option value="todos">Todas las Campañas</option>
-                  <option value="Entel Empresas">Entel Empresas</option>
-                  <option value="Prosegur">Prosegur</option>
-                  <option value="Culqi">Culqi</option>
-                  <option value="Equifax">Equifax</option>
+                  {BPO_CAMPAIGNS.map((item) => <option key={item} value={item}>{item}</option>)}
                 </select>
               </div>
 
@@ -1417,9 +1414,7 @@ export default function Capacitaciones({
                     {/* Actions footer */}
                     <div className="bg-slate-50/50 p-4 rounded-b-2xl border-t border-slate-50 flex justify-between items-center gap-2">
                       <div className="flex items-center gap-1.5 flex-wrap">
-                        {permissions[currentUser.rol]?.canEditTraining &&
-                          (currentUser.rol !== 'Reclutador' ||
-                            session.reclutador_id === currentUser.id) && (
+                        {currentUser.rol === 'Administrador' && permissions[currentUser.rol]?.canEditTraining && (
                           <button
                             onClick={() => startEditing(session)}
                             className="text-slate-400 hover:text-indigo-600 p-2 rounded-lg hover:bg-indigo-50 transition-colors cursor-pointer"
@@ -1517,10 +1512,7 @@ export default function Capacitaciones({
                     onChange={(e) => handleCampañaChange(e.target.value)}
                     className="w-full text-sm bg-slate-50 text-slate-700 rounded-xl border border-slate-200 p-2.5 focus:ring-2 focus:ring-fuchsia-500 outline-hidden font-bold"
                   >
-                    <option value="Entel Empresas">Entel Empresas</option>
-                    <option value="Culqi">Culqi</option>
-                    <option value="Prosegur">Prosegur</option>
-                    <option value="Equifax">Equifax</option>
+                    {BPO_CAMPAIGNS.map((item) => <option key={item} value={item}>{item}</option>)}
                   </select>
                 </div>
 
@@ -2125,10 +2117,7 @@ export default function Capacitaciones({
                     onChange={(e) => setEditCampaña(e.target.value)}
                     className="w-full text-sm bg-slate-50 text-slate-700 rounded-xl border border-slate-200 p-2.5 focus:ring-2 focus:ring-indigo-500 outline-hidden font-bold"
                   >
-                    <option value="Entel Empresas">Entel Empresas</option>
-                    <option value="Culqi">Culqi</option>
-                    <option value="Prosegur">Prosegur</option>
-                    <option value="Equifax">Equifax</option>
+                    {BPO_CAMPAIGNS.map((item) => <option key={item} value={item}>{item}</option>)}
                   </select>
                 </div>
 

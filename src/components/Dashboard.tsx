@@ -36,6 +36,7 @@ import {
 } from 'lucide-react';
 import { TrainingSession, Participant, AttendanceRecord, OperationConfirmation, AttendanceReopenRequest, User as AppUser } from '../types';
 import { getTrainingDaysCount, LEGACY_TRAINING_DAYS_COUNT } from '../utils/trainingDays';
+import { BPO_CAMPAIGNS } from '../constants/campaigns';
 
 interface DashboardProps {
   sessions: TrainingSession[];
@@ -272,7 +273,7 @@ export default function Dashboard({
 
   // 2. Comparativo por Campaña
   const campañaData = useMemo(() => {
-    const campaigns = ['Entel Empresas', 'Prosegur', 'Culqi'];
+    const campaigns = BPO_CAMPAIGNS;
     return campaigns.map(camp => {
       const campSessions = filteredSessions.filter(s => s.campaña === camp);
       const campSessionIds = new Set(campSessions.map(s => s.id));

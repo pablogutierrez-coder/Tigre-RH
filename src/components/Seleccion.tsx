@@ -44,6 +44,7 @@ import {
   updateSelectionApplicant,
   updateSelectionRequisition,
 } from '../services/selectionService';
+import { BPO_CAMPAIGNS } from '../constants/campaigns';
 
 type ViewMode =
   | 'dashboard'
@@ -73,7 +74,7 @@ interface SeleccionProps {
 
 const emptyRequisition: Partial<SelectionRequisition> = {
   nombre: '',
-  cuenta: 'Entel Empresas',
+  cuenta: BPO_CAMPAIGNS[0],
   posicion: '',
   ciudad: '',
   fuente_principal: 'Pandapé',
@@ -226,7 +227,7 @@ const isManagerRole = (role: string) => ['Administrador', 'Analista', 'Coordinad
 const canCreateRequisition = (role: string) => ['Administrador', 'Analista', 'Coordinador'].includes(role);
 const canEditRequisitionCode = (role: string) => role === 'Administrador';
 
-const campaignOptions = ['Entel Empresas', 'Culqi', 'Equifax', 'Prosegur'];
+const campaignOptions = [...BPO_CAMPAIGNS];
 const sourceOptions = ['Pandapé', 'Computrabajo', 'Boomerang', 'LinkedIn', 'Redes sociales', 'Registro manual', 'Carga Excel', 'Referido', 'Otro'];
 const finalRequisitionStates = ['Activa', 'Finalizada'];
 const dashboardViews = ['Vista general', 'Vista por campaña', 'Vista individual por reclutador', 'Vista por convocatoria'];

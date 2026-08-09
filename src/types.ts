@@ -138,9 +138,16 @@ export interface Participant {
   motivo_no_apt?: string;
   evaluacion_nota?: number | null;
   observacion_evaluacion?: string;
+
+  // Curriculum Vitae
+  cv_file_name?: string;
+  cv_file_path?: string;
+  cv_content_type?: string;
+  cv_uploaded_at?: string;
+  cv_uploaded_by?: string;
 }
 
-export type AttendanceStatus = 'Seleccionar' | 'Asistió' | 'Tardanza' | 'Faltó' | 'Desistió' | 'Baja' | 'Vacaciones' | 'Feriado' | 'Pendiente';
+export type AttendanceStatus = 'Seleccionar' | 'Asistió' | 'Tardanza' | 'Faltó' | 'Desistió' | 'Baja' | 'Feriado' | 'Pendiente';
 
 export interface AttendanceRecord {
   id: string;

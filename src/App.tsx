@@ -83,6 +83,7 @@ import {
   updateTraining,
 } from './services/trainingService';
 import {
+  deleteParticipantRemote,
   persistAttendance,
   persistConfirmation,
   persistParticipant,
@@ -105,7 +106,7 @@ const isAbsenceAttendance = (status?: string) => normalizeAttendanceStatus(statu
 const isDropoutAttendanceStatus = (status?: string) => ['desistio', 'baja'].includes(normalizeAttendanceStatus(status));
 const isPendingAttendance = (status?: string) => ['pendiente', 'seleccionar', ''].includes(normalizeAttendanceStatus(status));
 const isValidCompletedAttendance = (status?: string) =>
-  ['asistio', 'tardanza', 'falto', 'vacaciones', 'feriado'].includes(normalizeAttendanceStatus(status));
+  ['asistio', 'tardanza', 'falto', 'feriado'].includes(normalizeAttendanceStatus(status));
 
 const EMPTY_USERS: User[] = [];
 const EMPTY_SESSIONS: TrainingSession[] = [];
@@ -1291,6 +1292,40 @@ export default function App() {
     );
   };
 
+  const handleDeleteParticipant = (participantId: string) => {
+    if (!activeUser || activeUser.rol !== 'Administrador') {
+      alert('Solo el Administrador puede eliminar postulantes.');
+      return;
+    }
+    const participant = participants.find((item) => item.id === participantId);
+    if (!participant) return;
+    const session = sessions.find((item) => item.id === participant.training_session_id);
+    if (!confirm('¿Está seguro de eliminar este postulante? Esta acción afectará la información relacionada al registro.')) {
+      return;
+    }
+
+    setParticipants((current) => current.filter((item) => item.id !== participantId));
+    setAttendance((current) => current.filter((item) => item.participant_id !== participantId));
+    setConfirmations((current) => current.filter((item) => item.participant_id !== participantId));
+    setResponses((current) => current.filter((item) => item.participant_id !== participantId));
+
+    void deleteParticipantRemote(participantId).catch((error) => {
+      console.error('Error deleting participant:', error);
+      alert(error instanceof Error ? error.message : 'No se pudo eliminar el postulante.');
+      setPlatformReloadKey((value) => value + 1);
+    });
+
+    addAuditLog(
+      'Eliminación de postulante',
+      'Control de asistencia',
+      `El administrador eliminó al postulante ${participant.nombres} ${participant.apellidos}.`,
+      session?.campaña,
+      session?.nombre_generacion,
+      participant.id,
+      `${participant.nombres} ${participant.apellidos}`,
+    );
+  };
+
   // 5. Create Reopen Request
   const handleRequestReopen = (req: Omit<AttendanceReopenRequest, 'id' | 'formador_id' | 'formador_nombre' | 'estado' | 'fecha_solicitud'>) => {
     if (!activeUser) return;
@@ -2239,6 +2274,7 @@ export default function App() {
                   onRequestReopen={handleRequestReopen}
                   onUpdateParticipantOutcome={handleUpdateParticipantOutcome}
                   onUpdateParticipantDetails={handleUpdateParticipantDetails}
+                  onDeleteParticipant={handleDeleteParticipant}
                   onGoBack={() => { setSelectedSessionId(null); setCurrentView('capacitaciónes'); }}
                   onAttemptLockedEdit={handleAttemptLockedEdit}
                 />

@@ -28,11 +28,15 @@ import {
   Filter,
   Pencil,
   Download,
-  ShieldCheck
+  ShieldCheck,
+  Eye,
+  FileUp,
+  Trash2
 } from 'lucide-react';
 import { TrainingSession, Participant, AttendanceRecord, AttendanceStatus, User as AppUser, AttendanceReopenRequest, OperationConfirmation } from '../types';
 import { permissions } from '../utils/permissions';
 import { getTrainingDays, getTrainingDaysCount } from '../utils/trainingDays';
+import { getDownloadUrl, uploadParticipantCvFile } from '../services/firebase/fileService';
 import * as XLSX from 'xlsx';
 
 interface AttendanceControlProps {
@@ -64,6 +68,7 @@ interface AttendanceControlProps {
     evaluationObservation?: string,
   ) => void;
   onUpdateParticipantDetails?: (participant: Participant) => void;
+  onDeleteParticipant?: (participantId: string) => void;
   onGoBack: () => void;
   onAttemptLockedEdit?: (sessionName: string, campaign: string, day: number) => void;
 }
@@ -91,15 +96,14 @@ const normalizeStatus = (status?: string) =>
 const isPresentStatus = (status?: string) => ['asistio', 'tardanza'].includes(normalizeStatus(status));
 const isAbsenceStatus = (status?: string) => normalizeStatus(status) === 'falto';
 const isDropoutStatus = (status?: string) => ['desistio', 'baja'].includes(normalizeStatus(status));
-const isVacationStatus = (status?: string) => normalizeStatus(status) === 'vacaciones';
 const isHolidayStatus = (status?: string) => normalizeStatus(status) === 'feriado';
 const isPendingStatus = (status?: string) => ['', 'seleccionar', 'pendiente'].includes(normalizeStatus(status));
+const CV_ALLOWED_UPLOAD_ROLES = ['Administrador', 'Analista', 'Reclutador', 'Coordinador'];
 
 const ATTENDANCE_OPTIONS: Array<{ value: AttendanceStatus; label: string }> = [
   { value: 'Asistió', label: 'Asistió' },
   { value: 'Tardanza', label: 'Tardanza' },
   { value: 'Faltó', label: 'Faltó' },
-  { value: 'Vacaciones', label: 'Vacaciones' },
   { value: 'Feriado', label: 'Feriado' },
   { value: 'Desistió', label: 'Desistió' },
   { value: 'Baja', label: 'Baja' },
@@ -118,6 +122,7 @@ export default function AttendanceControl({
   onRequestReopen,
   onUpdateParticipantOutcome,
   onUpdateParticipantDetails,
+  onDeleteParticipant,
   onGoBack,
   onAttemptLockedEdit
 }: AttendanceControlProps) {
@@ -183,6 +188,7 @@ export default function AttendanceControl({
   const [outcomeError, setOutcomeError] = useState('');
   const [editingParticipant, setEditingParticipant] = useState<Participant | null>(null);
   const [evidencePreview, setEvidencePreview] = useState<{ src: string; name: string } | null>(null);
+  const [isUploadingCv, setIsUploadingCv] = useState(false);
   const [participantDraft, setParticipantDraft] = useState({
     nombres: '',
     apellidos: '',
@@ -298,6 +304,61 @@ export default function AttendanceControl({
     setEditingParticipant(null);
   };
 
+  const canUploadCv = CV_ALLOWED_UPLOAD_ROLES.includes(currentUser.rol);
+
+  const handleViewCv = async (part: Participant) => {
+    if (!part.cv_file_path) {
+      alert('Este postulante no tiene CV cargado.');
+      return;
+    }
+    try {
+      const url = await getDownloadUrl(part.cv_file_path);
+      window.open(url, '_blank', 'noopener,noreferrer');
+    } catch (error) {
+      console.error('Error opening CV:', error);
+      alert(error instanceof Error ? error.message : 'No se pudo abrir el CV del postulante.');
+    }
+  };
+
+  const handleCvFileChange = async (file?: File) => {
+    if (!file || !editingParticipant || !onUpdateParticipantDetails || !canUploadCv) return;
+    const allowedTypes = [
+      'application/pdf',
+      'application/msword',
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    ];
+    const allowedExtensions = /\.(pdf|doc|docx)$/i;
+    if (!allowedTypes.includes(file.type) && !allowedExtensions.test(file.name)) {
+      alert('Solo se permiten archivos PDF, DOC o DOCX.');
+      return;
+    }
+    try {
+      setIsUploadingCv(true);
+      const path = await uploadParticipantCvFile(editingParticipant.id, file, {
+        contentType: file.type || undefined,
+        customMetadata: {
+          participantId: editingParticipant.id,
+          uploadedBy: currentUser.id,
+        },
+      });
+      const nextParticipant: Participant = {
+        ...editingParticipant,
+        cv_file_name: file.name,
+        cv_file_path: path,
+        cv_content_type: file.type,
+        cv_uploaded_at: new Date().toISOString(),
+        cv_uploaded_by: currentUser.id,
+      };
+      onUpdateParticipantDetails(nextParticipant);
+      setEditingParticipant(nextParticipant);
+    } catch (error) {
+      console.error('Error uploading CV:', error);
+      alert(error instanceof Error ? error.message : 'No se pudo cargar el CV.');
+    } finally {
+      setIsUploadingCv(false);
+    }
+  };
+
   const handleEarlyAlta = (part: Participant) => {
     if (!onUpdateParticipantOutcome) return;
     if (!window.confirm(`Marcar alta anticipada para ${part.nombres} ${part.apellidos}? Se bloqueará la nota y quedará apto para encuesta.`)) return;
@@ -402,7 +463,7 @@ export default function AttendanceControl({
     let tardanza = 0;
     let falto = 0;
     let desistio = 0;
-    let vacaciones = 0;
+    let feriado = 0;
     let pendiente = 0;
 
     filteredParts.forEach(p => {
@@ -412,14 +473,14 @@ export default function AttendanceControl({
       else if (normalizeStatus(status) === 'tardanza') tardanza++;
       else if (isAbsenceStatus(status)) falto++;
       else if (isDropoutStatus(status)) desistio++;
-      else if (isVacationStatus(status) || isHolidayStatus(status)) vacaciones++;
+      else if (isHolidayStatus(status)) feriado++;
       else pendiente++;
     });
 
     const marked = total - pendiente;
     const progressPercent = total > 0 ? Math.round((marked / total) * 100) : 0;
 
-    return { total, asistio, tardanza, falto, desistio, vacaciones, pendiente, marked, progressPercent };
+    return { total, asistio, tardanza, falto, desistio, feriado, pendiente, marked, progressPercent };
   }, [filteredParts, attendanceMap, selectedDay]);
 
   const attendanceWindowLabel = useMemo(() => {
@@ -833,14 +894,14 @@ export default function AttendanceControl({
           </div>
         </div>
 
-        {/* Vacaciones Card */}
+        {/* Feriado Card */}
         <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs flex items-center gap-3">
-          <div className="p-3 bg-sky-50 text-sky-600 rounded-xl">
+          <div className="p-3 bg-violet-50 text-violet-600 rounded-xl">
             <Calendar className="w-5 h-5" />
           </div>
           <div>
-            <span className="block text-[11px] text-slate-400 font-bold uppercase">Vacaciones</span>
-            <span className="text-xl font-black text-sky-700">{stats.vacaciones}</span>
+            <span className="block text-[11px] text-slate-400 font-bold uppercase">Feriado</span>
+            <span className="text-xl font-black text-violet-700">{stats.feriado}</span>
           </div>
         </div>
 
@@ -961,7 +1022,6 @@ export default function AttendanceControl({
                   <option value="Asistió">Asistió</option>
                   <option value="Tardanza">Tardanza</option>
                   <option value="Faltó">Faltó</option>
-                  <option value="Vacaciones">Vacaciones</option>
                   <option value="Feriado">Feriado</option>
                   <option value="Desistió">Desistió</option>
                   <option value="Baja">Baja</option>
@@ -1069,7 +1129,6 @@ export default function AttendanceControl({
                 <option value="Asistió">Marcar Asistencia</option>
                 <option value="Tardanza">Marcar Tardanza</option>
                 <option value="Faltó">Marcar Faltó</option>
-                <option value="Vacaciones">Marcar Vacaciones</option>
                 <option value="Feriado">Marcar Feriado</option>
                 <option value="Desistió">Marcar Desistencia</option>
                 <option value="Baja">Marcar Baja</option>
@@ -1166,15 +1225,35 @@ export default function AttendanceControl({
                           <div className="font-semibold text-slate-800 text-sm">
                             {part.nombres} {part.apellidos}
                           </div>
-                          {onUpdateParticipantDetails && (
-                            <button
-                              onClick={() => openParticipantEditor(part)}
-                              className="text-slate-400 hover:text-indigo-600 p-1 rounded-lg hover:bg-indigo-50 transition-colors cursor-pointer"
-                              title="Editar solo datos del postulante"
-                            >
-                              <Pencil className="w-3.5 h-3.5" />
-                            </button>
-                          )}
+                          <div className="flex items-center gap-1">
+                            {part.cv_file_path && (
+                              <button
+                                onClick={() => void handleViewCv(part)}
+                                className="text-slate-400 hover:text-emerald-600 p-1 rounded-lg hover:bg-emerald-50 transition-colors cursor-pointer"
+                                title="Visualizar CV"
+                              >
+                                <Eye className="w-3.5 h-3.5" />
+                              </button>
+                            )}
+                            {onUpdateParticipantDetails && (
+                              <button
+                                onClick={() => openParticipantEditor(part)}
+                                className="text-slate-400 hover:text-indigo-600 p-1 rounded-lg hover:bg-indigo-50 transition-colors cursor-pointer"
+                                title="Editar solo datos del postulante"
+                              >
+                                <Pencil className="w-3.5 h-3.5" />
+                              </button>
+                            )}
+                            {currentUser.rol === 'Administrador' && onDeleteParticipant && (
+                              <button
+                                onClick={() => onDeleteParticipant(part.id)}
+                                className="text-slate-400 hover:text-rose-600 p-1 rounded-lg hover:bg-rose-50 transition-colors cursor-pointer"
+                                title="Eliminar postulante"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            )}
+                          </div>
                         </div>
                         <div className="flex gap-2 text-[10px] text-slate-400 font-mono mt-0.5">
                           <span>DNI: {part.dni}</span>
@@ -1200,7 +1279,6 @@ export default function AttendanceControl({
                                   record.estado_asistencia === 'Asistió' ? 'bg-emerald-50 text-emerald-700' :
                                   record.estado_asistencia === 'Tardanza' ? 'bg-amber-50 text-amber-700' :
                                   record.estado_asistencia === 'Faltó' ? 'bg-rose-50 text-rose-700' :
-                                  record.estado_asistencia === 'Vacaciones' ? 'bg-sky-50 text-sky-700' :
                                   record.estado_asistencia === 'Feriado' ? 'bg-violet-50 text-violet-700' :
                                   record.estado_asistencia === 'Baja' ? 'bg-orange-50 text-orange-800' :
                                   'bg-red-50 text-red-800'
@@ -1208,7 +1286,6 @@ export default function AttendanceControl({
                                   {record.estado_asistencia === 'Asistió' ? 'Asistió' :
                                    record.estado_asistencia === 'Tardanza' ? 'Tarde' :
                                    record.estado_asistencia === 'Faltó' ? 'Faltó' :
-                                   record.estado_asistencia === 'Vacaciones' ? 'Vacaciones' :
                                    record.estado_asistencia === 'Feriado' ? 'Feriado' :
                                    record.estado_asistencia === 'Baja' ? 'Baja' : 'Desistió'}
                                 </span>
@@ -1224,7 +1301,6 @@ export default function AttendanceControl({
                                       record.estado_asistencia === 'Asistió' ? 'bg-emerald-100 text-emerald-800' :
                                       record.estado_asistencia === 'Tardanza' ? 'bg-amber-100 text-amber-800' :
                                       record.estado_asistencia === 'Faltó' ? 'bg-rose-100 text-rose-800' :
-                                      record.estado_asistencia === 'Vacaciones' ? 'bg-sky-100 text-sky-800' :
                                       record.estado_asistencia === 'Feriado' ? 'bg-violet-100 text-violet-800' :
                                       record.estado_asistencia === 'Baja' ? 'bg-orange-100 text-orange-800' :
                                       'bg-red-100 text-red-900'
@@ -1242,7 +1318,6 @@ export default function AttendanceControl({
                                       record?.estado_asistencia === 'Asistió' ? 'bg-emerald-50 border-emerald-200 text-emerald-700' :
                                       record?.estado_asistencia === 'Tardanza' ? 'bg-amber-50 border-amber-200 text-amber-700' :
                                       record?.estado_asistencia === 'Faltó' ? 'bg-rose-50 border-rose-200 text-rose-700' :
-                                      record?.estado_asistencia === 'Vacaciones' ? 'bg-sky-50 border-sky-200 text-sky-700' :
                                       record?.estado_asistencia === 'Feriado' ? 'bg-violet-50 border-violet-200 text-violet-700' :
                                       record?.estado_asistencia === 'Baja' ? 'bg-orange-50 border-orange-200 text-orange-800' :
                                       record?.estado_asistencia === 'Desistió' ? 'bg-red-50 border-red-200 text-red-800' :
@@ -1253,7 +1328,6 @@ export default function AttendanceControl({
                                     <option value="Asistió">Asistió</option>
                                     <option value="Tardanza">Tardanza</option>
                                     <option value="Faltó">Faltó</option>
-                                    <option value="Vacaciones">Vacaciones</option>
                                     <option value="Feriado">Feriado</option>
                                     <option value="Desistió">Desistió</option>
                                     <option value="Baja">Baja</option>
@@ -1504,6 +1578,49 @@ export default function AttendanceControl({
                   />
                 </label>
               ))}
+            </div>
+
+            <div className="rounded-2xl border border-slate-200 bg-slate-50/70 p-4 space-y-3">
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                <div>
+                  <h4 className="text-sm font-black text-slate-800">Curriculum Vitae / CV</h4>
+                  <p className="text-[11px] text-slate-500">
+                    {editingParticipant.cv_file_name
+                      ? `Archivo actual: ${editingParticipant.cv_file_name}`
+                      : 'No hay CV cargado para este postulante.'}
+                  </p>
+                </div>
+                <div className="flex items-center gap-2">
+                  {editingParticipant.cv_file_path && (
+                    <button
+                      type="button"
+                      onClick={() => void handleViewCv(editingParticipant)}
+                      className="inline-flex items-center gap-1.5 rounded-xl bg-white px-3 py-2 text-xs font-bold text-slate-700 border border-slate-200 hover:bg-emerald-50 hover:text-emerald-700"
+                    >
+                      <Eye className="w-4 h-4" />
+                      Visualizar
+                    </button>
+                  )}
+                  {canUploadCv && (
+                    <label className={`inline-flex items-center gap-1.5 rounded-xl px-3 py-2 text-xs font-bold text-white border border-transparent ${isUploadingCv ? 'bg-slate-400 cursor-wait' : 'bg-indigo-600 hover:bg-indigo-700 cursor-pointer'}`}>
+                      <FileUp className="w-4 h-4" />
+                      {editingParticipant.cv_file_path ? 'Reemplazar CV' : 'Cargar CV'}
+                      <input
+                        type="file"
+                        accept=".pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                        disabled={isUploadingCv}
+                        onChange={(event) => void handleCvFileChange(event.target.files?.[0])}
+                        className="hidden"
+                      />
+                    </label>
+                  )}
+                </div>
+              </div>
+              {!canUploadCv && (
+                <p className="text-[11px] text-slate-500">
+                  Tu perfil solo permite visualizar el CV, no cargar ni reemplazar documentos.
+                </p>
+              )}
             </div>
 
             <div className="flex justify-end gap-3 pt-3">

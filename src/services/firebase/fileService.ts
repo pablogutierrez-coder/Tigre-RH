@@ -66,6 +66,12 @@ export const uploadSurveyFile = (
   metadata?: UploadMetadata,
 ) => uploadFile(`survey-files/${surveyId}/${file.name}`, file, metadata);
 
+export const uploadParticipantCvFile = (
+  participantId: string,
+  file: File,
+  metadata?: UploadMetadata,
+) => uploadFile(`participant-cv/${participantId}/${Date.now()}-${file.name}`, file, metadata);
+
 export const getDownloadUrl = (path: string) =>
   getDownloadURL(ref(getRequiredStorage(), path));
 

@@ -15,6 +15,7 @@ import {
   BookOpen
 } from 'lucide-react';
 import { TrainingSession, Participant, AttendanceRecord, OperationConfirmation, User as AppUser } from '../types';
+import { BPO_CAMPAIGNS } from '../constants/campaigns';
 
 interface ReportesProps {
   sessions: TrainingSession[];
@@ -324,10 +325,7 @@ export default function Reportes({
               className="w-full glass-input text-slate-700 rounded-xl px-3 py-2.5 text-xs outline-hidden"
             >
               <option value="todos">Todas las Campañas</option>
-              <option value="Entel Empresas">Entel Empresas</option>
-              <option value="Prosegur">Prosegur</option>
-              <option value="Culqi">Culqi</option>
-              <option value="Equifax">Equifax</option>
+              {BPO_CAMPAIGNS.map((item) => <option key={item} value={item}>{item}</option>)}
             </select>
           </div>
 

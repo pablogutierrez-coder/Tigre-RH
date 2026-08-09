@@ -20,6 +20,19 @@ const save = async (path: string, body: unknown) => {
   if (!response.ok) throw new Error(data?.message || 'No se pudo guardar el registro.');
 };
 
+const remove = async (path: string) => {
+  const token = await auth?.currentUser?.getIdToken();
+  if (!token) throw new Error('Sesion no disponible.');
+  const response = await fetch(`${API_BASE_URL}${path}`, {
+    method: 'DELETE',
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+  });
+  const data = await response.json().catch(() => null);
+  if (!response.ok) throw new Error(data?.message || 'No se pudo eliminar el registro.');
+};
+
 export const persistAttendance = (record: AttendanceRecord) =>
   save(`/api/operations/attendance/${record.id}`, record);
 
@@ -28,6 +41,9 @@ export const persistConfirmation = (confirmation: OperationConfirmation) =>
 
 export const persistParticipant = (participant: Participant) =>
   save(`/api/operations/participants/${participant.id}`, participant);
+
+export const deleteParticipantRemote = (participantId: string) =>
+  remove(`/api/operations/participants/${participantId}`);
 
 export const persistReopenRequest = (request: AttendanceReopenRequest) =>
   save(`/api/operations/reopens/${request.id}`, request);

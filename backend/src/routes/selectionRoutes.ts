@@ -115,6 +115,10 @@ const assertRequisitionAccess = async (req: AuthenticatedRequest, requisitionId:
 
 const requisitionCampaignPrefixes: Record<string, string> = {
   'Entel Empresas': 'EN',
+  'Entel Empresas RUC 10': 'EN',
+  'Entel Empresas RUC 20': 'EN20',
+  Fija: 'FI',
+  GPON: 'GP',
   Culqi: 'CU',
   Equifax: 'EQ',
   Prosegur: 'PR',
@@ -122,6 +126,13 @@ const requisitionCampaignPrefixes: Record<string, string> = {
 
 const getRequisitionCampaignPrefix = (campaign: string) =>
   requisitionCampaignPrefixes[normalize(campaign)] || campaignPrefix(campaign).slice(0, 2);
+
+const trainingCampaignAliases: Record<string, string> = {
+  'Entel Empresas': 'Entel Empresas RUC 10',
+};
+
+const normalizeTrainingCampaign = (campaign: string) =>
+  normalize(trainingCampaignAliases[normalize(campaign)] || campaign);
 
 const getLimaYearMonth = () => {
   const parts = new Intl.DateTimeFormat('en-CA', {
@@ -209,14 +220,33 @@ const campaignPrefix = (value: string) =>
 
 const buildTrainingCode = async (campaign: string, startDate: string) => {
   const [year, month, day] = startDate.split('-');
-  const base = `CAP-${campaignPrefix(campaign)}${year || '2026'}${day || '01'}${month || '01'}`;
-  const snapshot = await adminDb
+  const prefix = getRequisitionCampaignPrefix(campaign);
+  const base = `CAP-${prefix}${year || '2026'}${day || '01'}${month || '01'}`;
+  const sessions = await adminDb
     .collection(COLLECTIONS.sessions)
-    .where('generation_code_base', '==', base)
     .get();
+  const normalizedCampaign = normalizeTrainingCampaign(campaign);
+  const usedCodes = new Set<string>();
+  let maxSuffix = 0;
+  sessions.docs.forEach((doc) => {
+    const data = doc.data();
+    const code = String(data.generation_code || data.nombre_generacion || '');
+    usedCodes.add(code);
+    if (normalizeTrainingCampaign(String(data.campaña || data.campana || '')) !== normalizedCampaign) return;
+    if (!code.startsWith(`CAP-${prefix}`)) return;
+    const match = code.match(/-(\d{2,})$/);
+    const suffix = match ? Number(match[1]) : 0;
+    if (Number.isFinite(suffix)) maxSuffix = Math.max(maxSuffix, suffix);
+  });
+  let next = maxSuffix + 1;
+  let generationCode = `${base}-${String(next).padStart(2, '0')}`;
+  while (usedCodes.has(generationCode)) {
+    next += 1;
+    generationCode = `${base}-${String(next).padStart(2, '0')}`;
+  }
   return {
     generation_code_base: base,
-    generation_code: `${base}-${String(snapshot.size + 1).padStart(2, '0')}`,
+    generation_code: generationCode,
   };
 };
 
