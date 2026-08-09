@@ -270,6 +270,7 @@ export default function App() {
     return data;
   });
   const [participants, setParticipants] = useState<Participant[]>(() => loadData('participants', EMPTY_PARTICIPANTS));
+  const participantsRef = useRef<Participant[]>(participants);
   const [attendance, setAttendance] = useState<AttendanceRecord[]>(() => loadData('attendance', EMPTY_ATTENDANCE));
   const [confirmations, setConfirmations] = useState<OperationConfirmation[]>(() => loadData('confirmations', EMPTY_CONFIRMATIONS));
   const [reopens, setReopens] = useState<AttendanceReopenRequest[]>(() => loadData('reopens', EMPTY_REOPENS));
@@ -286,7 +287,10 @@ export default function App() {
   // Sync to localStorage
   useEffect(() => { saveData('users', users); }, [users]);
   useEffect(() => { saveData('sessions', sessions); }, [sessions]);
-  useEffect(() => { saveData('participants', participants); }, [participants]);
+  useEffect(() => {
+    participantsRef.current = participants;
+    saveData('participants', participants);
+  }, [participants]);
   useEffect(() => { saveData('attendance', attendance); }, [attendance]);
   useEffect(() => { saveData('confirmations', confirmations); }, [confirmations]);
   useEffect(() => { saveData('reopens', reopens); }, [reopens]);
@@ -1264,31 +1268,43 @@ export default function App() {
     );
   };
 
-  const handleUpdateParticipantDetails = (updatedParticipant: Participant) => {
-    const previous = participants.find((participant) => participant.id === updatedParticipant.id);
-    const session = sessions.find((item) => item.id === updatedParticipant.training_session_id);
+  const handleUpdateParticipantDetails = async (updatedParticipant: Participant) => {
+    const previous = participantsRef.current.find((participant) => participant.id === updatedParticipant.id);
+    const mergedParticipant: Participant = {
+      ...(previous || updatedParticipant),
+      ...updatedParticipant,
+      cv_file_name: updatedParticipant.cv_file_name || previous?.cv_file_name,
+      cv_file_path: updatedParticipant.cv_file_path || previous?.cv_file_path,
+      cv_content_type: updatedParticipant.cv_content_type || previous?.cv_content_type,
+      cv_uploaded_at: updatedParticipant.cv_uploaded_at || previous?.cv_uploaded_at,
+      cv_uploaded_by: updatedParticipant.cv_uploaded_by || previous?.cv_uploaded_by,
+    };
+    const session = sessions.find((item) => item.id === mergedParticipant.training_session_id);
 
     setParticipants((current) =>
       current.map((participant) =>
-        participant.id === updatedParticipant.id ? updatedParticipant : participant,
+        participant.id === mergedParticipant.id ? { ...participant, ...mergedParticipant } : participant,
       ),
     );
 
-    void persistParticipant(updatedParticipant).catch((error) => {
+    try {
+      await persistParticipant(mergedParticipant);
+    } catch (error) {
       console.error('Error persisting participant details:', error);
       alert(error instanceof Error ? error.message : 'No se pudo guardar los datos del postulante.');
-    });
+      throw error;
+    }
 
     addAuditLog(
       'Actualizacion de datos del postulante',
       'Control de asistencia',
-      `Se actualizaron datos del postulante ${updatedParticipant.nombres} ${updatedParticipant.apellidos}.`,
+      `Se actualizaron datos del postulante ${mergedParticipant.nombres} ${mergedParticipant.apellidos}.`,
       session?.campaña,
       session?.nombre_generacion,
-      updatedParticipant.id,
-      `${updatedParticipant.nombres} ${updatedParticipant.apellidos}`,
+      mergedParticipant.id,
+      `${mergedParticipant.nombres} ${mergedParticipant.apellidos}`,
       previous ? `${previous.nombres} ${previous.apellidos}` : undefined,
-      `${updatedParticipant.nombres} ${updatedParticipant.apellidos}`,
+      `${mergedParticipant.nombres} ${mergedParticipant.apellidos}`,
     );
   };
 

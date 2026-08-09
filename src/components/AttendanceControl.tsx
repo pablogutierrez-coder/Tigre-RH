@@ -67,7 +67,7 @@ interface AttendanceControlProps {
     evaluationScore?: number,
     evaluationObservation?: string,
   ) => void;
-  onUpdateParticipantDetails?: (participant: Participant) => void;
+  onUpdateParticipantDetails?: (participant: Participant) => void | Promise<void>;
   onDeleteParticipant?: (participantId: string) => void;
   onGoBack: () => void;
   onAttemptLockedEdit?: (sessionName: string, campaign: string, day: number) => void;
@@ -288,9 +288,12 @@ export default function AttendanceControl({
     });
   };
 
-  const saveParticipantDetails = () => {
+  const saveParticipantDetails = async () => {
     if (!editingParticipant || !onUpdateParticipantDetails) return;
-    onUpdateParticipantDetails({
+    if (isUploadingCv) return;
+    const currentParticipant = participants.find((item) => item.id === editingParticipant.id) || editingParticipant;
+    const nextParticipant: Participant = {
+      ...currentParticipant,
       ...editingParticipant,
       nombres: participantDraft.nombres.trim(),
       apellidos: participantDraft.apellidos.trim(),
@@ -299,9 +302,19 @@ export default function AttendanceControl({
       puesto: participantDraft.puesto.trim(),
       fuente_reclutamiento: participantDraft.fuente_reclutamiento.trim(),
       coordinador: participantDraft.coordinador.trim(),
-      ciudad: participantDraft.ciudad.trim()
-    });
-    setEditingParticipant(null);
+      ciudad: participantDraft.ciudad.trim(),
+      cv_file_name: editingParticipant.cv_file_name || currentParticipant.cv_file_name,
+      cv_file_path: editingParticipant.cv_file_path || currentParticipant.cv_file_path,
+      cv_content_type: editingParticipant.cv_content_type || currentParticipant.cv_content_type,
+      cv_uploaded_at: editingParticipant.cv_uploaded_at || currentParticipant.cv_uploaded_at,
+      cv_uploaded_by: editingParticipant.cv_uploaded_by || currentParticipant.cv_uploaded_by,
+    };
+    try {
+      await onUpdateParticipantDetails(nextParticipant);
+      setEditingParticipant(null);
+    } catch (error) {
+      console.error('Error saving participant details:', error);
+    }
   };
 
   const canUploadCv = CV_ALLOWED_UPLOAD_ROLES.includes(currentUser.rol);
@@ -349,7 +362,7 @@ export default function AttendanceControl({
         cv_uploaded_at: new Date().toISOString(),
         cv_uploaded_by: currentUser.id,
       };
-      onUpdateParticipantDetails(nextParticipant);
+      await onUpdateParticipantDetails(nextParticipant);
       setEditingParticipant(nextParticipant);
     } catch (error) {
       console.error('Error uploading CV:', error);
@@ -1632,9 +1645,10 @@ export default function AttendanceControl({
               </button>
               <button
                 onClick={saveParticipantDetails}
-                className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs px-5 py-2 rounded-xl"
+                disabled={isUploadingCv}
+                className={`text-white font-bold text-xs px-5 py-2 rounded-xl ${isUploadingCv ? 'bg-slate-400 cursor-wait' : 'bg-indigo-600 hover:bg-indigo-700'}`}
               >
-                Guardar datos
+                {isUploadingCv ? 'Cargando CV...' : 'Guardar datos'}
               </button>
             </div>
           </div>
