@@ -12,6 +12,7 @@ import {
 import {
   type AuthenticatedRequest,
   requireAuth,
+  requireRole,
 } from '../utils/authMiddleware.js';
 
 const router = Router();
@@ -46,7 +47,7 @@ const sendError = (res: Response, error: unknown) => {
   res.status(status).json({ message });
 };
 
-router.get('/', requireAuth, async (req: AuthenticatedRequest, res: Response) => {
+router.get('/', requireAuth, requireRole(['Administrador']), async (req: AuthenticatedRequest, res: Response) => {
   try {
     const evaluations = await listTrainingVariableEvaluations(asActor(req));
     res.json({ evaluations });
@@ -55,7 +56,7 @@ router.get('/', requireAuth, async (req: AuthenticatedRequest, res: Response) =>
   }
 });
 
-router.get('/:id', requireAuth, async (req: AuthenticatedRequest, res: Response) => {
+router.get('/:id', requireAuth, requireRole(['Administrador']), async (req: AuthenticatedRequest, res: Response) => {
   try {
     const evaluation = await getTrainingVariableEvaluationById(req.params.id, asActor(req));
     res.json({ evaluation });
@@ -64,7 +65,7 @@ router.get('/:id', requireAuth, async (req: AuthenticatedRequest, res: Response)
   }
 });
 
-router.post('/', requireAuth, async (req: AuthenticatedRequest, res: Response) => {
+router.post('/', requireAuth, requireRole(['Administrador']), async (req: AuthenticatedRequest, res: Response) => {
   const parsed = inputSchema.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ message: parsed.error.issues[0]?.message || 'Datos de evaluación inválidos.' });
@@ -79,7 +80,7 @@ router.post('/', requireAuth, async (req: AuthenticatedRequest, res: Response) =
   }
 });
 
-router.put('/:id', requireAuth, async (req: AuthenticatedRequest, res: Response) => {
+router.put('/:id', requireAuth, requireRole(['Administrador']), async (req: AuthenticatedRequest, res: Response) => {
   const parsed = inputSchema.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ message: parsed.error.issues[0]?.message || 'Datos de evaluación inválidos.' });
@@ -94,7 +95,7 @@ router.put('/:id', requireAuth, async (req: AuthenticatedRequest, res: Response)
   }
 });
 
-router.post('/:id/cerrar', requireAuth, async (req: AuthenticatedRequest, res: Response) => {
+router.post('/:id/cerrar', requireAuth, requireRole(['Administrador']), async (req: AuthenticatedRequest, res: Response) => {
   try {
     const evaluation = await closeTrainingVariableEvaluation(req.params.id, asActor(req));
     res.json({ evaluation });
@@ -103,7 +104,7 @@ router.post('/:id/cerrar', requireAuth, async (req: AuthenticatedRequest, res: R
   }
 });
 
-router.post('/:id/reabrir', requireAuth, async (req: AuthenticatedRequest, res: Response) => {
+router.post('/:id/reabrir', requireAuth, requireRole(['Administrador']), async (req: AuthenticatedRequest, res: Response) => {
   try {
     const evaluation = await reopenTrainingVariableEvaluation(req.params.id, asActor(req));
     res.json({ evaluation });
@@ -112,7 +113,7 @@ router.post('/:id/reabrir', requireAuth, async (req: AuthenticatedRequest, res: 
   }
 });
 
-router.post('/:id/anular', requireAuth, async (req: AuthenticatedRequest, res: Response) => {
+router.post('/:id/anular', requireAuth, requireRole(['Administrador']), async (req: AuthenticatedRequest, res: Response) => {
   try {
     const evaluation = await annulTrainingVariableEvaluation(req.params.id, asActor(req));
     res.json({ evaluation });

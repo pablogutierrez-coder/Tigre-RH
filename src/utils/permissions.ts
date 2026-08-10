@@ -110,7 +110,7 @@ export const permissions: Record<string, AppPermissions> = {
     canReopenClosedTraining: false,
     canCloseTraining: true,
     canManageTrainingVariables: false,
-    canViewTrainingVariables: true,
+    canViewTrainingVariables: false,
     readOnly: false,
   },
   Coordinador: {
@@ -132,8 +132,8 @@ export const permissions: Record<string, AppPermissions> = {
     canReopenClosedTraining: false,
     canCloseTraining: false,
     canViewHighsReadOnly: false,
-    canManageTrainingVariables: true,
-    canViewTrainingVariables: true,
+    canManageTrainingVariables: false,
+    canViewTrainingVariables: false,
     readOnly: false,
   },
   Sistemas: {

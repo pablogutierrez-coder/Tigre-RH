@@ -157,6 +157,7 @@ const userHasAreaAccess = (user: User, area: UserArea) => {
 
 const userHasModuleAccess = (user: User, area: UserArea, moduleId: string) => {
   if (!userHasAreaAccess(user, area)) return false;
+  if (area === 'formacion' && moduleId === 'variables') return user.rol === 'Administrador';
   if (userHasRoleRequiredModuleAccess(user, area, moduleId)) return true;
   if (area === 'formacion' && moduleId === 'reportes' && permissions[user.rol]?.canExportReports) return true;
   if (area === 'formacion' && moduleId === 'variables' && permissions[user.rol]?.canViewTrainingVariables) return true;
@@ -2097,7 +2098,7 @@ export default function App() {
                       {
                         title: 'Medición',
                         items: [
-                          ['variables', 'Medición de Variables', Calculator, ['Administrador', 'Coordinador', 'Formador']],
+                          ['variables', 'Medición de Variables', Calculator, ['Administrador']],
                         ],
                       },
                       {
