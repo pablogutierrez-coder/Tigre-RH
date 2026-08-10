@@ -1,7 +1,7 @@
 import { Readable } from 'node:stream';
 import { google } from 'googleapis';
 
-const DEFAULT_CV_FOLDER_ID = '1dBjb9zWBK81Rzaezg0oOGqMPPBfN7SRv';
+const DEFAULT_CV_FOLDER_ID = '1QtrS8yhzX3CIZj5hC2AUY0veTpkqkc8M';
 const DRIVE_SCOPE = 'https://www.googleapis.com/auth/drive';
 
 const getDriveClient = () => {
@@ -85,5 +85,9 @@ export const downloadCvFromGoogleDrive = async (fileId: string) => {
 
 export const deleteCvFromGoogleDrive = async (fileId: string) => {
   const drive = getDriveClient();
-  await drive.files.delete({ fileId, supportsAllDrives: true });
+  await drive.files.update({
+    fileId,
+    supportsAllDrives: true,
+    requestBody: { trashed: true },
+  });
 };
