@@ -2,6 +2,7 @@ import { Readable } from 'node:stream';
 import { google } from 'googleapis';
 
 const DEFAULT_CV_FOLDER_ID = '1QtrS8yhzX3CIZj5hC2AUY0veTpkqkc8M';
+const LEGACY_CV_FOLDER_ID = '1dBjb9zWBK81Rzaezg0oOGqMPPBfN7SRv';
 const DRIVE_SCOPE = 'https://www.googleapis.com/auth/drive';
 
 const getDriveClient = () => {
@@ -22,8 +23,12 @@ const getDriveClient = () => {
   return google.drive({ version: 'v3', auth });
 };
 
-export const getCvDriveFolderId = () =>
-  process.env.GOOGLE_DRIVE_FOLDER_ID || DEFAULT_CV_FOLDER_ID;
+export const getCvDriveFolderId = () => {
+  const configuredFolderId = process.env.GOOGLE_DRIVE_FOLDER_ID?.trim();
+  return !configuredFolderId || configuredFolderId === LEGACY_CV_FOLDER_ID
+    ? DEFAULT_CV_FOLDER_ID
+    : configuredFolderId;
+};
 
 export const uploadCvToGoogleDrive = async (params: {
   buffer: Buffer;
