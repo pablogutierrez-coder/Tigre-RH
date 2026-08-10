@@ -333,9 +333,13 @@ export default function AttendanceControl({
   };
 
   const canUploadCv = CV_ALLOWED_UPLOAD_ROLES.includes(currentUser.rol);
+  const hasViewableCv = (part: Participant) => Boolean(
+    part.cv_file_path ||
+    (currentUser.rol === 'Formador' && (part.cv_drive_file_id || part.cv_record_id)),
+  );
 
   const handleViewCv = async (part: Participant) => {
-    if (!part.cv_file_path) {
+    if (!hasViewableCv(part)) {
       alert('Este postulante no tiene CV cargado.');
       return;
     }
@@ -1276,7 +1280,7 @@ export default function AttendanceControl({
                             {part.nombres} {part.apellidos}
                           </div>
                           <div className="flex items-center gap-1">
-                            {part.cv_file_path && (
+                            {hasViewableCv(part) && (
                               <button
                                 onClick={() => void handleViewCv(part)}
                                 className="text-slate-400 hover:text-emerald-600 p-1 rounded-lg hover:bg-emerald-50 transition-colors cursor-pointer"
