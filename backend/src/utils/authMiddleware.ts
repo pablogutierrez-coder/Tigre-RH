@@ -49,6 +49,11 @@ export const requireAuth = async (
 
     next();
   } catch (error) {
+    const authError = error as { code?: string; message?: string };
+    console.error('Firebase token validation failed:', {
+      code: authError?.code || 'unknown',
+      message: authError?.message || 'Unknown authentication error',
+    });
     res.status(401).json({ message: 'Token invalido.' });
   }
 };
