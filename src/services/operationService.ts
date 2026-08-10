@@ -71,32 +71,37 @@ export const persistConfirmation = (confirmation: OperationConfirmation) =>
 export const persistParticipant = (participant: Participant) =>
   save(`/api/operations/participants/${participant.id}`, participant);
 
-const fileToBase64 = (file: File) =>
-  new Promise<string>((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onerror = () => reject(new Error('No se pudo leer el archivo seleccionado.'));
-    reader.onload = () => {
-      const result = String(reader.result || '');
-      resolve(result.includes(',') ? result.split(',').pop() || '' : result);
-    };
-    reader.readAsDataURL(file);
-  });
-
 export const uploadParticipantCvRemote = async (
   participantId: string,
   trainingSessionId: string,
   file: File,
 ) => {
-  const data = await post<{ participant: Participant }>(
-    `/api/operations/participants/${participantId}/cv`,
-    {
-      training_session_id: trainingSessionId,
-      file_name: file.name,
-      content_type: file.type || 'application/octet-stream',
-      base64: await fileToBase64(file),
+  const token = await auth?.currentUser?.getIdToken(true);
+  if (!token) throw new Error('Sesion no disponible.');
+  const response = await fetch(`${API_BASE_URL}/api/operations/participants/${participantId}/cv`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': file.type || 'application/octet-stream',
+      Authorization: `Bearer ${token}`,
+      'X-Training-Session-Id': trainingSessionId,
+      'X-File-Name': encodeURIComponent(file.name),
     },
-    true,
-  );
+    body: file,
+  });
+  const responseText = await response.text();
+  const data = responseText
+    ? (() => {
+        try {
+          return JSON.parse(responseText) as { participant?: Participant; message?: string };
+        } catch {
+          return null;
+        }
+      })()
+    : null;
+  if (!response.ok) {
+    throw new Error(data?.message || `No se pudo guardar el CV (HTTP ${response.status}).`);
+  }
+  if (!data?.participant) throw new Error('El servidor no devolvio los datos del CV guardado.');
   return data.participant;
 };
 

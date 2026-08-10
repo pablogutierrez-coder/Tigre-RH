@@ -1,4 +1,4 @@
-import { Router, type Response } from 'express';
+import { raw, Router, type Response } from 'express';
 import { randomUUID } from 'node:crypto';
 import { z } from 'zod';
 import { adminDb, adminRealtimeDb, adminStorage } from '../firebaseAdmin.js';
@@ -19,7 +19,6 @@ const cvUploadSchema = z.object({
   training_session_id: z.string().min(1),
   file_name: z.string().min(1).max(180),
   content_type: z.string().min(1).max(140),
-  base64: z.string().min(1),
 });
 
 const cvContentTypes = new Set([
@@ -161,9 +160,21 @@ router.post(
   '/participants/:id/cv',
   requireAuth,
   requireRole(cvAllowedRoles),
+  raw({ type: () => true, limit: '10mb' }),
   async (req: AuthenticatedRequest, res: Response) => {
     try {
-      const parsed = cvUploadSchema.safeParse(req.body);
+      let fileName = '';
+      try {
+        fileName = decodeURIComponent(req.get('X-File-Name') || '');
+      } catch {
+        res.status(400).json({ message: 'El nombre del archivo CV no es valido.' });
+        return;
+      }
+      const parsed = cvUploadSchema.safeParse({
+        training_session_id: req.get('X-Training-Session-Id'),
+        file_name: fileName,
+        content_type: req.get('Content-Type')?.split(';')[0],
+      });
       if (!parsed.success) {
         res.status(400).json({ message: 'Datos del CV invalidos.' });
         return;
@@ -179,7 +190,7 @@ router.post(
       return;
     }
 
-    const buffer = Buffer.from(parsed.data.base64, 'base64');
+    const buffer = Buffer.isBuffer(req.body) ? req.body : Buffer.alloc(0);
     const maxSizeBytes = 10 * 1024 * 1024;
     if (!buffer.length || buffer.length > maxSizeBytes) {
       res.status(400).json({ message: 'El CV supera el tamaño máximo permitido de 10 MB.' });
