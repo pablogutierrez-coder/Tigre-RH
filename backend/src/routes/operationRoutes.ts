@@ -19,6 +19,7 @@ const cvUploadSchema = z.object({
   training_session_id: z.string().min(1),
   file_name: z.string().min(1).max(180),
   content_type: z.string().min(1).max(140),
+  base64: z.string().min(1).optional(),
 });
 
 const cvContentTypes = new Set([
@@ -163,17 +164,22 @@ router.post(
   raw({ type: () => true, limit: '10mb' }),
   async (req: AuthenticatedRequest, res: Response) => {
     try {
-      let fileName = '';
+      let headerFileName = '';
       try {
-        fileName = decodeURIComponent(req.get('X-File-Name') || '');
+        headerFileName = decodeURIComponent(req.get('X-File-Name') || '');
       } catch {
         res.status(400).json({ message: 'El nombre del archivo CV no es valido.' });
         return;
       }
+      const bodyData = Buffer.isBuffer(req.body) ? undefined : req.body;
       const parsed = cvUploadSchema.safeParse({
-        training_session_id: req.get('X-Training-Session-Id'),
-        file_name: fileName,
-        content_type: req.get('Content-Type')?.split(';')[0],
+        training_session_id:
+          req.query.training_session_id || req.get('X-Training-Session-Id') || bodyData?.training_session_id,
+        file_name: req.query.file_name || headerFileName || bodyData?.file_name,
+        content_type: Buffer.isBuffer(req.body)
+          ? req.get('Content-Type')?.split(';')[0]
+          : bodyData?.content_type,
+        base64: bodyData?.base64,
       });
       if (!parsed.success) {
         res.status(400).json({ message: 'Datos del CV invalidos.' });
@@ -190,7 +196,9 @@ router.post(
       return;
     }
 
-    const buffer = Buffer.isBuffer(req.body) ? req.body : Buffer.alloc(0);
+    const buffer = Buffer.isBuffer(req.body)
+      ? req.body
+      : Buffer.from(parsed.data.base64 || '', 'base64');
     const maxSizeBytes = 10 * 1024 * 1024;
     if (!buffer.length || buffer.length > maxSizeBytes) {
       res.status(400).json({ message: 'El CV supera el tamaño máximo permitido de 10 MB.' });

@@ -78,7 +78,11 @@ export const uploadParticipantCvRemote = async (
 ) => {
   const token = await auth?.currentUser?.getIdToken(true);
   if (!token) throw new Error('Sesion no disponible.');
-  const response = await fetch(`${API_BASE_URL}/api/operations/participants/${participantId}/cv`, {
+  const query = new URLSearchParams({
+    training_session_id: trainingSessionId,
+    file_name: file.name,
+  });
+  const response = await fetch(`${API_BASE_URL}/api/operations/participants/${participantId}/cv?${query}`, {
     method: 'POST',
     headers: {
       'Content-Type': file.type || 'application/octet-stream',
