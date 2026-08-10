@@ -1344,8 +1344,8 @@ export default function App() {
   };
 
   // 5. Create Reopen Request
-  const handleRequestReopen = (req: Omit<AttendanceReopenRequest, 'id' | 'formador_id' | 'formador_nombre' | 'estado' | 'fecha_solicitud'>) => {
-    if (!activeUser) return;
+  const handleRequestReopen = async (req: Omit<AttendanceReopenRequest, 'id' | 'formador_id' | 'formador_nombre' | 'estado' | 'fecha_solicitud'>) => {
+    if (!activeUser) throw new Error('No se pudo identificar al usuario activo.');
 
     const newReq: AttendanceReopenRequest = {
       ...req,
@@ -1356,11 +1356,14 @@ export default function App() {
       fecha_solicitud: new Date().toISOString()
     };
 
-    void persistReopenRequest(newReq).catch((error) => {
+    try {
+      await persistReopenRequest(newReq);
+    } catch (error) {
       console.error('Error persisting reopen request:', error);
       alert(error instanceof Error ? error.message : 'No se pudo enviar la solicitud de reapertura.');
-    });
-    setReopens(prev => [newReq, ...prev]);
+      throw error;
+    }
+    setReopens(prev => prev.some(item => item.id === newReq.id) ? prev : [newReq, ...prev]);
 
     addAuditLog(
       'Solicitud de reapertura',

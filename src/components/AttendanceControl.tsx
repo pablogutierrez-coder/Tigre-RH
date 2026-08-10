@@ -58,7 +58,7 @@ interface AttendanceControlProps {
     evidencia_nombre?: string,
     evidencia_imagen?: string,
   ) => void;
-  onRequestReopen: (newRequest: Omit<AttendanceReopenRequest, 'id' | 'formador_id' | 'formador_nombre' | 'estado' | 'fecha_solicitud'>) => void;
+  onRequestReopen: (newRequest: Omit<AttendanceReopenRequest, 'id' | 'formador_id' | 'formador_nombre' | 'estado' | 'fecha_solicitud'>) => Promise<void>;
   onUpdateParticipantOutcome?: (
     pId: string,
     outcome: 'Marcar' | 'Apto' | 'No apto',
@@ -174,6 +174,7 @@ export default function AttendanceControl({
   const [showReopenModal, setShowReopenModal] = useState(false);
   const [reopenMotivo, setReopenMotivo] = useState('Se me pasó el horario de registro');
   const [reopenComentario, setReopenComentario] = useState('');
+  const [isSubmittingReopen, setIsSubmittingReopen] = useState(false);
 
   // Bulk actions status and Bulk Dialog Modal
   const [showBulkDialogModal, setShowBulkDialogModal] = useState(false);
@@ -687,18 +688,24 @@ export default function AttendanceControl({
   };
 
   // Submit Reopen Request
-  const handleSubmitReopen = () => {
-    onRequestReopen({
-      training_session_id: session.id,
-      campaña: session.campaña,
-      generacion: session.nombre_generacion,
-      fecha_capacitación: getDayDate(selectedDay),
-      dia_capacitación: selectedDay,
-      motivo: reopenMotivo,
-      comentario: reopenComentario
-    });
-    setShowReopenModal(false);
-    setReopenComentario('');
+  const handleSubmitReopen = async () => {
+    if (isSubmittingReopen) return;
+    setIsSubmittingReopen(true);
+    try {
+      await onRequestReopen({
+        training_session_id: session.id,
+        campaña: session.campaña,
+        generacion: session.nombre_generacion,
+        fecha_capacitación: getDayDate(selectedDay),
+        dia_capacitación: selectedDay,
+        motivo: reopenMotivo,
+        comentario: reopenComentario
+      });
+      setShowReopenModal(false);
+      setReopenComentario('');
+    } finally {
+      setIsSubmittingReopen(false);
+    }
   };
 
   // Toggle selection
@@ -881,7 +888,7 @@ export default function AttendanceControl({
         {isTimeLocked && (
           <button
             onClick={() => {
-              if (currentDayRequestá.estado === 'pendiente') {
+              if (currentDayRequest?.estado === 'pendiente') {
                 alert('Ya tienes una solicitud pendiente para este día.');
                 return;
               }
@@ -1845,16 +1852,17 @@ export default function AttendanceControl({
             <div className="flex justify-end gap-3 pt-3">
               <button
                 onClick={() => setShowReopenModal(false)}
+                disabled={isSubmittingReopen}
                 className="bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold text-xs px-4 py-2 rounded-xl"
               >
                 Cancelar
               </button>
               <button
                 onClick={handleSubmitReopen}
-                disabled={!reopenComentario.trim()}
+                disabled={!reopenComentario.trim() || isSubmittingReopen}
                 className="bg-amber-600 hover:bg-amber-700 disabled:opacity-50 text-white font-bold text-xs px-4 py-2 rounded-xl"
               >
-                Enviar Solicitud
+                {isSubmittingReopen ? 'Enviando...' : 'Enviar Solicitud'}
               </button>
             </div>
           </div>

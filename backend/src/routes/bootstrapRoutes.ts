@@ -13,11 +13,11 @@ const collectionCache = new Map<string, {
 }>();
 const COLLECTION_CACHE_TTL_MS = 2 * 60 * 1000;
 
-const readCollection = async (name: string) => {
+const readCollection = async (name: string, bypassCache = false) => {
   const now = Date.now();
   const cached = collectionCache.get(name);
-  if (cached?.data && cached.expiresAt > now) return cached.data;
-  if (cached?.pending) return cached.pending;
+  if (!bypassCache && cached?.data && cached.expiresAt > now) return cached.data;
+  if (!bypassCache && cached?.pending) return cached.pending;
 
   const pending = adminDb.collection(name).get().then((snapshot) =>
     snapshot.docs.map((item) => ({
@@ -25,17 +25,21 @@ const readCollection = async (name: string) => {
       ...item.data(),
     })) as Array<Record<string, unknown>>,
   );
-  collectionCache.set(name, { expiresAt: now + COLLECTION_CACHE_TTL_MS, pending });
+  if (!bypassCache) {
+    collectionCache.set(name, { expiresAt: now + COLLECTION_CACHE_TTL_MS, pending });
+  }
 
   try {
     const data = await pending;
-    collectionCache.set(name, {
-      data,
-      expiresAt: Date.now() + COLLECTION_CACHE_TTL_MS,
-    });
+    if (!bypassCache) {
+      collectionCache.set(name, {
+        data,
+        expiresAt: Date.now() + COLLECTION_CACHE_TTL_MS,
+      });
+    }
     return data;
   } catch (error) {
-    collectionCache.delete(name);
+    if (!bypassCache) collectionCache.delete(name);
     throw error;
   }
 };
@@ -76,7 +80,7 @@ router.get('/', requireAuth, async (req: AuthenticatedRequest, res: Response) =>
       readCollection('participants'),
       readCollection('attendance'),
       readCollection('confirmations'),
-      readCollection('reopens'),
+      readCollection('reopens', true),
       readCollection('logs'),
       readCollection('surveys'),
       readCollection('responses'),
