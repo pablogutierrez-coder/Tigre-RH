@@ -5,10 +5,27 @@ const DEFAULT_CV_FOLDER_ID = '1QtrS8yhzX3CIZj5hC2AUY0veTpkqkc8M';
 const LEGACY_CV_FOLDER_ID = '1dBjb9zWBK81Rzaezg0oOGqMPPBfN7SRv';
 const DRIVE_SCOPE = 'https://www.googleapis.com/auth/drive';
 
+const normalizeCredentialValue = (value?: string) => {
+  const trimmed = value?.trim();
+  if (!trimmed) return undefined;
+  const unquoted = (
+    (trimmed.startsWith('"') && trimmed.endsWith('"')) ||
+    (trimmed.startsWith("'") && trimmed.endsWith("'"))
+  )
+    ? trimmed.slice(1, -1)
+    : trimmed;
+  return unquoted.trim();
+};
+
 const getDriveClient = () => {
-  const email = process.env.GOOGLE_DRIVE_CLIENT_EMAIL || process.env.FIREBASE_CLIENT_EMAIL;
-  const key = (process.env.GOOGLE_DRIVE_PRIVATE_KEY || process.env.FIREBASE_PRIVATE_KEY)
-    ?.replace(/\\n/g, '\n');
+  const email = normalizeCredentialValue(
+    process.env.GOOGLE_DRIVE_CLIENT_EMAIL || process.env.FIREBASE_CLIENT_EMAIL,
+  );
+  const key = normalizeCredentialValue(
+    process.env.GOOGLE_DRIVE_PRIVATE_KEY || process.env.FIREBASE_PRIVATE_KEY,
+  )
+    ?.replace(/\\n/g, '\n')
+    .replace(/\r/g, '');
 
   if (!email || !key) {
     throw new Error('Faltan las credenciales de Google Drive en el backend.');
