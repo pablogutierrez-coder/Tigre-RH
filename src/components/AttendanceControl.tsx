@@ -335,7 +335,11 @@ export default function AttendanceControl({
   const canUploadCv = CV_ALLOWED_UPLOAD_ROLES.includes(currentUser.rol);
   const hasViewableCv = (part: Participant) => Boolean(
     part.cv_file_path ||
-    (currentUser.rol === 'Formador' && (part.cv_drive_file_id || part.cv_record_id)),
+    (currentUser.rol === 'Formador' && (
+      part.cv_drive_file_id ||
+      part.cv_record_id ||
+      part.cv_file_name
+    )),
   );
 
   const handleViewCv = async (part: Participant) => {
