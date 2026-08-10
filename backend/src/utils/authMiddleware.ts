@@ -17,16 +17,31 @@ export const requireAuth = async (
   res: Response,
   next: NextFunction,
 ) => {
+  const header = req.headers.authorization;
+  const token = header?.startsWith('Bearer ') ? header.slice(7) : null;
+
+  if (!token) {
+    res.status(401).json({ message: 'Token requerido.' });
+    return;
+  }
+
+  let decoded: Awaited<ReturnType<typeof adminAuth.verifyIdToken>>;
   try {
-    const header = req.headers.authorization;
-    const token = header?.startsWith('Bearer ') ? header.slice(7) : null;
+    decoded = await adminAuth.verifyIdToken(token);
+  } catch (error) {
+    const authError = error as { code?: string; message?: string };
+    console.error('Firebase token validation failed:', {
+      code: authError?.code || 'unknown',
+      message: authError?.message || 'Unknown authentication error',
+    });
+    res.status(401).json({
+      message: 'Token invalido.',
+      reason: authError?.code || 'auth/unknown',
+    });
+    return;
+  }
 
-    if (!token) {
-      res.status(401).json({ message: 'Token requerido.' });
-      return;
-    }
-
-    const decoded = await adminAuth.verifyIdToken(token);
+  try {
     const userDoc = await adminDb.collection('users').doc(decoded.uid).get();
 
     if (!userDoc.exists) {
@@ -49,12 +64,12 @@ export const requireAuth = async (
 
     next();
   } catch (error) {
-    const authError = error as { code?: string; message?: string };
-    console.error('Firebase token validation failed:', {
-      code: authError?.code || 'unknown',
-      message: authError?.message || 'Unknown authentication error',
+    const profileError = error as { code?: string; message?: string };
+    console.error('Firebase user profile load failed:', {
+      code: profileError?.code || 'unknown',
+      message: profileError?.message || 'Unknown profile error',
     });
-    res.status(401).json({ message: 'Token invalido.' });
+    res.status(503).json({ message: 'No se pudo validar el perfil del usuario. Intenta nuevamente.' });
   }
 };
 
