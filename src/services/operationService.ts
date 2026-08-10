@@ -20,8 +20,8 @@ const save = async (path: string, body: unknown) => {
   if (!response.ok) throw new Error(data?.message || 'No se pudo guardar el registro.');
 };
 
-const post = async <T>(path: string, body: unknown): Promise<T> => {
-  const token = await auth?.currentUser?.getIdToken();
+const post = async <T>(path: string, body: unknown, forceTokenRefresh = false): Promise<T> => {
+  const token = await auth?.currentUser?.getIdToken(forceTokenRefresh);
   if (!token) throw new Error('Sesion no disponible.');
   const response = await fetch(`${API_BASE_URL}${path}`, {
     method: 'POST',
@@ -95,6 +95,7 @@ export const uploadParticipantCvRemote = async (
       content_type: file.type || 'application/octet-stream',
       base64: await fileToBase64(file),
     },
+    true,
   );
   return data.participant;
 };

@@ -34,10 +34,7 @@ export const requireAuth = async (
       code: authError?.code || 'unknown',
       message: authError?.message || 'Unknown authentication error',
     });
-    res.status(401).json({
-      message: 'Token invalido.',
-      reason: authError?.code || 'auth/unknown',
-    });
+    res.status(401).json({ message: 'Token invalido.' });
     return;
   }
 
