@@ -26,15 +26,7 @@ router.post('/login', async (req, res) => {
     }
 
     console.error('Login error:', error);
-    const diagnostic = error as { name?: string; code?: string | number; message?: string };
-    res.status(500).json({
-      message: 'Error interno.',
-      diagnostic: {
-        name: diagnostic?.name || 'UnknownError',
-        code: diagnostic?.code || 'unknown',
-        detail: diagnostic?.message || 'Unknown login error',
-      },
-    });
+    res.status(500).json({ message: 'Error interno.' });
   }
 });
 

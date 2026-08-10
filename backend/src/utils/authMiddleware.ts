@@ -12,6 +12,12 @@ export interface AuthenticatedRequest extends Request {
   user?: AuthenticatedUser;
 }
 
+const profileCache = new Map<string, {
+  expiresAt: number;
+  profile: Record<string, unknown>;
+}>();
+const PROFILE_CACHE_TTL_MS = 60 * 1000;
+
 export const requireAuth = async (
   req: AuthenticatedRequest,
   res: Response,
@@ -39,14 +45,23 @@ export const requireAuth = async (
   }
 
   try {
-    const userDoc = await adminDb.collection('users').doc(decoded.uid).get();
-
-    if (!userDoc.exists) {
-      res.status(401).json({ message: 'Perfil de usuario no encontrado.' });
-      return;
+    const cachedProfile = profileCache.get(decoded.uid);
+    let profile = cachedProfile && cachedProfile.expiresAt > Date.now()
+      ? cachedProfile.profile
+      : undefined;
+    if (!profile) {
+      const userDoc = await adminDb.collection('users').doc(decoded.uid).get();
+      if (!userDoc.exists) {
+        res.status(401).json({ message: 'Perfil de usuario no encontrado.' });
+        return;
+      }
+      profile = userDoc.data() as Record<string, unknown>;
+      profileCache.set(decoded.uid, {
+        profile,
+        expiresAt: Date.now() + PROFILE_CACHE_TTL_MS,
+      });
     }
 
-    const profile = userDoc.data();
     if (profile?.estado !== 'Activo') {
       res.status(403).json({ message: 'Usuario inactivo.' });
       return;

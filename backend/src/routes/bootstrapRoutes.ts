@@ -6,13 +6,38 @@ import {
 } from '../utils/authMiddleware.js';
 
 const router = Router();
+const collectionCache = new Map<string, {
+  expiresAt: number;
+  data?: Array<Record<string, unknown>>;
+  pending?: Promise<Array<Record<string, unknown>>>;
+}>();
+const COLLECTION_CACHE_TTL_MS = 2 * 60 * 1000;
 
 const readCollection = async (name: string) => {
-  const snapshot = await adminDb.collection(name).get();
-  return snapshot.docs.map((item) => ({
-    id: item.id,
-    ...item.data(),
-  })) as Array<Record<string, unknown>>;
+  const now = Date.now();
+  const cached = collectionCache.get(name);
+  if (cached?.data && cached.expiresAt > now) return cached.data;
+  if (cached?.pending) return cached.pending;
+
+  const pending = adminDb.collection(name).get().then((snapshot) =>
+    snapshot.docs.map((item) => ({
+      id: item.id,
+      ...item.data(),
+    })) as Array<Record<string, unknown>>,
+  );
+  collectionCache.set(name, { expiresAt: now + COLLECTION_CACHE_TTL_MS, pending });
+
+  try {
+    const data = await pending;
+    collectionCache.set(name, {
+      data,
+      expiresAt: Date.now() + COLLECTION_CACHE_TTL_MS,
+    });
+    return data;
+  } catch (error) {
+    collectionCache.delete(name);
+    throw error;
+  }
 };
 
 const readStringField = (data: Record<string, unknown> | undefined, keys: string[]) => {

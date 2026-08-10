@@ -37,13 +37,12 @@ const findCredentialByUsername = async (usuarioNormalizado: string) => {
     return credentialSnapshot.docs[0];
   }
 
-  const usersSnapshot = await adminDb.collection('users').get();
-  const profileDoc = usersSnapshot.docs.find((userDoc) => {
-    const profile = userDoc.data();
-    const profileUsername = String(profile.usuario_normalizado || profile.usuario || '');
-    if (!profileUsername) return false;
-    return normalizeUsername(profileUsername) === usuarioNormalizado;
-  });
+  const usersSnapshot = await adminDb
+    .collection('users')
+    .where('usuario_normalizado', '==', usuarioNormalizado)
+    .limit(1)
+    .get();
+  const profileDoc = usersSnapshot.docs[0];
 
   if (!profileDoc) {
     return null;
