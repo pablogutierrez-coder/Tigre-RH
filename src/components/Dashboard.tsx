@@ -59,6 +59,10 @@ const normalizeAttendanceStatus = (status?: string) =>
 const isPresentAttendance = (status?: string) => ['asistio', 'tardanza'].includes(normalizeAttendanceStatus(status));
 const isDesertionAttendance = (status?: string) => ['desistio', 'baja'].includes(normalizeAttendanceStatus(status));
 const isDesertionFinalState = (status?: string) => normalizeAttendanceStatus(status) === 'desistio';
+const getSessionStartMonth = (session: TrainingSession) => {
+  const match = String(session.fecha_inicio || '').match(/^(\d{4})-(\d{2})/);
+  return match ? `${match[1]}-${match[2]}` : '';
+};
 
 export default function Dashboard({
   sessions,
@@ -112,7 +116,7 @@ export default function Dashboard({
     generaciones: Array.from(new Set(roleScopedSessions.map((session) => session.nombre_generacion).filter(Boolean))).sort(),
     meses: Array.from(new Set(
       roleScopedSessions
-        .map((session) => session.fecha_inicio?.slice(0, 7))
+        .map(getSessionStartMonth)
         .filter(Boolean),
     )).sort().reverse(),
   }), [roleScopedSessions]);
@@ -135,7 +139,7 @@ export default function Dashboard({
       if (filterConvocatoria !== 'todos' && getSessionConvocatoria(s) !== filterConvocatoria) return false;
       if (filterGeneracion !== 'todos' && s.nombre_generacion !== filterGeneracion) return false;
       if (filterFecha && (filterFecha < s.fecha_inicio || filterFecha > s.fecha_fin)) return false;
-      if (filterMes && s.fecha_inicio?.slice(0, 7) !== filterMes) return false;
+      if (filterMes && getSessionStartMonth(s) !== filterMes) return false;
       return true;
     });
   }, [roleScopedSessions, filterCampaña, filterFormador, filterConvocatoria, filterGeneracion, filterFecha, filterMes]);
@@ -647,7 +651,7 @@ export default function Dashboard({
 
             {/* Mes */}
             <div>
-              <label className="block text-xs font-medium text-slate-500 mb-1">Ver por mes</label>
+              <label className="block text-xs font-medium text-slate-500 mb-1">Ver por mes de inicio</label>
               <select
                 value={filterMes}
                 onChange={(e) => setFilterMes(e.target.value)}
