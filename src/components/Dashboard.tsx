@@ -75,6 +75,7 @@ export default function Dashboard({
   const [filterConvocatoria, setFilterConvocatoria] = useState<string>('todos');
   const [filterGeneracion, setFilterGeneracion] = useState<string>('todos');
   const [filterFecha, setFilterFecha] = useState<string>('');
+  const [filterMes, setFilterMes] = useState<string>('');
 
   const getSessionConvocatoria = (session: TrainingSession) =>
     String(
@@ -118,6 +119,7 @@ export default function Dashboard({
     setFilterConvocatoria('todos');
     setFilterGeneracion('todos');
     setFilterFecha('');
+    setFilterMes('');
   };
 
   // Filtered Sessions
@@ -128,9 +130,16 @@ export default function Dashboard({
       if (filterConvocatoria !== 'todos' && getSessionConvocatoria(s) !== filterConvocatoria) return false;
       if (filterGeneracion !== 'todos' && s.nombre_generacion !== filterGeneracion) return false;
       if (filterFecha && (filterFecha < s.fecha_inicio || filterFecha > s.fecha_fin)) return false;
+      if (filterMes) {
+        const [year, month] = filterMes.split('-').map(Number);
+        const monthStart = `${filterMes}-01`;
+        const monthEnd = new Date(Date.UTC(year, month, 0)).toISOString().slice(0, 10);
+        const sessionEnd = s.fecha_fin || s.fecha_inicio;
+        if (s.fecha_inicio > monthEnd || sessionEnd < monthStart) return false;
+      }
       return true;
     });
-  }, [roleScopedSessions, filterCampaña, filterFormador, filterConvocatoria, filterGeneracion, filterFecha]);
+  }, [roleScopedSessions, filterCampaña, filterFormador, filterConvocatoria, filterGeneracion, filterFecha, filterMes]);
 
   const filteredSessionIds = useMemo(() => new Set(filteredSessions.map(s => s.id)), [filteredSessions]);
   const filteredSessionById = useMemo(() => new Map(filteredSessions.map(s => [s.id, s])), [filteredSessions]);
@@ -577,6 +586,17 @@ export default function Dashboard({
                 type="date"
                 value={filterFecha}
                 onChange={(e) => setFilterFecha(e.target.value)}
+                className="w-full text-xs glass-input text-slate-700 rounded-lg p-2 outline-hidden"
+              />
+            </div>
+
+            {/* Mes */}
+            <div>
+              <label className="block text-xs font-medium text-slate-500 mb-1">Ver por mes</label>
+              <input
+                type="month"
+                value={filterMes}
+                onChange={(e) => setFilterMes(e.target.value)}
                 className="w-full text-xs glass-input text-slate-700 rounded-lg p-2 outline-hidden"
               />
             </div>
