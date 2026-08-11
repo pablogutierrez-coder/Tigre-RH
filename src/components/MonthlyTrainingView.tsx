@@ -9,7 +9,7 @@ import {
   XAxis,
   YAxis,
 } from 'recharts';
-import { ArrowRight, CalendarDays, CheckCircle2, Clock3, Layers3 } from 'lucide-react';
+import { ArrowRight, CheckCircle2, Clock3, Layers3, TrendingDown } from 'lucide-react';
 import type { AttendanceRecord, OperationConfirmation, Participant, TrainingSession } from '../types';
 import { getTrainingDaysCount } from '../utils/trainingDays';
 import {
@@ -151,8 +151,20 @@ export default function MonthlyTrainingView({
     total: sessionMetrics.length,
     enCurso: sessionMetrics.filter((item) => item.status === 'en_curso').length,
     finalizadas: sessionMetrics.filter((item) => item.status === 'finalizada').length,
-    proximas: sessionMetrics.filter((item) => item.status === 'proxima').length,
   }), [sessionMetrics]);
+  const globalDesertion = useMemo(() => {
+    const trainingsWithAttendance = sessionMetrics.filter((item) => item.latestRegisteredDay > 0 && item.dayOneAttendance > 0);
+    const dayOneTotal = trainingsWithAttendance.reduce((total, item) => total + item.dayOneAttendance, 0);
+    const currentTotal = trainingsWithAttendance.reduce(
+      (total, item) => total + Math.min(item.dayOneAttendance, item.latestAttendance),
+      0,
+    );
+    return {
+      dayOneTotal,
+      currentTotal,
+      percentage: dayOneTotal > 0 ? Math.round(((dayOneTotal - currentTotal) / dayOneTotal) * 100) : 0,
+    };
+  }, [sessionMetrics]);
   const [year, monthNumber] = month.split('-').map(Number);
   const monthLabel = new Intl.DateTimeFormat('es-PE', { month: 'long', year: 'numeric', timeZone: 'UTC' })
     .format(new Date(Date.UTC(year, monthNumber - 1, 1)));
@@ -161,18 +173,24 @@ export default function MonthlyTrainingView({
     { label: 'Capacitaciones del mes', value: counts.total, icon: Layers3 },
     { label: 'En curso', value: counts.enCurso, icon: Clock3 },
     { label: 'Finalizadas', value: counts.finalizadas, icon: CheckCircle2 },
-    { label: 'Próximas', value: counts.proximas, icon: CalendarDays },
+    {
+      label: 'Deserción global',
+      value: `${globalDesertion.percentage}%`,
+      detail: `${globalDesertion.currentTotal} de ${globalDesertion.dayOneTotal} continúan`,
+      icon: TrendingDown,
+    },
   ];
 
   return (
     <div className="space-y-6">
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        {kpis.map(({ label, value, icon: Icon }) => (
+        {kpis.map(({ label, value, detail, icon: Icon }) => (
           <div key={label} className="glass-card rounded-2xl p-5">
             <div className="flex items-start justify-between gap-3">
               <div>
                 <p className="text-xs font-bold uppercase text-slate-400">{label}</p>
                 <p className="mt-2 text-3xl font-black text-slate-900">{value}</p>
+                {detail && <p className="mt-1 text-xs font-semibold text-slate-500">{detail}</p>}
               </div>
               <div className="rounded-xl border border-slate-100 bg-slate-50 p-2.5 text-indigo-600">
                 <Icon className="h-5 w-5" />
@@ -219,15 +237,31 @@ export default function MonthlyTrainingView({
                     </div>
                   </div>
 
-                  <div className="mt-5 grid grid-cols-2 sm:grid-cols-3 gap-x-5 gap-y-3 border-y border-slate-100 py-4 text-xs">
-                    <div><p className="text-slate-400">Cargados</p><p className="mt-0.5 font-black text-slate-800">{item.loaded}</p></div>
-                    <div><p className="text-slate-400">Iniciaron Día 1</p><p className="mt-0.5 font-black text-slate-800">{item.latestRegisteredDay ? item.dayOneAttendance : 'Pendiente'}</p></div>
-                    <div><p className="text-slate-400">Última asistencia</p><p className="mt-0.5 font-black text-slate-800">{item.latestRegisteredDay ? `${item.latestAttendance} · Día ${item.latestRegisteredDay}` : 'Pendiente'}</p></div>
-                    <div><p className="text-slate-400">Retención {item.status === 'finalizada' ? 'final' : 'actual'}</p><p className="mt-0.5 font-black text-emerald-700">{item.retention === null ? 'Pendiente' : `${item.retention}%`}</p></div>
-                    <div><p className="text-slate-400">Deserción acumulada</p><p className="mt-0.5 font-black text-rose-600">{item.desertion === null ? 'Pendiente' : `${item.desertion}%`}</p></div>
-                    <div><p className="text-slate-400">Día final</p><p className="mt-0.5 font-black text-slate-800">{item.finalAttendance === null ? 'Pendiente' : item.finalAttendance}</p></div>
-                    <div><p className="text-slate-400">Altas</p><p className="mt-0.5 font-black text-slate-800">{item.confirmedHighs === null ? 'Pendiente' : item.confirmedHighs}</p></div>
-                    <div><p className="text-slate-400">Conversión a alta</p><p className="mt-0.5 font-black text-indigo-700">{item.highConversion === null ? 'Pendiente' : `${item.highConversion}%`}</p></div>
+                  <div className="mt-5 grid grid-cols-2 sm:grid-cols-4 gap-2.5 border-t border-slate-100 pt-4">
+                    <div className="rounded-xl bg-slate-50 p-3">
+                      <p className="text-[10px] font-bold uppercase text-slate-400">Cargados</p>
+                      <p className="mt-1 text-xl font-black text-slate-900">{item.loaded}</p>
+                    </div>
+                    <div className="rounded-xl bg-indigo-50/70 p-3">
+                      <p className="text-[10px] font-bold uppercase text-slate-400">Día 1</p>
+                      <p className="mt-1 text-xl font-black text-indigo-700">{item.latestRegisteredDay ? item.dayOneAttendance : '-'}</p>
+                    </div>
+                    <div className="rounded-xl bg-emerald-50/70 p-3">
+                      <p className="text-[10px] font-bold uppercase text-slate-400">Continúan</p>
+                      <p className="mt-1 text-xl font-black text-emerald-700">{item.latestRegisteredDay ? item.latestAttendance : '-'}</p>
+                      {item.latestRegisteredDay > 0 && <p className="text-[10px] font-semibold text-emerald-700/70">Día {item.latestRegisteredDay}</p>}
+                    </div>
+                    <div className="rounded-xl bg-rose-50/70 p-3">
+                      <p className="text-[10px] font-bold uppercase text-slate-400">Deserción</p>
+                      <p className="mt-1 text-xl font-black text-rose-600">{item.desertion === null ? '-' : `${item.desertion}%`}</p>
+                    </div>
+                  </div>
+
+                  <div className="mt-3 grid grid-cols-2 sm:grid-cols-4 gap-x-4 gap-y-2 rounded-xl border border-slate-100 px-3 py-2.5 text-xs">
+                    <div><span className="text-slate-400">Retención</span><p className="font-black text-emerald-700">{item.retention === null ? 'Pendiente' : `${item.retention}%`}</p></div>
+                    <div><span className="text-slate-400">Día final</span><p className="font-black text-slate-800">{item.finalAttendance === null ? 'Pendiente' : item.finalAttendance}</p></div>
+                    <div><span className="text-slate-400">Altas</span><p className="font-black text-slate-800">{item.confirmedHighs === null ? 'Pendiente' : item.confirmedHighs}</p></div>
+                    <div><span className="text-slate-400">Conversión</span><p className="font-black text-indigo-700">{item.highConversion === null ? 'Pendiente' : `${item.highConversion}%`}</p></div>
                   </div>
 
                   <div className="mt-4">
