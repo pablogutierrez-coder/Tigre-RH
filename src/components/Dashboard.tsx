@@ -36,7 +36,14 @@ import {
 } from 'lucide-react';
 import { TrainingSession, Participant, AttendanceRecord, OperationConfirmation, AttendanceReopenRequest, User as AppUser } from '../types';
 import { getTrainingDaysCount } from '../utils/trainingDays';
+import {
+  getSessionActivityMonths,
+  getTrainingTemporalStatus,
+  sessionHasActivityInMonth,
+  type TrainingTemporalStatus,
+} from '../utils/trainingMonthly';
 import { BPO_CAMPAIGNS } from '../constants/campaigns';
+import MonthlyTrainingView from './MonthlyTrainingView';
 
 interface DashboardProps {
   sessions: TrainingSession[];
@@ -47,6 +54,7 @@ interface DashboardProps {
   trainers: { id: string; nombre: string }[];
   recruiters: { id: string; nombre: string }[];
   currentUser: AppUser;
+  onViewDetail?: (sessionId: string) => void;
 }
 
 const normalizeAttendanceStatus = (status?: string) =>
@@ -59,11 +67,6 @@ const normalizeAttendanceStatus = (status?: string) =>
 const isPresentAttendance = (status?: string) => ['asistio', 'tardanza'].includes(normalizeAttendanceStatus(status));
 const isDesertionAttendance = (status?: string) => ['desistio', 'baja'].includes(normalizeAttendanceStatus(status));
 const isDesertionFinalState = (status?: string) => normalizeAttendanceStatus(status) === 'desistio';
-const getSessionStartMonth = (session: TrainingSession) => {
-  const match = String(session.fecha_inicio || '').match(/^(\d{4})-(\d{2})/);
-  return match ? `${match[1]}-${match[2]}` : '';
-};
-
 export default function Dashboard({
   sessions,
   participants,
@@ -72,6 +75,7 @@ export default function Dashboard({
   reopens,
   trainers,
   currentUser,
+  onViewDetail,
 }: DashboardProps) {
   // Filters state
   const [filterCampaña, setFilterCampaña] = useState<string>('todos');
@@ -80,6 +84,7 @@ export default function Dashboard({
   const [filterGeneracion, setFilterGeneracion] = useState<string>('todos');
   const [filterFecha, setFilterFecha] = useState<string>('');
   const [filterMes, setFilterMes] = useState<string>('');
+  const [filterEstado, setFilterEstado] = useState<'todos' | TrainingTemporalStatus>('todos');
 
   const getSessionConvocatoria = (session: TrainingSession) =>
     String(
@@ -115,9 +120,7 @@ export default function Dashboard({
     convocatorias: Array.from(new Set(roleScopedSessions.map(getSessionConvocatoria).filter(Boolean))).sort(),
     generaciones: Array.from(new Set(roleScopedSessions.map((session) => session.nombre_generacion).filter(Boolean))).sort(),
     meses: Array.from(new Set(
-      roleScopedSessions
-        .map(getSessionStartMonth)
-        .filter(Boolean),
+      roleScopedSessions.flatMap(getSessionActivityMonths),
     )).sort().reverse(),
   }), [roleScopedSessions]);
 
@@ -129,6 +132,7 @@ export default function Dashboard({
     setFilterGeneracion('todos');
     setFilterFecha('');
     setFilterMes('');
+    setFilterEstado('todos');
   };
 
   // Filtered Sessions
@@ -139,10 +143,11 @@ export default function Dashboard({
       if (filterConvocatoria !== 'todos' && getSessionConvocatoria(s) !== filterConvocatoria) return false;
       if (filterGeneracion !== 'todos' && s.nombre_generacion !== filterGeneracion) return false;
       if (filterFecha && (filterFecha < s.fecha_inicio || filterFecha > s.fecha_fin)) return false;
-      if (filterMes && getSessionStartMonth(s) !== filterMes) return false;
+      if (filterMes && !sessionHasActivityInMonth(s, filterMes)) return false;
+      if (filterMes && filterEstado !== 'todos' && getTrainingTemporalStatus(s) !== filterEstado) return false;
       return true;
     });
-  }, [roleScopedSessions, filterCampaña, filterFormador, filterConvocatoria, filterGeneracion, filterFecha, filterMes]);
+  }, [roleScopedSessions, filterCampaña, filterFormador, filterConvocatoria, filterGeneracion, filterFecha, filterMes, filterEstado]);
 
   const filteredSessionIds = useMemo(() => new Set(filteredSessions.map(s => s.id)), [filteredSessions]);
   const filteredSessionById = useMemo(() => new Map(filteredSessions.map(s => [s.id, s])), [filteredSessions]);
@@ -361,38 +366,6 @@ export default function Dashboard({
       };
     });
   }, [filteredSessions, participants, attendance, validConfirmations]);
-
-  const monthlySessionData = useMemo(() => filteredSessions.map((session) => {
-    const sessionParticipants = participants.filter((participant) => participant.training_session_id === session.id);
-    const participantIds = new Set(sessionParticipants.map((participant) => participant.id));
-    const row: Record<string, string | number> = {
-      name: session.generation_code || session.nombre_generacion,
-      Cargados: sessionParticipants.length,
-      Altas: validConfirmations.filter(
-        (confirmation) => participantIds.has(confirmation.participant_id) && confirmation.estado_alta === 'Alta confirmada',
-      ).length,
-    };
-
-    visibleAttendanceDays.forEach((day) => {
-      row[`Asist. Día ${day}`] = new Set(
-        attendance
-          .filter((record) =>
-            record.training_session_id === session.id &&
-            record.dia === day &&
-            participantIds.has(record.participant_id) &&
-            isPresentAttendance(record.estado_asistencia),
-          )
-          .map((record) => record.participant_id),
-      ).size;
-    });
-
-    const firstDay = Number(row['Asist. Día 1'] || 0);
-    const latestDay = Number(row[`Asist. Día ${visibleAttendanceDays.at(-1) || 1}`] || 0);
-    row['Retención %'] = firstDay > 0 ? Math.round((latestDay / firstDay) * 100) : 0;
-    return row;
-  }), [filteredSessions, participants, attendance, validConfirmations, visibleAttendanceDays]);
-
-  const comparisonData = filterMes ? monthlySessionData : campañaData;
 
   // 3. Comparativo por Formador
   const formadorData = useMemo(() => {
@@ -651,7 +624,7 @@ export default function Dashboard({
 
             {/* Mes */}
             <div>
-              <label className="block text-xs font-medium text-slate-500 mb-1">Ver por mes de inicio</label>
+              <label className="block text-xs font-medium text-slate-500 mb-1">Ver por mes</label>
               <select
                 value={filterMes}
                 onChange={(e) => setFilterMes(e.target.value)}
@@ -670,6 +643,22 @@ export default function Dashboard({
               </select>
             </div>
 
+            {filterMes && (
+              <div>
+                <label className="block text-xs font-medium text-slate-500 mb-1">Estado</label>
+                <select
+                  value={filterEstado}
+                  onChange={(e) => setFilterEstado(e.target.value as 'todos' | TrainingTemporalStatus)}
+                  className="w-full text-xs glass-input text-slate-700 rounded-lg p-2 outline-hidden"
+                >
+                  <option value="todos">Todas</option>
+                  <option value="proxima">Próximas</option>
+                  <option value="en_curso">En curso</option>
+                  <option value="finalizada">Finalizadas</option>
+                </select>
+              </div>
+            )}
+
             {/* Reset */}
             <div className="flex items-end">
               <button
@@ -684,7 +673,20 @@ export default function Dashboard({
         </div>
       </div>
 
+      {filterMes && (
+        <MonthlyTrainingView
+          month={filterMes}
+          sessions={filteredSessions}
+          participants={participants}
+          attendance={attendance}
+          confirmations={validConfirmations}
+          onViewDetail={onViewDetail}
+        />
+      )}
+
       {/* KPI Cards Grid */}
+      {!filterMes && (
+      <>
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4" id="kpi-grid">
         {/* Card 1 */}
         <div className="glass-card glass-card-hover rounded-2xl p-5 relative overflow-hidden">
@@ -810,13 +812,13 @@ export default function Dashboard({
           <div className="flex justify-between items-center mb-4">
             <h3 className="text-slate-800 font-bold text-base flex items-center gap-1.5">
               <Briefcase className="text-fuchsia-600 w-4.5 h-4.5" />
-              {filterMes ? 'Comparativo por Capacitación' : 'Comparativo por Campaña BPO'}
+              Comparativo por Campaña BPO
             </h3>
             <span className="text-slate-400 text-xs font-mono">Rendimiento</span>
           </div>
           <div className="flex-1 min-h-[300px]">
             <ResponsiveContainer width="100%" height={300}>
-              <BarChart data={comparisonData} margin={{ top: 10, right: 10, left: 0, bottom: 5 }}>
+              <BarChart data={campañaData} margin={{ top: 10, right: 10, left: 0, bottom: 5 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
                 <XAxis dataKey="name" stroke="#94a3b8" fontSize={11} />
                 <YAxis stroke="#94a3b8" fontSize={11} />
@@ -825,30 +827,17 @@ export default function Dashboard({
                 />
                 <Legend iconSize={10} wrapperStyle={{ fontSize: 11 }} />
                 <Bar dataKey="Cargados" fill="#818cf8" radius={[4, 4, 0, 0]} />
-                {filterMes ? visibleAttendanceDays.map((day, index) => (
-                  <Bar
-                    key={day}
-                    dataKey={`Asist. Día ${day}`}
-                    fill={['#3b82f6', '#06b6d4', '#14b8a6', '#10b981', '#84cc16', '#22c55e', '#0ea5e9', '#8b5cf6', '#a855f7', '#ec4899'][index] || '#3b82f6'}
-                    radius={[4, 4, 0, 0]}
-                  />
-                )) : (
-                  <>
-                    <Bar dataKey="Asist. Día 1" fill="#3b82f6" radius={[4, 4, 0, 0]} />
-                    <Bar dataKey="Asist. Día final" fill="#10b981" radius={[4, 4, 0, 0]} />
-                  </>
-                )}
+                <Bar dataKey="Asist. Día 1" fill="#3b82f6" radius={[4, 4, 0, 0]} />
+                <Bar dataKey="Asist. Día final" fill="#10b981" radius={[4, 4, 0, 0]} />
                 <Bar dataKey="Altas" fill="#ec4899" radius={[4, 4, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
           </div>
           <div className="grid grid-cols-4 gap-2 mt-2 pt-3 border-t border-slate-100">
-            {comparisonData.map(c => (
+            {campañaData.map(c => (
               <div key={c.name} className="text-center">
                 <p className="text-[10px] text-slate-500 font-semibold uppercase truncate">{c.name}</p>
-                <p className="text-xs font-bold text-slate-700">
-                  {filterMes ? `Retención: ${c['Retención %']}%` : `Conv: ${c['Conversión %']}%`}
-                </p>
+                <p className="text-xs font-bold text-slate-700">Conv: {c['Conversión %']}%</p>
               </div>
             ))}
           </div>
@@ -1092,6 +1081,8 @@ export default function Dashboard({
           )}
         </div>
       </div>
+      </>
+      )}
     </div>
   );
 }

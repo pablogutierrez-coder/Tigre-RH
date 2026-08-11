@@ -2255,6 +2255,7 @@ export default function App() {
                   trainers={trainersList}
                   recruiters={recruitersList}
                   currentUser={activeUser}
+                  onViewDetail={handleViewAttendance}
                 />
               )}
 
