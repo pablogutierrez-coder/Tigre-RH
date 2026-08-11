@@ -35,7 +35,7 @@ import {
   Award
 } from 'lucide-react';
 import { TrainingSession, Participant, AttendanceRecord, OperationConfirmation, AttendanceReopenRequest, User as AppUser } from '../types';
-import { getTrainingDaysCount, LEGACY_TRAINING_DAYS_COUNT } from '../utils/trainingDays';
+import { getTrainingDaysCount } from '../utils/trainingDays';
 import { BPO_CAMPAIGNS } from '../constants/campaigns';
 
 interface DashboardProps {
@@ -110,6 +110,11 @@ export default function Dashboard({
     campañas: Array.from(new Set(roleScopedSessions.map((session) => session.campaña).filter(Boolean))).sort(),
     convocatorias: Array.from(new Set(roleScopedSessions.map(getSessionConvocatoria).filter(Boolean))).sort(),
     generaciones: Array.from(new Set(roleScopedSessions.map((session) => session.nombre_generacion).filter(Boolean))).sort(),
+    meses: Array.from(new Set(
+      roleScopedSessions
+        .map((session) => session.fecha_inicio?.slice(0, 7))
+        .filter(Boolean),
+    )).sort().reverse(),
   }), [roleScopedSessions]);
 
   // Reset Filters
@@ -130,13 +135,7 @@ export default function Dashboard({
       if (filterConvocatoria !== 'todos' && getSessionConvocatoria(s) !== filterConvocatoria) return false;
       if (filterGeneracion !== 'todos' && s.nombre_generacion !== filterGeneracion) return false;
       if (filterFecha && (filterFecha < s.fecha_inicio || filterFecha > s.fecha_fin)) return false;
-      if (filterMes) {
-        const [year, month] = filterMes.split('-').map(Number);
-        const monthStart = `${filterMes}-01`;
-        const monthEnd = new Date(Date.UTC(year, month, 0)).toISOString().slice(0, 10);
-        const sessionEnd = s.fecha_fin || s.fecha_inicio;
-        if (s.fecha_inicio > monthEnd || sessionEnd < monthStart) return false;
-      }
+      if (filterMes && s.fecha_inicio?.slice(0, 7) !== filterMes) return false;
       return true;
     });
   }, [roleScopedSessions, filterCampaña, filterFormador, filterConvocatoria, filterGeneracion, filterFecha, filterMes]);
@@ -155,6 +154,32 @@ export default function Dashboard({
   const filteredAttendance = useMemo(() => {
     return attendance.filter(a => filteredParticipantIds.has(a.participant_id));
   }, [attendance, filteredParticipantIds]);
+
+  const visibleAttendanceDays = useMemo(() => {
+    if (filteredSessions.length === 0) return [];
+
+    const latestRecordedDay = filteredAttendance.reduce((latest, record) => {
+      const status = normalizeAttendanceStatus(record.estado_asistencia);
+      if (!status || status === 'pendiente' || status === 'seleccionar') return latest;
+      return Math.max(latest, record.dia);
+    }, 0);
+
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const latestReachedDay = filteredSessions.reduce((latest, session) => {
+      const startDate = new Date(`${session.fecha_inicio}T00:00:00`);
+      if (Number.isNaN(startDate.getTime()) || startDate > today) return latest;
+      const elapsedDays = Math.floor((today.getTime() - startDate.getTime()) / 86_400_000) + 1;
+      return Math.max(latest, Math.min(elapsedDays, getTrainingDaysCount(session)));
+    }, 0);
+
+    const maxConfiguredDays = Math.max(...filteredSessions.map((session) => getTrainingDaysCount(session)));
+    const visibleDaysCount = Math.min(
+      maxConfiguredDays,
+      Math.max(1, latestRecordedDay, latestReachedDay),
+    );
+    return Array.from({ length: visibleDaysCount }, (_, index) => index + 1);
+  }, [filteredSessions, filteredAttendance]);
 
   // Helper to filter out deleted altas
   const validConfirmations = useMemo(() => {
@@ -255,15 +280,13 @@ export default function Dashboard({
     const total = metrics.totalCargados;
 
     // Calculate attendants per day
-    const maxTrainingDays = Math.max(LEGACY_TRAINING_DAYS_COUNT, ...filteredSessions.map((session) => getTrainingDaysCount(session)));
-    const funnelDays = Array.from({ length: maxTrainingDays }, (_, index) => index + 1);
-    const dayCounts = Array.from({ length: maxTrainingDays }, () => 0);
+    const dayAttendants = new Map(visibleAttendanceDays.map((day) => [day, new Set<string>()]));
     filteredAttendance.forEach(a => {
       if (isPresentAttendance(a.estado_asistencia)) {
         const session = filteredSessionById.get(a.training_session_id);
         const sessionDays = getTrainingDaysCount(session);
-        if (a.dia >= 1 && a.dia <= sessionDays) {
-          dayCounts[a.dia - 1]++;
+        if (a.dia >= 1 && a.dia <= sessionDays && dayAttendants.has(a.dia)) {
+          dayAttendants.get(a.dia)?.add(a.participant_id);
         }
       }
     });
@@ -271,14 +294,14 @@ export default function Dashboard({
     const colors = ['#3b82f6', '#06b6d4', '#14b8a6', '#10b981', '#84cc16', '#22c55e', '#0ea5e9', '#8b5cf6', '#a855f7', '#ec4899'];
     return [
       { name: 'Cargados', valor: total, fill: '#6366f1' },
-      ...funnelDays.map((day, index) => ({
+      ...visibleAttendanceDays.map((day, index) => ({
         name: `Asist. Día ${day}`,
-        valor: dayCounts[index],
+        valor: dayAttendants.get(day)?.size || 0,
         fill: colors[index] || '#3b82f6',
       })),
       { name: 'Altas Conf.', valor: metrics.altasConfirmadas, fill: '#ec4899' },
     ];
-  }, [metrics, filteredAttendance, filteredSessions, filteredSessionById]);
+  }, [metrics, filteredAttendance, filteredSessionById, visibleAttendanceDays]);
 
   // 2. Comparativo por Campaña
   const campañaData = useMemo(() => {
@@ -334,6 +357,38 @@ export default function Dashboard({
       };
     });
   }, [filteredSessions, participants, attendance, validConfirmations]);
+
+  const monthlySessionData = useMemo(() => filteredSessions.map((session) => {
+    const sessionParticipants = participants.filter((participant) => participant.training_session_id === session.id);
+    const participantIds = new Set(sessionParticipants.map((participant) => participant.id));
+    const row: Record<string, string | number> = {
+      name: session.generation_code || session.nombre_generacion,
+      Cargados: sessionParticipants.length,
+      Altas: validConfirmations.filter(
+        (confirmation) => participantIds.has(confirmation.participant_id) && confirmation.estado_alta === 'Alta confirmada',
+      ).length,
+    };
+
+    visibleAttendanceDays.forEach((day) => {
+      row[`Asist. Día ${day}`] = new Set(
+        attendance
+          .filter((record) =>
+            record.training_session_id === session.id &&
+            record.dia === day &&
+            participantIds.has(record.participant_id) &&
+            isPresentAttendance(record.estado_asistencia),
+          )
+          .map((record) => record.participant_id),
+      ).size;
+    });
+
+    const firstDay = Number(row['Asist. Día 1'] || 0);
+    const latestDay = Number(row[`Asist. Día ${visibleAttendanceDays.at(-1) || 1}`] || 0);
+    row['Retención %'] = firstDay > 0 ? Math.round((latestDay / firstDay) * 100) : 0;
+    return row;
+  }), [filteredSessions, participants, attendance, validConfirmations, visibleAttendanceDays]);
+
+  const comparisonData = filterMes ? monthlySessionData : campañaData;
 
   // 3. Comparativo por Formador
   const formadorData = useMemo(() => {
@@ -593,12 +648,22 @@ export default function Dashboard({
             {/* Mes */}
             <div>
               <label className="block text-xs font-medium text-slate-500 mb-1">Ver por mes</label>
-              <input
-                type="month"
+              <select
                 value={filterMes}
                 onChange={(e) => setFilterMes(e.target.value)}
                 className="w-full text-xs glass-input text-slate-700 rounded-lg p-2 outline-hidden"
-              />
+              >
+                <option value="">Todos los meses</option>
+                {filterOptions.meses.map((monthValue) => {
+                  const [year, month] = monthValue.split('-').map(Number);
+                  const label = new Intl.DateTimeFormat('es-PE', {
+                    month: 'long',
+                    year: 'numeric',
+                    timeZone: 'UTC',
+                  }).format(new Date(Date.UTC(year, month - 1, 1)));
+                  return <option key={monthValue} value={monthValue}>{label}</option>;
+                })}
+              </select>
             </div>
 
             {/* Reset */}
@@ -741,13 +806,13 @@ export default function Dashboard({
           <div className="flex justify-between items-center mb-4">
             <h3 className="text-slate-800 font-bold text-base flex items-center gap-1.5">
               <Briefcase className="text-fuchsia-600 w-4.5 h-4.5" />
-              Comparativo por Campaña BPO
+              {filterMes ? 'Comparativo por Capacitación' : 'Comparativo por Campaña BPO'}
             </h3>
             <span className="text-slate-400 text-xs font-mono">Rendimiento</span>
           </div>
           <div className="flex-1 min-h-[300px]">
             <ResponsiveContainer width="100%" height={300}>
-              <BarChart data={campañaData} margin={{ top: 10, right: 10, left: 0, bottom: 5 }}>
+              <BarChart data={comparisonData} margin={{ top: 10, right: 10, left: 0, bottom: 5 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
                 <XAxis dataKey="name" stroke="#94a3b8" fontSize={11} />
                 <YAxis stroke="#94a3b8" fontSize={11} />
@@ -756,17 +821,30 @@ export default function Dashboard({
                 />
                 <Legend iconSize={10} wrapperStyle={{ fontSize: 11 }} />
                 <Bar dataKey="Cargados" fill="#818cf8" radius={[4, 4, 0, 0]} />
-                <Bar dataKey="Asist. Día 1" fill="#3b82f6" radius={[4, 4, 0, 0]} />
-                <Bar dataKey="Asist. Día final" fill="#10b981" radius={[4, 4, 0, 0]} />
+                {filterMes ? visibleAttendanceDays.map((day, index) => (
+                  <Bar
+                    key={day}
+                    dataKey={`Asist. Día ${day}`}
+                    fill={['#3b82f6', '#06b6d4', '#14b8a6', '#10b981', '#84cc16', '#22c55e', '#0ea5e9', '#8b5cf6', '#a855f7', '#ec4899'][index] || '#3b82f6'}
+                    radius={[4, 4, 0, 0]}
+                  />
+                )) : (
+                  <>
+                    <Bar dataKey="Asist. Día 1" fill="#3b82f6" radius={[4, 4, 0, 0]} />
+                    <Bar dataKey="Asist. Día final" fill="#10b981" radius={[4, 4, 0, 0]} />
+                  </>
+                )}
                 <Bar dataKey="Altas" fill="#ec4899" radius={[4, 4, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
           </div>
           <div className="grid grid-cols-4 gap-2 mt-2 pt-3 border-t border-slate-100">
-            {campañaData.map(c => (
+            {comparisonData.map(c => (
               <div key={c.name} className="text-center">
                 <p className="text-[10px] text-slate-500 font-semibold uppercase truncate">{c.name}</p>
-                <p className="text-xs font-bold text-slate-700">Conv: {c['Conversión %']}%</p>
+                <p className="text-xs font-bold text-slate-700">
+                  {filterMes ? `Retención: ${c['Retención %']}%` : `Conv: ${c['Conversión %']}%`}
+                </p>
               </div>
             ))}
           </div>
