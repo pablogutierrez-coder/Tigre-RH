@@ -64,6 +64,7 @@ const MODULE_OPTIONS: Record<UserArea, Array<{ id: string; label: string }>> = {
     { id: 'formacion:altas', label: 'Confirmación de Altas' },
     { id: 'formacion:reaperturas', label: 'Reaperturas' },
     { id: 'formacion:encuestas', label: 'Encuestas de Satisfacción' },
+    { id: 'formacion:prospectos', label: 'Prospectos' },
     { id: 'formacion:variables', label: 'Medición de Variables' },
     { id: 'formacion:reportes', label: 'Reportes Exportables' },
   ],

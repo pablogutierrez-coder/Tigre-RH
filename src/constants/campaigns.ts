@@ -4,6 +4,8 @@ export const BPO_CAMPAIGNS = [
   'Fija',
   'GPON',
   'Culqi',
+  'Tigre Academy',
+  'Ruta del tigre',
 ] as const;
 
 export const LEGACY_CAMPAIGN_ALIASES: Record<string, string> = {
@@ -19,6 +21,8 @@ export const CAMPAIGN_PREFIXES: Record<string, string> = {
   Fija: 'FI',
   GPON: 'GP',
   Culqi: 'CU',
+  'Tigre Academy': 'TA',
+  'Ruta del tigre': 'RT',
   Prosegur: 'PR',
   Equifax: 'EQ',
 };

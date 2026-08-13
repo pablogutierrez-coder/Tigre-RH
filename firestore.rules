@@ -124,6 +124,18 @@ service cloud.firestore {
       allow update, delete: if false;
     }
 
+    match /prospects/{prospectId} {
+      allow read: if isAdmin()
+        || (hasAnyRole(['Formador']) && resource.data.formador_id == request.auth.uid);
+      allow create: if isAdmin()
+        || (hasAnyRole(['Formador']) && request.resource.data.formador_id == request.auth.uid);
+      allow update: if isAdmin()
+        || (hasAnyRole(['Formador'])
+          && resource.data.formador_id == request.auth.uid
+          && request.resource.data.formador_id == request.auth.uid);
+      allow delete: if isAdmin();
+    }
+
     match /app_settings/{settingId} {
       allow read: if signedIn();
       allow create, update, delete: if isAdmin();

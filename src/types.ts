@@ -64,6 +64,33 @@ export interface Campaign {
   estado: 'Activo' | 'Inactivo';
 }
 
+export type ProspectStatus = 'Nuevo' | 'Contactado' | 'En seguimiento' | 'Interesado' | 'Venta / Alta' | 'No interesado';
+
+export interface Prospect {
+  id: string;
+  campana: string;
+  fecha_registro: string;
+  formador_id: string;
+  formador_nombre: string;
+  ejecutivo_nombre: string;
+  ejecutivo_dni: string;
+  ejecutivo_inconcert: string;
+  prospecto_nombre: string;
+  ruc?: string;
+  dni?: string;
+  telefono: string;
+  correo?: string;
+  producto_interes: string;
+  lineas_adicionales?: string;
+  cantidad_productos: number;
+  estado: ProspectStatus;
+  observaciones?: string;
+  creado_por: string;
+  creado_por_rol: UserRole;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface TrainingSession {
   id: string;
   nombre_generacion: string;

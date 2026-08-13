@@ -61,6 +61,7 @@ import Encuestas from './components/Encuestas';
 import PublicSurveyForm from './components/PublicSurveyForm';
 import Seleccion, { type SelectionViewMode } from './components/Seleccion';
 import TrainingVariables from './components/TrainingVariables';
+import Prospectos from './components/Prospectos';
 
 import { getPeruNow, formatPeruDate, isAttendanceWindowOpen } from './utils/time';
 import { permissions } from './utils/permissions';
@@ -158,6 +159,7 @@ const userHasAreaAccess = (user: User, area: UserArea) => {
 const userHasModuleAccess = (user: User, area: UserArea, moduleId: string) => {
   if (!userHasAreaAccess(user, area)) return false;
   if (area === 'formacion' && moduleId === 'variables') return user.rol === 'Administrador';
+  if (area === 'formacion' && moduleId === 'prospectos') return ['Administrador', 'Formador'].includes(user.rol);
   if (userHasRoleRequiredModuleAccess(user, area, moduleId)) return true;
   if (area === 'formacion' && moduleId === 'reportes' && permissions[user.rol]?.canExportReports) return true;
   if (area === 'formacion' && moduleId === 'variables' && permissions[user.rol]?.canViewTrainingVariables) return true;
@@ -183,6 +185,7 @@ const getDefaultRouteForUser = (user: User): { currentView: string; selectionVie
     { area: 'formacion', moduleId: 'altas', currentView: 'altas' },
     { area: 'formacion', moduleId: 'reaperturas', currentView: 'reaperturas' },
     { area: 'formacion', moduleId: 'encuestas', currentView: 'encuestas' },
+    { area: 'formacion', moduleId: 'prospectos', currentView: 'prospectos' },
     { area: 'formacion', moduleId: 'variables', currentView: 'variables' },
     { area: 'formacion', moduleId: 'reportes', currentView: 'reportes' },
     { area: 'administrador', moduleId: 'usuarios', currentView: 'usuarios' },
@@ -214,6 +217,7 @@ const getFormationViewForUser = (user: User): string => {
     { moduleId: 'altas', currentView: 'altas' },
     { moduleId: 'reaperturas', currentView: 'reaperturas' },
     { moduleId: 'encuestas', currentView: 'encuestas' },
+    { moduleId: 'prospectos', currentView: 'prospectos' },
     { moduleId: 'variables', currentView: 'variables' },
     { moduleId: 'reportes', currentView: 'reportes' },
   ];
@@ -2101,6 +2105,7 @@ export default function App() {
                       {
                         title: 'Medición',
                         items: [
+                          ['prospectos', 'Prospectos', BriefcaseBusiness, ['Administrador', 'Formador']],
                           ['variables', 'Medición de Variables', Calculator, ['Administrador']],
                         ],
                       },
@@ -2372,6 +2377,13 @@ export default function App() {
 
               {currentView === 'variables' && permissions[activeUser.rol]?.canViewTrainingVariables && (
                 <TrainingVariables
+                  currentUser={activeUser}
+                  users={users}
+                />
+              )}
+
+              {currentView === 'prospectos' && ['Administrador', 'Formador'].includes(activeUser.rol) && (
+                <Prospectos
                   currentUser={activeUser}
                   users={users}
                 />

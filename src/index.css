@@ -264,3 +264,19 @@ select {
 ::-webkit-scrollbar-thumb:hover {
   background: rgba(148, 163, 184, 0.5);
 }
+
+.field-input {
+  width: 100%;
+  border: 1px solid #e2e8f0;
+  border-radius: 0.75rem;
+  padding: 0.625rem 0.75rem;
+  color: #334155;
+  font-size: 0.875rem;
+  outline: none;
+  background: #fff;
+}
+
+.field-input:focus {
+  border-color: #818cf8;
+  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1);
+}

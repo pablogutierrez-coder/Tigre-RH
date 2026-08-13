@@ -16,6 +16,7 @@ export const FDR_COLLECTIONS = {
   selectionApplicants: 'selection_applicants',
   selectionAudit: 'selection_audit',
   selectionNotifications: 'selection_notifications',
+  prospects: 'prospects',
 } as const;
 
 export type FdrCollectionName =
