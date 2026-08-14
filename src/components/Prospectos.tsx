@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   BarChart3,
   BriefcaseBusiness,
@@ -104,11 +104,13 @@ export default function Prospectos({ currentUser, users }: ProspectosProps) {
   const [editing, setEditing] = useState<Prospect | null>(null);
   const [form, setForm] = useState<ProspectForm>(() => emptyForm(currentUser));
   const [saving, setSaving] = useState(false);
+  const deletedProspectIds = useRef(new Set<string>());
 
   const loadProspects = async (showLoading = false) => {
     if (showLoading) setLoading(true);
     try {
-      setProspects(await listProspects());
+      const records = await listProspects();
+      setProspects(records.filter((record) => !deletedProspectIds.current.has(record.id)));
       setError('');
     } catch (loadError) {
       setError(`No se pudieron cargar los prospectos: ${loadError instanceof Error ? loadError.message : 'Error desconocido'}`);
@@ -244,6 +246,8 @@ export default function Prospectos({ currentUser, users }: ProspectosProps) {
     if (!isAdmin || !window.confirm(`¿Eliminar el prospecto de ${prospect.prospecto_nombre}?`)) return;
     try {
       await deleteProspect(prospect.id);
+      deletedProspectIds.current.add(prospect.id);
+      setProspects((current) => current.filter((record) => record.id !== prospect.id));
       await loadProspects();
     } catch (deleteError) {
       setError(`No se pudo eliminar el prospecto: ${deleteError instanceof Error ? deleteError.message : 'Error desconocido'}`);

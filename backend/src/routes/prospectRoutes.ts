@@ -107,7 +107,13 @@ router.put('/:id', requireAuth, requireRole(ALLOWED_ROLES), async (req: Authenti
 
 router.delete('/:id', requireAuth, requireRole(['Administrador']), async (req, res) => {
   try {
-    await adminDb.collection(COLLECTION).doc(req.params.id).delete();
+    const ref = adminDb.collection(COLLECTION).doc(req.params.id);
+    const current = await ref.get();
+    if (!current.exists) {
+      res.status(404).json({ message: 'Prospecto no encontrado.' });
+      return;
+    }
+    await ref.delete();
     res.status(204).send();
   } catch (error) {
     sendError(res, error);
