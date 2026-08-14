@@ -25,7 +25,7 @@ import type { Prospect, ProspectStatus, User } from '../types';
 import {
   createProspect,
   deleteProspect,
-  subscribeToProspects,
+  listProspects,
   updateProspect,
 } from '../services/firebase/prospectService';
 
@@ -105,20 +105,22 @@ export default function Prospectos({ currentUser, users }: ProspectosProps) {
   const [form, setForm] = useState<ProspectForm>(() => emptyForm(currentUser));
   const [saving, setSaving] = useState(false);
 
+  const loadProspects = async (showLoading = false) => {
+    if (showLoading) setLoading(true);
+    try {
+      setProspects(await listProspects());
+      setError('');
+    } catch (loadError) {
+      setError(`No se pudieron cargar los prospectos: ${loadError instanceof Error ? loadError.message : 'Error desconocido'}`);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   useEffect(() => {
-    setLoading(true);
-    const unsubscribe = subscribeToProspects(
-      (records) => {
-        setProspects(records);
-        setLoading(false);
-        setError('');
-      },
-      (subscriptionError) => {
-        setError(`No se pudieron cargar los prospectos: ${subscriptionError.message}`);
-        setLoading(false);
-      },
-    );
-    return unsubscribe;
+    void loadProspects(true);
+    const interval = window.setInterval(() => void loadProspects(), 30000);
+    return () => window.clearInterval(interval);
   }, []);
 
   const filteredProspects = useMemo(() => {
@@ -224,18 +226,12 @@ export default function Prospectos({ currentUser, users }: ProspectosProps) {
     setSaving(true);
     setError('');
     try {
-      const now = new Date().toISOString();
       if (editing) {
-        await updateProspect(editing.id, { ...form, updated_at: now });
+        await updateProspect(editing.id, form);
       } else {
-        await createProspect({
-          ...form,
-          creado_por: currentUser.id,
-          creado_por_rol: currentUser.rol,
-          created_at: now,
-          updated_at: now,
-        });
+        await createProspect(form);
       }
+      await loadProspects();
       setShowModal(false);
     } catch (saveError) {
       setError(`No se pudo guardar el prospecto: ${saveError instanceof Error ? saveError.message : 'Error desconocido'}`);
@@ -248,6 +244,7 @@ export default function Prospectos({ currentUser, users }: ProspectosProps) {
     if (!isAdmin || !window.confirm(`¿Eliminar el prospecto de ${prospect.prospecto_nombre}?`)) return;
     try {
       await deleteProspect(prospect.id);
+      await loadProspects();
     } catch (deleteError) {
       setError(`No se pudo eliminar el prospecto: ${deleteError instanceof Error ? deleteError.message : 'Error desconocido'}`);
     }

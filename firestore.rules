@@ -125,8 +125,7 @@ service cloud.firestore {
     }
 
     match /prospects/{prospectId} {
-      allow read, create, update: if isAdmin() || hasAnyRole(['Formador']);
-      allow delete: if isAdmin();
+      allow read, write: if false;
     }
 
     match /app_settings/{settingId} {

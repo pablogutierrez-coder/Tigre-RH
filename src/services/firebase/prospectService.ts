@@ -1,35 +1,43 @@
-import { collection, onSnapshot } from 'firebase/firestore';
-import { FDR_COLLECTIONS } from '../../constants/firebaseCollections';
-import { db } from '../../lib/firebase';
+import { auth } from '../../lib/firebase';
+import { getRuntimeEnv } from '../../lib/runtimeConfig';
 import type { Prospect } from '../../types';
-import { createDocumentAutoId, deleteDocument, updateDocument, withFirestoreId } from './firestoreHelpers';
 
-const getRequiredDb = () => {
-  if (!db) throw new Error('Firebase Firestore is not configured. Check .env.local.');
-  return db;
+const API_BASE_URL =
+  getRuntimeEnv('VITE_API_BASE_URL') || (import.meta.env.PROD ? '' : 'http://localhost:8080');
+
+const request = async <T>(path: string, options: RequestInit = {}) => {
+  const token = await auth?.currentUser?.getIdToken();
+  if (!token) throw new Error('Sesion no disponible.');
+  const response = await fetch(`${API_BASE_URL}${path}`, {
+    ...options,
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${token}`,
+      ...options.headers,
+    },
+  });
+  if (response.status === 204) return undefined as T;
+  const payload = await response.json().catch(() => null);
+  if (!response.ok) throw new Error(payload?.message || 'No se pudo procesar el prospecto.');
+  return payload as T;
 };
 
-export const subscribeToProspects = (
-  callback: (prospects: Prospect[]) => void,
-  onError?: (error: Error) => void,
-) => {
-  const source = collection(getRequiredDb(), FDR_COLLECTIONS.prospects);
-  return onSnapshot(
-  source,
-  (snapshot) => callback(
-    snapshot.docs
-      .map((item) => withFirestoreId(item.id, item.data() as Prospect))
-      .sort((a, b) => b.fecha_registro.localeCompare(a.fecha_registro)),
-  ),
-  (error) => onError?.(error),
-);
-};
+type ProspectInput = Omit<Prospect, 'id' | 'creado_por' | 'creado_por_rol' | 'created_at' | 'updated_at'>;
 
-export const createProspect = (prospect: Omit<Prospect, 'id'>) =>
-  createDocumentAutoId<Omit<Prospect, 'id'>>(FDR_COLLECTIONS.prospects, prospect);
+export const listProspects = async () =>
+  (await request<{ prospects: Prospect[] }>('/api/prospects')).prospects;
 
-export const updateProspect = (id: string, prospect: Partial<Prospect>) =>
-  updateDocument<Prospect>(FDR_COLLECTIONS.prospects, id, prospect);
+export const createProspect = (prospect: ProspectInput) =>
+  request<{ prospect: Prospect }>('/api/prospects', {
+    method: 'POST',
+    body: JSON.stringify(prospect),
+  });
+
+export const updateProspect = (id: string, prospect: ProspectInput) =>
+  request<{ prospect: Prospect }>(`/api/prospects/${id}`, {
+    method: 'PUT',
+    body: JSON.stringify(prospect),
+  });
 
 export const deleteProspect = (id: string) =>
-  deleteDocument(FDR_COLLECTIONS.prospects, id);
+  request<void>(`/api/prospects/${id}`, { method: 'DELETE' });
