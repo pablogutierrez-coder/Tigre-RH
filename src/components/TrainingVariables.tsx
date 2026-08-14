@@ -468,11 +468,11 @@ export default function TrainingVariables({ currentUser, users }: TrainingVariab
                 <section className="grid grid-cols-1 lg:grid-cols-2 gap-4">
                   <KpiCard
                     title="Retención a operación"
-                    weight="Peso 40%"
-                    meta="Meta 40%"
+                    weight="Peso 30%"
+                    meta="Meta 70%"
                     guide={{
                       measures: 'Mide la capacidad del formador para lograr que los participantes culminen la capacitación y pasen a operación.',
-                      input: 'Ingresa el porcentaje mensual de retención obtenido. La meta de referencia es 40%; si el valor supera 40%, genera sobrecumplimiento.',
+                      input: 'Ingresa el porcentaje mensual de retención obtenido. La meta de referencia es 70%; si el valor supera 70%, genera sobrecumplimiento.',
                     }}
                   >
                     <PercentInput label="Retención obtenida" value={form.porcentaje_retencion} disabled={isReadOnly} onChange={(value) => updateForm('porcentaje_retencion', value)} />
@@ -481,11 +481,11 @@ export default function TrainingVariables({ currentUser, users }: TrainingVariab
                   </KpiCard>
                   <KpiCard
                     title="Producción durante OJT"
-                    weight="Peso 40%"
-                    meta="Individual informativo"
+                    weight="Peso 50%"
+                    meta="Meta grupal 100%"
                     guide={{
                       measures: 'Mide el desempeño productivo durante OJT según el resultado mensual definido por el coordinador.',
-                      input: 'Ingresa dos porcentajes: el individual solo sirve como referencia; el grupal es el que calcula el aporte ponderado del KPI.',
+                      input: 'Ingresa dos porcentajes: el individual solo sirve como referencia; el grupal se compara con la meta de 100% y calcula el aporte ponderado del KPI.',
                     }}
                   >
                     <PercentInput label="Cumplimiento individual" value={form.porcentaje_produccion_individual} disabled={isReadOnly} onChange={(value) => updateForm('porcentaje_produccion_individual', value)} />
@@ -537,6 +537,11 @@ export default function TrainingVariables({ currentUser, users }: TrainingVariab
                     <p className="text-xs font-black uppercase tracking-wide">Cumplimiento total</p>
                     <p className="text-3xl font-black mt-1">{percent(preview.cumplimiento_total)}</p>
                   </div>
+                  {preview.cumplimiento_total < 85 && (
+                    <div className="mt-3 rounded-xl border border-rose-200 bg-rose-50 p-3 text-xs font-bold text-rose-700">
+                      El cumplimiento global es menor a 85%. La comisión aplicable es S/ 0.00.
+                    </div>
+                  )}
                   <div className="mt-4 space-y-2 text-sm">
                     <ReadMetric label="Comisión base" value={money(preview.comision_base)} />
                     <ReadMetric label="Bloques de sobrecumplimiento" value={String(preview.bloques_sobrecumplimiento)} />
