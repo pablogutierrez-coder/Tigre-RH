@@ -65,3 +65,8 @@ export const annulTrainingVariableEvaluation = (id: string) =>
   request<{ evaluation: TrainingVariableEvaluation }>(`/api/formacion/variables/${id}/anular`, {
     method: 'POST',
   });
+
+export const deleteTrainingVariableEvaluation = (id: string) =>
+  request<{ id: string }>(`/api/formacion/variables/${id}`, {
+    method: 'DELETE',
+  });

@@ -4,6 +4,7 @@ import {
   annulTrainingVariableEvaluation,
   closeTrainingVariableEvaluation,
   createTrainingVariableEvaluation,
+  deleteTrainingVariableEvaluation,
   getTrainingVariableEvaluationById,
   listTrainingVariableEvaluations,
   reopenTrainingVariableEvaluation,
@@ -117,6 +118,15 @@ router.post('/:id/anular', requireAuth, requireRole(['Administrador']), async (r
   try {
     const evaluation = await annulTrainingVariableEvaluation(req.params.id, asActor(req));
     res.json({ evaluation });
+  } catch (error) {
+    sendError(res, error);
+  }
+});
+
+router.delete('/:id', requireAuth, requireRole(['Administrador']), async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const result = await deleteTrainingVariableEvaluation(req.params.id, asActor(req));
+    res.json(result);
   } catch (error) {
     sendError(res, error);
   }

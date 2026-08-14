@@ -240,3 +240,20 @@ export const annulTrainingVariableEvaluation = async (id: string, actor: Actor) 
   await writeHistory(id, 'ANULAR', actor, 'Evaluación anulada.');
   return { ...current, ...changes };
 };
+
+export const deleteTrainingVariableEvaluation = async (id: string, actor: Actor) => {
+  if (actor.rol !== 'Administrador') throw new Error('Solo el administrador puede eliminar evaluaciones.');
+  const current = await getEvaluation(id);
+  if (!current) throw new Error('Evaluación no encontrada.');
+
+  const historySnapshot = await adminDb
+    .collection(HISTORY_COLLECTION)
+    .where('evaluation_id', '==', id)
+    .get();
+  const writer = adminDb.bulkWriter();
+  historySnapshot.docs.forEach((historyDoc) => writer.delete(historyDoc.ref));
+  writer.delete(adminDb.collection(COLLECTION).doc(id));
+  await writer.close();
+
+  return { id };
+};

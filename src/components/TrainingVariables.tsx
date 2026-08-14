@@ -16,7 +16,7 @@ import {
 } from 'lucide-react';
 import type { TrainingVariableEvaluation, User } from '../types';
 import {
-  annulTrainingVariableEvaluation,
+  deleteTrainingVariableEvaluation,
   closeTrainingVariableEvaluation,
   createTrainingVariableEvaluation,
   listTrainingVariableEvaluations,
@@ -279,14 +279,14 @@ export default function TrainingVariables({ currentUser, users }: TrainingVariab
     }
   };
 
-  const handleAnnul = async (evaluation: TrainingVariableEvaluation) => {
-    if (!confirm('Esta evaluación quedará anulada y no contará como evaluación activa. ¿Deseas continuar?')) return;
+  const handleDelete = async (evaluation: TrainingVariableEvaluation) => {
+    if (!confirm('Esta evaluación se eliminará permanentemente. ¿Deseas continuar?')) return;
     setSaving(true);
     try {
-      const response = await annulTrainingVariableEvaluation(evaluation.id);
-      replaceEvaluation(response.evaluation);
+      await deleteTrainingVariableEvaluation(evaluation.id);
+      setEvaluations((prev) => prev.filter((item) => item.id !== evaluation.id));
     } catch (err) {
-      alert(err instanceof Error ? err.message : 'No se pudo anular la evaluación.');
+      alert(err instanceof Error ? err.message : 'No se pudo eliminar la evaluación.');
     } finally {
       setSaving(false);
     }
@@ -400,8 +400,8 @@ export default function TrainingVariables({ currentUser, users }: TrainingVariab
                       {isAdmin && evaluation.estado === 'CERRADO' && (
                         <button onClick={() => handleReopen(evaluation)} disabled={saving} className="p-2 rounded-lg text-amber-700 hover:bg-amber-50" title="Reabrir"><RotateCcw className="w-4 h-4" /></button>
                       )}
-                      {isAdmin && evaluation.estado !== 'ANULADO' && (
-                        <button onClick={() => handleAnnul(evaluation)} disabled={saving} className="p-2 rounded-lg text-rose-700 hover:bg-rose-50" title="Anular"><Trash2 className="w-4 h-4" /></button>
+                      {isAdmin && (
+                        <button onClick={() => handleDelete(evaluation)} disabled={saving} className="p-2 rounded-lg text-rose-700 hover:bg-rose-50" title="Eliminar"><Trash2 className="w-4 h-4" /></button>
                       )}
                     </div>
                   </td>
