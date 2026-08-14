@@ -108,8 +108,6 @@ export default function Prospectos({ currentUser, users }: ProspectosProps) {
   useEffect(() => {
     setLoading(true);
     const unsubscribe = subscribeToProspects(
-      currentUser.id,
-      isAdmin,
       (records) => {
         setProspects(records);
         setLoading(false);
@@ -121,7 +119,7 @@ export default function Prospectos({ currentUser, users }: ProspectosProps) {
       },
     );
     return unsubscribe;
-  }, [currentUser.id, isAdmin]);
+  }, []);
 
   const filteredProspects = useMemo(() => {
     const term = search.trim().toLocaleLowerCase('es');

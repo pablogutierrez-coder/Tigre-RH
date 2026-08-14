@@ -1,4 +1,4 @@
-import { collection, onSnapshot, query, where } from 'firebase/firestore';
+import { collection, onSnapshot } from 'firebase/firestore';
 import { FDR_COLLECTIONS } from '../../constants/firebaseCollections';
 import { db } from '../../lib/firebase';
 import type { Prospect } from '../../types';
@@ -10,15 +10,12 @@ const getRequiredDb = () => {
 };
 
 export const subscribeToProspects = (
-  userId: string,
-  isAdmin: boolean,
   callback: (prospects: Prospect[]) => void,
   onError?: (error: Error) => void,
 ) => {
   const source = collection(getRequiredDb(), FDR_COLLECTIONS.prospects);
-  const prospectQuery = isAdmin ? source : query(source, where('formador_id', '==', userId));
   return onSnapshot(
-  prospectQuery,
+  source,
   (snapshot) => callback(
     snapshot.docs
       .map((item) => withFirestoreId(item.id, item.data() as Prospect))
