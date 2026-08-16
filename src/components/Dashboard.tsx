@@ -207,7 +207,6 @@ export default function Dashboard({
     const d1Attendants = new Set<string>();
     const d2Attendants = new Set<string>();
     const lastDayAttendants = new Set<string>();
-    const desertionFromDay2 = new Set<string>();
 
     filteredAttendance.forEach(a => {
       if (isPresentAttendance(a.estado_asistencia)) {
@@ -215,9 +214,6 @@ export default function Dashboard({
         if (a.dia === 2) d2Attendants.add(a.participant_id);
         const session = filteredSessionById.get(a.training_session_id);
         if (session && a.dia === getTrainingDaysCount(session)) lastDayAttendants.add(a.participant_id);
-      }
-      if (a.dia >= 2 && isDesertionAttendance(a.estado_asistencia)) {
-        desertionFromDay2.add(a.participant_id);
       }
     });
 
@@ -232,19 +228,12 @@ export default function Dashboard({
     ).length;
 
     const altasConfirmadas = filteredConfirmations.filter(c => c.estado_alta === 'Alta confirmada').length;
-    const noAltas = new Set(
+    const altasDesdeDia2 = new Set(
       filteredConfirmations
-        .filter(c => c.estado_alta === 'No alta')
+        .filter(c => c.estado_alta === 'Alta confirmada' && d2Attendants.has(c.participant_id))
         .map(c => c.participant_id),
-    );
-    const desistidos = filteredParticipants.filter(p =>
-      d2Attendants.has(p.id) &&
-      (
-        desertionFromDay2.has(p.id) ||
-        noAltas.has(p.id) ||
-        isDesertionFinalState(p.estado_final)
-      )
-    ).length;
+    ).size;
+    const desistidos = Math.max(asistieronDia2 - altasDesdeDia2, 0);
     const pendientesAlta = filteredParticipants.filter(p => p.estado_final === 'Pendiente de alta').length;
 
     const aptos = filteredParticipants.filter(p => p.resultado_formacion === 'Apto').length;
