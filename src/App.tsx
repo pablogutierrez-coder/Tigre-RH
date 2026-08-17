@@ -1484,17 +1484,6 @@ export default function App() {
       };
       return p;
     }));
-    if (part) {
-      void persistParticipant({
-        ...part,
-        estado_final: nextEstadoFinal,
-        estado_alta: conf.estado_alta,
-      }).catch((error) => {
-        console.error('Error persisting participant alta state:', error);
-        alert(error instanceof Error ? error.message : 'No se pudo guardar el estado del participante.');
-      });
-    }
-
     addAuditLog(
       'Confirmación de alta',
       'Confirmación de altas',

@@ -123,11 +123,34 @@ router.put(
   requireRole(['Administrador', 'Analista', 'Formador', 'Reclutador', 'Coordinador']),
   async (req: AuthenticatedRequest, res: Response) => {
     const parsed = recordSchema.safeParse({ ...req.body, id: req.params.id });
-    if (!parsed.success || !(await ownsSession(req, parsed.data.training_session_id))) {
+    const mustOwnSession = req.user!.rol === 'Formador';
+    if (
+      !parsed.success ||
+      (mustOwnSession && !(await ownsSession(req, parsed.data.training_session_id)))
+    ) {
       res.status(403).json({ message: 'No puedes modificar esta alta.' });
       return;
     }
-    await adminDb.collection('confirmations').doc(req.params.id).set(parsed.data, { merge: true });
+
+    const nextParticipantStatus =
+      parsed.data.estado_alta === 'Alta confirmada'
+        ? 'Alta confirmada'
+        : parsed.data.estado_alta === 'No alta'
+          ? 'Completó capacitación'
+          : 'Pendiente de alta';
+    const writer = adminDb.bulkWriter();
+    writer.set(adminDb.collection('confirmations').doc(req.params.id), parsed.data, { merge: true });
+    if (typeof parsed.data.participant_id === 'string' && parsed.data.participant_id) {
+      writer.set(
+        adminDb.collection('participants').doc(parsed.data.participant_id),
+        {
+          estado_final: nextParticipantStatus,
+          estado_alta: parsed.data.estado_alta,
+        },
+        { merge: true },
+      );
+    }
+    await writer.close();
     res.json({ ok: true });
   },
 );
