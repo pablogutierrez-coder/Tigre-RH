@@ -136,7 +136,7 @@ export const validateClosureRequirements = ({
     hasValidDesertionReason(participant, sessionAttendance),
   );
   const surveyEligibleParticipants = sessionParticipants.filter((participant) =>
-    isSurveyEligibleParticipant(participant, sessionAttendance, getTrainingDays(session).length),
+    isSurveyEligibleParticipant(participant, sessionAttendance),
   );
   const surveyComplete = surveyEligibleParticipants.every((participant) =>
     hasSurveyResponse(participant, relatedSurveys, responses),

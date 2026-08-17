@@ -233,22 +233,22 @@ export default function PublicSurveyForm({
       return;
     }
 
-    // The survey is available to participants who attended the final training day.
+    // The survey is available to every participant who attended training Day 5.
     const pAttendance = attendance.filter(a => a.participant_id === matchedPart.id);
     const matchedSession = sessions.find(session => session.id === survey.training_session_id);
     const requiredTrainingDays = getTrainingDaysCount(matchedSession);
     const attendancePercent = getTrainingAttendancePercent(matchedPart.id, pAttendance, requiredTrainingDays);
-    if (!isSurveyEligibleParticipant(matchedPart, pAttendance, requiredTrainingDays)) {
+    if (!isSurveyEligibleParticipant(matchedPart, pAttendance)) {
       onAuditLog(
-        'Intento de encuesta rechazado por no completar el último día',
+        'Intento de encuesta rechazado por no asistir al Día 5',
         'Encuestas de Satisfacción',
-        `El ejecutivo "${matchedPart.nombres} ${matchedPart.apellidos}" (DNI: ${cleanDni}) fue rechazado porque no registra asistencia en el último día de capacitación. Asistencia acumulada: ${attendancePercent}%.`,
+        `El ejecutivo "${matchedPart.nombres} ${matchedPart.apellidos}" (DNI: ${cleanDni}) fue rechazado porque no registra asistencia en el Día 5 de capacitación. Asistencia acumulada: ${attendancePercent}%.`,
         survey.campaña,
         survey.codigo_generacion,
         matchedPart.id,
         `${matchedPart.nombres} ${matchedPart.apellidos}`
       );
-      setValidationError('No registras asistencia en el último día de capacitación. Comunícate con el área de Formación.');
+      setValidationError('No registras asistencia en el Día 5 de capacitación. Comunícate con el área de Formación.');
       return;
     }
 

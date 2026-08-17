@@ -52,7 +52,6 @@ import * as XLSX from 'xlsx';
 import { sendSurveyInvitations } from '../services/surveyEmailService';
 import { permissions } from '../utils/permissions';
 import { isSurveyEligibleParticipant } from '../utils/trainingProgress';
-import { getTrainingDaysCount } from '../utils/trainingDays';
 
 interface EncuestasProps {
   surveys: TrainingSurvey[];
@@ -160,14 +159,13 @@ export default function Encuestas({
   };
 
   const getSurveyEligibleParticipants = (survey: TrainingSurvey) => {
-    const session = getSurveySession(survey);
     const sessionAttendance = attendance.filter(
       (record) => record.training_session_id === survey.training_session_id,
     );
     return participants.filter(
       (participant) =>
         participant.training_session_id === survey.training_session_id &&
-        isSurveyEligibleParticipant(participant, sessionAttendance, getTrainingDaysCount(session)),
+        isSurveyEligibleParticipant(participant, sessionAttendance),
     );
   };
 
@@ -1575,7 +1573,7 @@ export default function Encuestas({
 
                   <div className="divide-y divide-slate-100 max-h-[400px] overflow-y-auto">
                     {monitoreoData.list.length === 0 ? (
-                      <div className="p-8 text-center text-slate-400 text-xs">No hay ejecutivos con asistencia registrada en el último día de esta capacitación.</div>
+                      <div className="p-8 text-center text-slate-400 text-xs">No hay ejecutivos con asistencia registrada en el Día 5 de esta capacitación.</div>
                     ) : (
                       monitoreoData.list.map((item) => {
                         const hasResp = item.hasResponded;

@@ -5,6 +5,7 @@ const DESERTION_ATTENDANCE = new Set(['Desisti�', 'Desistió', 'Baja']);
 const DESERTION_FINAL_STATES = new Set(['Desisti�', 'Desistió', 'No asisti�', 'No asistió']);
 export const REQUIRED_TRAINING_DAYS = 10;
 export const REQUIRED_SURVEY_ATTENDANCE_PERCENT = 80;
+export const SURVEY_ELIGIBILITY_DAY = 5;
 
 export const getPresentAttendanceDays = (
   participantId: string,
@@ -44,14 +45,10 @@ export const hasTrainingDropout = (
 export const isSurveyEligibleParticipant = (
   participant: Participant,
   attendance: AttendanceRecord[],
-  requiredTrainingDays = REQUIRED_TRAINING_DAYS,
-) => {
-  if (hasTrainingDropout(participant, attendance)) return false;
-
-  return attendance.some(
+) =>
+  attendance.some(
     (record) =>
       record.participant_id === participant.id &&
-      record.dia === requiredTrainingDays &&
+      record.dia === SURVEY_ELIGIBILITY_DAY &&
       PRESENT_ATTENDANCE.has(record.estado_asistencia),
   );
-};
