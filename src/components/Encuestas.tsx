@@ -52,6 +52,7 @@ import * as XLSX from 'xlsx';
 import { sendSurveyInvitations } from '../services/surveyEmailService';
 import { permissions } from '../utils/permissions';
 import { isSurveyEligibleParticipant } from '../utils/trainingProgress';
+import { getTrainingDaysCount } from '../utils/trainingDays';
 
 interface EncuestasProps {
   surveys: TrainingSurvey[];
@@ -157,13 +158,14 @@ export default function Encuestas({
   };
 
   const getSurveyEligibleParticipants = (survey: TrainingSurvey) => {
+    const session = getSurveySession(survey);
     const sessionAttendance = attendance.filter(
       (record) => record.training_session_id === survey.training_session_id,
     );
     return participants.filter(
       (participant) =>
         participant.training_session_id === survey.training_session_id &&
-        isSurveyEligibleParticipant(participant, sessionAttendance),
+        isSurveyEligibleParticipant(participant, sessionAttendance, getTrainingDaysCount(session)),
     );
   };
 

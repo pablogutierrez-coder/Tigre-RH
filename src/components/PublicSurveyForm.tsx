@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { TrainingSurvey, SurveyResponse, Participant, TrainingSession, AuditLog, User } from '../types';
 import { getTrainingAttendancePercent, isSurveyEligibleParticipant } from '../utils/trainingProgress';
+import { getTrainingDaysCount } from '../utils/trainingDays';
 import { AlertTriangle, CheckCircle2, ShieldCheck, Clipboard, Send, Star, HelpCircle } from 'lucide-react';
 import BrandLogo from './BrandLogo';
 import { APP_NAME } from '../constants/app';
@@ -234,8 +235,10 @@ export default function PublicSurveyForm({
 
     // Check attendance and outcome (minimum 80% attendance and Apto required to answer)
     const pAttendance = attendance.filter(a => a.participant_id === matchedPart.id);
-    const attendancePercent = getTrainingAttendancePercent(matchedPart.id, pAttendance);
-    if (!isSurveyEligibleParticipant(matchedPart, pAttendance)) {
+    const matchedSession = sessions.find(session => session.id === survey.training_session_id);
+    const requiredTrainingDays = getTrainingDaysCount(matchedSession);
+    const attendancePercent = getTrainingAttendancePercent(matchedPart.id, pAttendance, requiredTrainingDays);
+    if (!isSurveyEligibleParticipant(matchedPart, pAttendance, requiredTrainingDays)) {
       onAuditLog(
         'Intento de encuesta rechazado por baja asistencia',
         'Encuestas de Satisfacción',

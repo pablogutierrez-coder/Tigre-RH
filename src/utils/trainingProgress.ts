@@ -30,9 +30,10 @@ export const getPresentAttendanceDays = (
 export const getTrainingAttendancePercent = (
   participantId: string,
   attendance: AttendanceRecord[],
+  requiredTrainingDays = REQUIRED_TRAINING_DAYS,
 ) =>
   Math.round(
-    (getPresentAttendanceDays(participantId, attendance) / REQUIRED_TRAINING_DAYS) *
+    (getPresentAttendanceDays(participantId, attendance) / requiredTrainingDays) *
       100,
   );
 
@@ -50,6 +51,7 @@ export const hasTrainingDropout = (
 export const isSurveyEligibleParticipant = (
   participant: Participant,
   attendance: AttendanceRecord[],
+  requiredTrainingDays = REQUIRED_TRAINING_DAYS,
 ) => {
   if (hasTrainingDropout(participant, attendance)) return false;
 
@@ -59,7 +61,7 @@ export const isSurveyEligibleParticipant = (
 
   return (
     hasApprovedOutcome &&
-    getTrainingAttendancePercent(participant.id, attendance) >=
+    getTrainingAttendancePercent(participant.id, attendance, requiredTrainingDays) >=
       REQUIRED_SURVEY_ATTENDANCE_PERCENT
   );
 };
