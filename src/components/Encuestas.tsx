@@ -118,6 +118,7 @@ export default function Encuestas({
   const [copiedDniId, setCopiedDniId] = useState<string | null>(null);
   const [sendingEmailId, setSendingEmailId] = useState<string | null>(null);
   const [emailFeedback, setEmailFeedback] = useState('');
+  const [viewingResponse, setViewingResponse] = useState<SurveyResponse | null>(null);
 
   const handleCopyLink = (token: string, surveyId: string) => {
     const origin = window.location.origin + window.location.pathname;
@@ -139,6 +140,7 @@ export default function Encuestas({
   const isAnalyst = currentUser.rol === 'Analista';
   const isRecruiter = currentUser.rol === 'Reclutador';
   const isStaff = currentUser.rol === 'Coordinador' || currentUser.rol === 'Sistemas';
+  const canSendSurveyEmails = isAdmin || isAnalyst || isRecruiter || currentUser.rol === 'Coordinador';
 
   // --- HELPER FOR ANONYMIZATION ---
   const getTrainerDisplayName = (trainerId: string, trainerName: string) => {
@@ -678,7 +680,7 @@ export default function Encuestas({
     );
 
     const mappedList = classParticipants.map(p => {
-      const resp = surveyResponses.find(r => r.dni === p.dni);
+      const resp = surveyResponses.find(r => r.dni.trim() === p.dni.trim());
       return {
         participant: p,
         hasResponded: !!resp,
@@ -687,7 +689,7 @@ export default function Encuestas({
     });
 
     const totalCount = classParticipants.length;
-    const respondedCount = surveyResponses.length;
+    const respondedCount = mappedList.filter((item) => item.hasResponded).length;
     const percentage = totalCount > 0 ? Math.round((respondedCount / totalCount) * 100) : 0;
 
     return {
@@ -1539,7 +1541,7 @@ export default function Encuestas({
                   </div>
 
                   <div className="flex flex-col sm:flex-row sm:items-center gap-3 shrink-0">
-                    {currentMonitoreoSurvey.estado === 'Habilitada' && (
+                    {currentMonitoreoSurvey.estado === 'Habilitada' && canSendSurveyEmails && (
                       <button
                         onClick={handleSendPendingEmails}
                         disabled={sendingEmailId === `survey-${currentMonitoreoSurvey.id}`}
@@ -1573,7 +1575,7 @@ export default function Encuestas({
 
                   <div className="divide-y divide-slate-100 max-h-[400px] overflow-y-auto">
                     {monitoreoData.list.length === 0 ? (
-                      <div className="p-8 text-center text-slate-400 text-xs">No hay ejecutivos asignados en esta capacitación.</div>
+                      <div className="p-8 text-center text-slate-400 text-xs">No hay ejecutivos con asistencia registrada en el último día de esta capacitación.</div>
                     ) : (
                       monitoreoData.list.map((item) => {
                         const hasResp = item.hasResponded;
@@ -1598,13 +1600,22 @@ export default function Encuestas({
                                   <span className={`px-2.5 py-1 rounded-full text-[9px] font-extrabold uppercase border ${getSatisfactionLevel_20(det.final_score_20).color}`}>
                                     {det.final_score_20} / 20 ({det.classification})
                                   </span>
+                                  <button
+                                    type="button"
+                                    onClick={() => setViewingResponse(det)}
+                                    className="text-[10px] font-extrabold text-indigo-600 hover:text-indigo-800 hover:bg-indigo-50 border border-indigo-150 px-2.5 py-1 rounded-lg transition-colors flex items-center gap-1 cursor-pointer"
+                                    title="Ver respuesta de la encuesta"
+                                  >
+                                    <Eye className="w-3 h-3" />
+                                    Ver respuesta
+                                  </button>
                                 </div>
                               ) : (
                                 <div className="flex items-center gap-2">
                                   <span className="px-2.5 py-1 rounded-full text-[9px] font-bold uppercase bg-amber-50 text-amber-700 border border-amber-100">
                                     Pendiente
                                   </span>
-                                  {currentMonitoreoSurvey.estado === 'Habilitada' && (
+                                  {currentMonitoreoSurvey.estado === 'Habilitada' && canSendSurveyEmails && (
                                     <>
                                       <button
                                         onClick={() => handleCopyPersonalLink(currentMonitoreoSurvey.token, item.participant.dni, item.participant.id)}
@@ -1637,6 +1648,40 @@ export default function Encuestas({
               </div>
             )
           )}
+        </div>
+      )}
+
+      {viewingResponse && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/55 p-4" role="dialog" aria-modal="true">
+          <div className="w-full max-w-2xl overflow-hidden rounded-2xl bg-white shadow-2xl">
+            <div className="flex items-start justify-between border-b border-slate-100 px-5 py-4">
+              <div>
+                <h3 className="text-lg font-black text-slate-900">Respuesta de encuesta</h3>
+                <p className="mt-1 text-xs text-slate-500">
+                  {viewingResponse.nombre_ejecutivo} · DNI {viewingResponse.dni} · {viewingResponse.fecha_respuesta.split('T')[0]}
+                </p>
+              </div>
+              <button type="button" onClick={() => setViewingResponse(null)} className="rounded-lg px-3 py-2 text-xs font-bold text-slate-500 hover:bg-slate-100">Cerrar</button>
+            </div>
+            <div className="max-h-[70vh] overflow-y-auto p-5">
+              <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+                {[viewingResponse.q1, viewingResponse.q2, viewingResponse.q3, viewingResponse.q4, viewingResponse.q5, viewingResponse.q6, viewingResponse.q7, viewingResponse.q8].map((score, index) => (
+                  <div key={index} className="rounded-xl border border-slate-100 bg-slate-50 p-3 text-center">
+                    <p className="text-[10px] font-black uppercase text-slate-400">Pregunta {index + 1}</p>
+                    <p className="mt-1 text-lg font-black text-slate-900">{score}</p>
+                  </div>
+                ))}
+              </div>
+              <div className="mt-4 rounded-xl border border-indigo-100 bg-indigo-50 p-4">
+                <p className="text-xs font-bold text-indigo-700">Resultado final</p>
+                <p className="mt-1 text-xl font-black text-indigo-950">{viewingResponse.final_score_20} / 20 · {viewingResponse.classification}</p>
+              </div>
+              <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                <div className="rounded-xl border border-slate-100 p-4"><p className="text-xs font-black text-slate-700">Aspectos positivos</p><p className="mt-2 whitespace-pre-wrap text-sm text-slate-600">{viewingResponse.comentario_positivo || 'Sin comentario.'}</p></div>
+                <div className="rounded-xl border border-slate-100 p-4"><p className="text-xs font-black text-slate-700">Aspectos de mejora</p><p className="mt-2 whitespace-pre-wrap text-sm text-slate-600">{viewingResponse.aspecto_mejora || 'Sin comentario.'}</p></div>
+              </div>
+            </div>
+          </div>
         </div>
       )}
 

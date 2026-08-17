@@ -3,13 +3,6 @@ import type { AttendanceRecord, Participant } from '../types';
 const PRESENT_ATTENDANCE = new Set(['Asistio', 'Asisti�', 'Asistió', 'Tardanza']);
 const DESERTION_ATTENDANCE = new Set(['Desisti�', 'Desistió', 'Baja']);
 const DESERTION_FINAL_STATES = new Set(['Desisti�', 'Desistió', 'No asisti�', 'No asistió']);
-const SURVEY_READY_FINAL_STATES = new Set([
-  'Complet� capacitaci�n',
-  'Completó capacitación',
-  'Pendiente de alta',
-  'Alta confirmada',
-]);
-
 export const REQUIRED_TRAINING_DAYS = 10;
 export const REQUIRED_SURVEY_ATTENDANCE_PERCENT = 80;
 
@@ -55,13 +48,10 @@ export const isSurveyEligibleParticipant = (
 ) => {
   if (hasTrainingDropout(participant, attendance)) return false;
 
-  const hasApprovedOutcome =
-    participant.resultado_formacion === 'Apto' ||
-    SURVEY_READY_FINAL_STATES.has(participant.estado_final);
-
-  return (
-    hasApprovedOutcome &&
-    getTrainingAttendancePercent(participant.id, attendance, requiredTrainingDays) >=
-      REQUIRED_SURVEY_ATTENDANCE_PERCENT
+  return attendance.some(
+    (record) =>
+      record.participant_id === participant.id &&
+      record.dia === requiredTrainingDays &&
+      PRESENT_ATTENDANCE.has(record.estado_asistencia),
   );
 };

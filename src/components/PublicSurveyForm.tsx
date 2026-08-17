@@ -233,22 +233,22 @@ export default function PublicSurveyForm({
       return;
     }
 
-    // Check attendance and outcome (minimum 80% attendance and Apto required to answer)
+    // The survey is available to participants who attended the final training day.
     const pAttendance = attendance.filter(a => a.participant_id === matchedPart.id);
     const matchedSession = sessions.find(session => session.id === survey.training_session_id);
     const requiredTrainingDays = getTrainingDaysCount(matchedSession);
     const attendancePercent = getTrainingAttendancePercent(matchedPart.id, pAttendance, requiredTrainingDays);
     if (!isSurveyEligibleParticipant(matchedPart, pAttendance, requiredTrainingDays)) {
       onAuditLog(
-        'Intento de encuesta rechazado por baja asistencia',
+        'Intento de encuesta rechazado por no completar el último día',
         'Encuestas de Satisfacción',
-        `El ejecutivo "${matchedPart.nombres} ${matchedPart.apellidos}" (DNI: ${cleanDni}) fue rechazado para responder la encuesta debido a baja asistencia (${attendancePercent}%).`,
+        `El ejecutivo "${matchedPart.nombres} ${matchedPart.apellidos}" (DNI: ${cleanDni}) fue rechazado porque no registra asistencia en el último día de capacitación. Asistencia acumulada: ${attendancePercent}%.`,
         survey.campaña,
         survey.codigo_generacion,
         matchedPart.id,
         `${matchedPart.nombres} ${matchedPart.apellidos}`
       );
-      setValidationError(`No cumples con el porcentaje minimo de asistencia requerido (80%) o aun no tienes resultado apto de capacitacion. Tu asistencia actual registrada es del ${attendancePercent}%.`);
+      setValidationError('No registras asistencia en el último día de capacitación. Comunícate con el área de Formación.');
       return;
     }
 
