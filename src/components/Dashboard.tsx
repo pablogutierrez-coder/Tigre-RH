@@ -312,6 +312,7 @@ export default function Dashboard({
 
       const total = campParts.length;
       const d1 = new Set();
+      const d2 = new Set();
       const lastDay = new Set();
       const desertionFromDay2 = new Set<string>();
 
@@ -319,6 +320,7 @@ export default function Dashboard({
         if (campPartIds.has(a.participant_id) && isPresentAttendance(a.estado_asistencia)) {
           const session = campSessions.find((item) => item.id === a.training_session_id);
           if (a.dia === 1) d1.add(a.participant_id);
+          if (a.dia === 2) d2.add(a.participant_id);
           if (session && a.dia === getTrainingDaysCount(session)) lastDay.add(a.participant_id);
         }
         if (campPartIds.has(a.participant_id) && a.dia >= 2 && isDesertionAttendance(a.estado_asistencia)) {
@@ -333,14 +335,14 @@ export default function Dashboard({
           .map(c => c.participant_id),
       );
       const desistidos = campParts.filter(p =>
-        d1.has(p.id) &&
+        d2.has(p.id) &&
         (
           desertionFromDay2.has(p.id) ||
           noAltas.has(p.id) ||
           isDesertionFinalState(p.estado_final)
         )
       ).length;
-      const retencion = d1.size > 0 ? Math.round((lastDay.size / d1.size) * 100) : 0;
+      const retencion = d2.size > 0 ? Math.round((lastDay.size / d2.size) * 100) : 0;
       const conversion = lastDay.size > 0 ? Math.round((altas / lastDay.size) * 100) : 0;
 
       return {
@@ -366,6 +368,7 @@ export default function Dashboard({
 
       const total = tParts.length;
       const d1 = new Set<string>();
+      const d2 = new Set<string>();
       const lastDay = new Set();
       const desertionFromDay2 = new Set<string>();
 
@@ -373,6 +376,7 @@ export default function Dashboard({
         if (tPartIds.has(a.participant_id) && isPresentAttendance(a.estado_asistencia)) {
           const session = trainerSessions.find((item) => item.id === a.training_session_id);
           if (a.dia === 1) d1.add(a.participant_id);
+          if (a.dia === 2) d2.add(a.participant_id);
           if (session && a.dia === getTrainingDaysCount(session)) lastDay.add(a.participant_id);
         }
         if (tPartIds.has(a.participant_id) && a.dia >= 2 && isDesertionAttendance(a.estado_asistencia)) {
@@ -387,7 +391,7 @@ export default function Dashboard({
           .map(c => c.participant_id),
       );
       const desistidos = tParts.filter(p =>
-        d1.has(p.id) &&
+        d2.has(p.id) &&
         (
           desertionFromDay2.has(p.id) ||
           noAltas.has(p.id) ||
@@ -410,9 +414,9 @@ export default function Dashboard({
   // 4. Deserciones por Motivo
   const desercionesPorMotivo = useMemo(() => {
     const motivosCounts: { [key: string]: number } = {};
-    const attendedDay1 = new Set(
+    const attendedDay2 = new Set(
       filteredAttendance
-        .filter(a => a.dia === 1 && isPresentAttendance(a.estado_asistencia))
+        .filter(a => a.dia === 2 && isPresentAttendance(a.estado_asistencia))
         .map(a => a.participant_id),
     );
     const motivoPorParticipante = new Map<string, string>();
@@ -434,7 +438,7 @@ export default function Dashboard({
     });
 
     filteredParticipants.forEach((participant) => {
-      if (!attendedDay1.has(participant.id)) return;
+      if (!attendedDay2.has(participant.id)) return;
       const motivo =
         motivoPorParticipante.get(participant.id) ||
         noAltaPorParticipante.get(participant.id) ||
