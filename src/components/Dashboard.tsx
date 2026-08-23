@@ -227,7 +227,15 @@ export default function Dashboard({
       p.estado_final === 'Alta confirmada'
     ).length;
 
-    const altasConfirmadas = filteredConfirmations.filter(c => c.estado_alta === 'Alta confirmada').length;
+    const confirmedAltaParticipantIds = new Set(
+      filteredConfirmations
+        .filter(c => c.estado_alta === 'Alta confirmada')
+        .map(c => c.participant_id),
+    );
+    const altasConfirmadas = confirmedAltaParticipantIds.size;
+    const altasDesdeUltimoDia = Array.from(lastDayAttendants)
+      .filter((participantId) => confirmedAltaParticipantIds.has(participantId))
+      .length;
     const altasDesdeDia2 = new Set(
       filteredConfirmations
         .filter(c => c.estado_alta === 'Alta confirmada' && d2Attendants.has(c.participant_id))
@@ -243,7 +251,7 @@ export default function Dashboard({
 
     const convocadosVsDia1 = totalCargados > 0 ? Math.round((asistieronDia1 / totalCargados) * 100) : 0;
     const ultimoDiaVsDia1 = asistieronDia1 > 0 ? Math.round((asistieronUltimoDia / asistieronDia1) * 100) : 0;
-    const altasVsUltimoDia = asistieronUltimoDia > 0 ? Math.round((altasConfirmadas / asistieronUltimoDia) * 100) : 0;
+    const altasVsUltimoDia = asistieronUltimoDia > 0 ? Math.round((altasDesdeUltimoDia / asistieronUltimoDia) * 100) : 0;
     const desercionRate = asistieronDia2 > 0 ? Math.round((desistidos / asistieronDia2) * 100) : 0;
 
     const reqPendientes = reopens.filter(r => r.estado === 'pendiente').length;
@@ -258,6 +266,7 @@ export default function Dashboard({
       completaron,
       desistidos,
       altasConfirmadas,
+      altasDesdeUltimoDia,
       pendientesAlta,
       aptos,
       noAptos,
@@ -721,7 +730,7 @@ export default function Dashboard({
               <p className="text-slate-400 font-medium text-xs uppercase tracking-wider">Altas / Día final</p>
               <h3 className="text-slate-900 text-3xl font-black mt-1">{metrics.altasVsUltimoDia}%</h3>
               <p className="text-xs text-fuchsia-600 font-medium mt-1">
-                {metrics.altasConfirmadas} altas confirmadas
+                {metrics.altasDesdeUltimoDia} de {metrics.asistieronUltimoDia} con alta confirmada
               </p>
             </div>
             <div className="bg-fuchsia-50 rounded-xl p-2.5 text-fuchsia-600 border border-fuchsia-100">
