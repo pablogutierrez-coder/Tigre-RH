@@ -72,6 +72,8 @@ export interface Prospect {
   fecha_registro: string;
   formador_id: string;
   formador_nombre: string;
+  training_session_id?: string;
+  training_session_code?: string;
   ejecutivo_nombre: string;
   ejecutivo_dni: string;
   ejecutivo_inconcert: string;

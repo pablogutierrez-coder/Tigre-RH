@@ -2,8 +2,11 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   BarChart3,
   BriefcaseBusiness,
+  CalendarDays,
+  Filter,
   Pencil,
   Plus,
+  RotateCcw,
   Search,
   ShoppingBag,
   Trash2,
@@ -21,7 +24,7 @@ import {
   XAxis,
   YAxis,
 } from 'recharts';
-import type { Prospect, ProspectStatus, User } from '../types';
+import type { Prospect, ProspectStatus, TrainingSession, User } from '../types';
 import {
   createProspect,
   deleteProspect,
@@ -32,6 +35,7 @@ import {
 interface ProspectosProps {
   currentUser: User;
   users: User[];
+  sessions: TrainingSession[];
 }
 
 const PROSPECT_CAMPAIGNS = ['Entel RUC 10', 'Entel RUC 20', 'Culqi'] as const;
@@ -58,6 +62,8 @@ const emptyForm = (currentUser: User): ProspectForm => ({
   fecha_registro: peruDate(),
   formador_id: currentUser.rol === 'Formador' ? currentUser.id : '',
   formador_nombre: currentUser.rol === 'Formador' ? currentUser.nombre : '',
+  training_session_id: '',
+  training_session_code: '',
   ejecutivo_nombre: '',
   ejecutivo_dni: '',
   ejecutivo_inconcert: '',
@@ -89,7 +95,45 @@ const formatDate = (value: string) => {
     .replace('.', '');
 };
 
-export default function Prospectos({ currentUser, users }: ProspectosProps) {
+const normalizedKey = (value: string) => value
+  .normalize('NFD')
+  .replace(/[\u0300-\u036f]/g, '')
+  .replace(/\bempresas\b/gi, '')
+  .replace(/[^a-zA-Z0-9]/g, '')
+  .toLowerCase();
+
+const getSessionCode = (session: TrainingSession) =>
+  session.nombre_generacion || session.generation_code || session.id;
+
+const resolveProspectSession = (prospect: Prospect, sessions: TrainingSession[]) => {
+  const explicit = sessions.find((session) =>
+    session.id === prospect.training_session_id ||
+    getSessionCode(session) === prospect.training_session_code,
+  );
+  if (explicit) return explicit;
+
+  const campaignKey = normalizedKey(prospect.campana);
+  const trainerKey = normalizedKey(prospect.formador_nombre || '');
+  const candidates = sessions.filter((session) => {
+    const sameCampaign = normalizedKey(session.campaña) === campaignKey;
+    const sameTrainer = session.formador_id === prospect.formador_id ||
+      (!!trainerKey && normalizedKey(session.formador_nombre || '') === trainerKey);
+    return sameCampaign && sameTrainer;
+  });
+  if (candidates.length === 0) return undefined;
+
+  const prospectTime = new Date(`${prospect.fecha_registro}T12:00:00`).getTime();
+  return candidates
+    .map((session) => {
+      const start = new Date(`${session.fecha_inicio}T12:00:00`).getTime();
+      const end = new Date(`${session.fecha_fin}T12:00:00`).getTime();
+      const containsDate = prospectTime >= start && prospectTime <= end;
+      return { session, distance: containsDate ? 0 : Math.min(Math.abs(prospectTime - start), Math.abs(prospectTime - end)) };
+    })
+    .sort((a, b) => a.distance - b.distance)[0]?.session;
+};
+
+export default function Prospectos({ currentUser, users, sessions }: ProspectosProps) {
   const isAdmin = currentUser.rol === 'Administrador';
   const trainers = useMemo(
     () => users.filter((user) => user.rol === 'Formador' && user.estado === 'Activo'),
@@ -100,6 +144,9 @@ export default function Prospectos({ currentUser, users }: ProspectosProps) {
   const [error, setError] = useState('');
   const [search, setSearch] = useState('');
   const [campaignFilter, setCampaignFilter] = useState('todas');
+  const [trainerFilter, setTrainerFilter] = useState('todos');
+  const [dateFilter, setDateFilter] = useState('');
+  const [sessionFilter, setSessionFilter] = useState('todas');
   const [showModal, setShowModal] = useState(false);
   const [editing, setEditing] = useState<Prospect | null>(null);
   const [form, setForm] = useState<ProspectForm>(() => emptyForm(currentUser));
@@ -125,10 +172,33 @@ export default function Prospectos({ currentUser, users }: ProspectosProps) {
     return () => window.clearInterval(interval);
   }, []);
 
+  const campaignOptions = useMemo(
+    () => Array.from(new Set([...PROSPECT_CAMPAIGNS, ...prospects.map((prospect) => prospect.campana)])).sort((a, b) => a.localeCompare(b, 'es')),
+    [prospects],
+  );
+  const trainerOptions = useMemo(() => {
+    const options = new Map<string, string>();
+    prospects.forEach((prospect) => {
+      if (prospect.formador_id) options.set(prospect.formador_id, prospect.formador_nombre || 'Formador sin nombre');
+    });
+    trainers.forEach((trainer) => options.set(trainer.id, trainer.nombre));
+    return Array.from(options.entries()).sort((a, b) => a[1].localeCompare(b[1], 'es'));
+  }, [prospects, trainers]);
+  const sessionOptions = useMemo(() => sessions
+    .filter((session) => {
+      if (campaignFilter !== 'todas' && normalizedKey(session.campaña) !== normalizedKey(campaignFilter)) return false;
+      if (trainerFilter !== 'todos' && session.formador_id !== trainerFilter) return false;
+      return true;
+    })
+    .sort((a, b) => b.fecha_inicio.localeCompare(a.fecha_inicio)), [sessions, campaignFilter, trainerFilter]);
+
   const filteredProspects = useMemo(() => {
     const term = search.trim().toLocaleLowerCase('es');
     return prospects.filter((prospect) => {
       if (campaignFilter !== 'todas' && prospect.campana !== campaignFilter) return false;
+      if (trainerFilter !== 'todos' && prospect.formador_id !== trainerFilter) return false;
+      if (dateFilter && prospect.fecha_registro !== dateFilter) return false;
+      if (sessionFilter !== 'todas' && resolveProspectSession(prospect, sessions)?.id !== sessionFilter) return false;
       if (!term) return true;
       return [
         prospect.ejecutivo_nombre,
@@ -140,7 +210,7 @@ export default function Prospectos({ currentUser, users }: ProspectosProps) {
         prospect.telefono,
       ].some((value) => String(value || '').toLocaleLowerCase('es').includes(term));
     });
-  }, [prospects, search, campaignFilter]);
+  }, [prospects, search, campaignFilter, trainerFilter, dateFilter, sessionFilter, sessions]);
 
   const lastFiveDays = useMemo(() => {
     const today = new Date(`${peruDate()}T12:00:00`);
@@ -216,7 +286,35 @@ export default function Prospectos({ currentUser, users }: ProspectosProps) {
       ...previous,
       formador_id: trainerId,
       formador_nombre: trainer?.nombre || '',
+      training_session_id: previous.training_session_id && sessions.some((session) => session.id === previous.training_session_id && session.formador_id === trainerId)
+        ? previous.training_session_id
+        : '',
+      training_session_code: previous.training_session_id && sessions.some((session) => session.id === previous.training_session_id && session.formador_id === trainerId)
+        ? previous.training_session_code
+        : '',
     }));
+  };
+
+  const handleSessionChange = (sessionId: string) => {
+    const selectedSession = sessions.find((session) => session.id === sessionId);
+    setForm((previous) => ({
+      ...previous,
+      training_session_id: sessionId,
+      training_session_code: selectedSession ? getSessionCode(selectedSession) : '',
+    }));
+  };
+
+  const formSessionOptions = useMemo(() => sessions
+    .filter((session) => normalizedKey(session.campaña) === normalizedKey(form.campana))
+    .filter((session) => !form.formador_id || session.formador_id === form.formador_id)
+    .sort((a, b) => b.fecha_inicio.localeCompare(a.fecha_inicio)), [sessions, form.campana, form.formador_id]);
+
+  const clearFilters = () => {
+    setCampaignFilter('todas');
+    setTrainerFilter('todos');
+    setDateFilter('');
+    setSessionFilter('todas');
+    setSearch('');
   };
 
   const handleSave = async (event: React.FormEvent) => {
@@ -268,6 +366,40 @@ export default function Prospectos({ currentUser, users }: ProspectosProps) {
       </div>
 
       {error && <div className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-semibold text-rose-700">{error}</div>}
+
+      <section className="glass-card rounded-2xl p-4">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <h2 className="flex items-center gap-2 text-base font-black text-slate-900"><Filter className="h-4 w-4 text-indigo-600" /> Filtros de prospectos</h2>
+            <p className="mt-0.5 text-[11px] text-slate-400">Actualizan el listado, las tarjetas y los gráficos OJT.</p>
+          </div>
+          <button type="button" onClick={clearFilters} className="inline-flex items-center justify-center gap-2 rounded-xl border border-slate-200 px-3 py-2 text-xs font-bold text-slate-600 hover:bg-slate-50">
+            <RotateCcw className="h-3.5 w-3.5" /> Limpiar filtros
+          </button>
+        </div>
+        <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-5">
+          <label className="space-y-1">
+            <span className="flex items-center gap-1.5 text-[10px] font-black uppercase text-slate-500"><Search className="h-3.5 w-3.5" /> Buscar</span>
+            <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Ejecutivo o prospecto" className="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-xs outline-none focus:border-indigo-400" />
+          </label>
+          <label className="space-y-1">
+            <span className="text-[10px] font-black uppercase text-slate-500">Campaña</span>
+            <select value={campaignFilter} onChange={(event) => { setCampaignFilter(event.target.value); setSessionFilter('todas'); }} className="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-xs text-slate-700 outline-none focus:border-indigo-400"><option value="todas">Todas las campañas</option>{campaignOptions.map((campaign) => <option key={campaign} value={campaign}>{campaign}</option>)}</select>
+          </label>
+          <label className="space-y-1">
+            <span className="text-[10px] font-black uppercase text-slate-500">Formador</span>
+            <select value={trainerFilter} onChange={(event) => { setTrainerFilter(event.target.value); setSessionFilter('todas'); }} className="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-xs text-slate-700 outline-none focus:border-indigo-400"><option value="todos">Todos los formadores</option>{trainerOptions.map(([id, name]) => <option key={id} value={id}>{name}</option>)}</select>
+          </label>
+          <label className="space-y-1">
+            <span className="flex items-center gap-1.5 text-[10px] font-black uppercase text-slate-500"><CalendarDays className="h-3.5 w-3.5" /> Fecha</span>
+            <input type="date" value={dateFilter} onChange={(event) => setDateFilter(event.target.value)} className="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-xs text-slate-700 outline-none focus:border-indigo-400" />
+          </label>
+          <label className="space-y-1">
+            <span className="text-[10px] font-black uppercase text-slate-500">Código de capacitación</span>
+            <select value={sessionFilter} onChange={(event) => setSessionFilter(event.target.value)} className="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-xs text-slate-700 outline-none focus:border-indigo-400"><option value="todas">Todas las capacitaciones</option>{sessionOptions.map((session) => <option key={session.id} value={session.id}>{getSessionCode(session)}</option>)}</select>
+          </label>
+        </div>
+      </section>
 
       <section className="space-y-4">
         <div>
@@ -322,19 +454,16 @@ export default function Prospectos({ currentUser, users }: ProspectosProps) {
       </section>
 
       <section className="glass-card overflow-hidden rounded-2xl">
-        <div className="flex flex-col gap-3 border-b border-slate-100 p-4 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex items-center justify-between border-b border-slate-100 p-4">
           <h2 className="text-base font-black text-slate-900">Prospectos registrados</h2>
-          <div className="flex flex-col gap-2 sm:flex-row">
-            <div className="relative"><Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" /><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Buscar ejecutivo o prospecto" className="w-full rounded-xl border border-slate-200 py-2 pl-9 pr-3 text-xs outline-none focus:border-indigo-400 sm:w-64" /></div>
-            <select value={campaignFilter} onChange={(event) => setCampaignFilter(event.target.value)} className="rounded-xl border border-slate-200 px-3 py-2 text-xs text-slate-700 outline-none focus:border-indigo-400"><option value="todas">Todas las campañas</option>{PROSPECT_CAMPAIGNS.map((campaign) => <option key={campaign}>{campaign}</option>)}</select>
-          </div>
+          <span className="text-xs font-semibold text-slate-400">{filteredProspects.length} registros</span>
         </div>
         <div className="overflow-x-auto">
           <table className="min-w-full text-left text-xs">
             <thead className="bg-slate-50 text-[10px] uppercase text-slate-500"><tr><th className="p-3">Fecha</th><th className="p-3">Campaña</th><th className="p-3">Ejecutivo</th><th className="p-3">Prospecto</th><th className="p-3">Producto</th><th className="p-3">Estado</th><th className="p-3 text-right">Acciones</th></tr></thead>
             <tbody>
               {loading ? <tr><td colSpan={7} className="p-10 text-center text-slate-400">Cargando prospectos...</td></tr> : filteredProspects.length === 0 ? <tr><td colSpan={7} className="p-10 text-center text-slate-400">No se encontraron prospectos.</td></tr> : filteredProspects.map((prospect) => (
-                <tr key={prospect.id} className="border-t border-slate-100 hover:bg-slate-50/60"><td className="whitespace-nowrap p-3 text-slate-500">{formatDate(prospect.fecha_registro)}</td><td className="whitespace-nowrap p-3 font-semibold text-slate-700">{prospect.campana}</td><td className="p-3"><p className="font-bold text-slate-800">{prospect.ejecutivo_nombre}</p><p className="text-[10px] text-slate-400">{prospect.ejecutivo_inconcert || prospect.ejecutivo_dni}</p></td><td className="p-3"><p className="font-bold text-slate-800">{prospect.prospecto_nombre}</p><p className="text-[10px] text-slate-400">{prospect.ruc || prospect.dni || prospect.telefono}</p></td><td className="p-3 text-slate-600">{prospect.producto_interes}</td><td className="p-3"><span className={`whitespace-nowrap rounded-full px-2 py-1 text-[10px] font-black ${statusStyle[prospect.estado]}`}>{prospect.estado}</span></td><td className="p-3"><div className="flex justify-end gap-1"><button type="button" title="Editar prospecto" onClick={() => openEdit(prospect)} className="rounded-lg p-2 text-slate-500 hover:bg-indigo-50 hover:text-indigo-600"><Pencil className="h-4 w-4" /></button>{isAdmin && <button type="button" title="Eliminar prospecto" onClick={() => handleDelete(prospect)} className="rounded-lg p-2 text-slate-500 hover:bg-rose-50 hover:text-rose-600"><Trash2 className="h-4 w-4" /></button>}</div></td></tr>
+                <tr key={prospect.id} className="border-t border-slate-100 hover:bg-slate-50/60"><td className="whitespace-nowrap p-3 text-slate-500">{formatDate(prospect.fecha_registro)}</td><td className="whitespace-nowrap p-3"><p className="font-semibold text-slate-700">{prospect.campana}</p><p className="text-[10px] font-medium text-indigo-500">{resolveProspectSession(prospect, sessions) ? getSessionCode(resolveProspectSession(prospect, sessions)!) : 'Sin capacitación asociada'}</p></td><td className="p-3"><p className="font-bold text-slate-800">{prospect.ejecutivo_nombre}</p><p className="text-[10px] text-slate-400">{prospect.ejecutivo_inconcert || prospect.ejecutivo_dni}</p></td><td className="p-3"><p className="font-bold text-slate-800">{prospect.prospecto_nombre}</p><p className="text-[10px] text-slate-400">{prospect.ruc || prospect.dni || prospect.telefono}</p></td><td className="p-3 text-slate-600">{prospect.producto_interes}</td><td className="p-3"><span className={`whitespace-nowrap rounded-full px-2 py-1 text-[10px] font-black ${statusStyle[prospect.estado]}`}>{prospect.estado}</span></td><td className="p-3"><div className="flex justify-end gap-1"><button type="button" title="Editar prospecto" onClick={() => openEdit(prospect)} className="rounded-lg p-2 text-slate-500 hover:bg-indigo-50 hover:text-indigo-600"><Pencil className="h-4 w-4" /></button>{isAdmin && <button type="button" title="Eliminar prospecto" onClick={() => handleDelete(prospect)} className="rounded-lg p-2 text-slate-500 hover:bg-rose-50 hover:text-rose-600"><Trash2 className="h-4 w-4" /></button>}</div></td></tr>
               ))}
             </tbody>
           </table>
@@ -346,7 +475,7 @@ export default function Prospectos({ currentUser, users }: ProspectosProps) {
           <form onSubmit={handleSave} className="flex max-h-[92vh] w-full max-w-4xl flex-col overflow-hidden rounded-2xl bg-white shadow-2xl">
             <div className="flex items-center justify-between border-b border-slate-100 px-5 py-4"><div><h2 className="text-lg font-black text-slate-900">{editing ? 'Editar prospecto' : 'Registrar prospecto'}</h2><p className="text-xs text-slate-500">Completa la información comercial del registro.</p></div><button type="button" title="Cerrar" onClick={() => setShowModal(false)} className="rounded-lg p-2 text-slate-400 hover:bg-slate-100"><X className="h-5 w-5" /></button></div>
             <div className="space-y-6 overflow-y-auto p-5">
-              <FormSection title="1. Datos generales"><Field label="Campaña *"><select value={form.campana} onChange={(event) => setForm({ ...form, campana: event.target.value })} className="field-input">{PROSPECT_CAMPAIGNS.map((campaign) => <option key={campaign}>{campaign}</option>)}</select></Field><Field label="Fecha de registro *"><input type="date" required value={form.fecha_registro} onChange={(event) => setForm({ ...form, fecha_registro: event.target.value })} className="field-input" /></Field><Field label="Formador responsable *"><select required disabled={!isAdmin} value={form.formador_id} onChange={(event) => handleTrainerChange(event.target.value)} className="field-input disabled:bg-slate-50"><option value="">Seleccionar formador</option>{trainers.map((trainer) => <option key={trainer.id} value={trainer.id}>{trainer.nombre}</option>)}</select></Field></FormSection>
+              <FormSection title="1. Datos generales"><Field label="Campaña *"><select value={form.campana} onChange={(event) => setForm({ ...form, campana: event.target.value, training_session_id: '', training_session_code: '' })} className="field-input">{PROSPECT_CAMPAIGNS.map((campaign) => <option key={campaign}>{campaign}</option>)}</select></Field><Field label="Fecha de registro *"><input type="date" required value={form.fecha_registro} onChange={(event) => setForm({ ...form, fecha_registro: event.target.value })} className="field-input" /></Field><Field label="Formador responsable *"><select required disabled={!isAdmin} value={form.formador_id} onChange={(event) => handleTrainerChange(event.target.value)} className="field-input disabled:bg-slate-50"><option value="">Seleccionar formador</option>{trainers.map((trainer) => <option key={trainer.id} value={trainer.id}>{trainer.nombre}</option>)}</select></Field><Field label="Código de capacitación asociada"><select value={form.training_session_id || ''} onChange={(event) => handleSessionChange(event.target.value)} className="field-input"><option value="">Sin capacitación asociada</option>{formSessionOptions.map((session) => <option key={session.id} value={session.id}>{getSessionCode(session)}</option>)}</select></Field></FormSection>
               <FormSection title="2. Datos del ejecutivo"><Field label="Nombre completo *"><input required value={form.ejecutivo_nombre} onChange={(event) => setForm({ ...form, ejecutivo_nombre: event.target.value })} className="field-input" /></Field><Field label="DNI *"><input required inputMode="numeric" value={form.ejecutivo_dni} onChange={(event) => setForm({ ...form, ejecutivo_dni: event.target.value })} className="field-input" /></Field><Field label="Usuario de InConcert"><input value={form.ejecutivo_inconcert} onChange={(event) => setForm({ ...form, ejecutivo_inconcert: event.target.value })} className="field-input" /></Field></FormSection>
               <FormSection title="3. Datos del prospecto"><Field label="Nombre / Razón Social *"><input required value={form.prospecto_nombre} onChange={(event) => setForm({ ...form, prospecto_nombre: event.target.value })} className="field-input" /></Field><Field label="RUC"><input inputMode="numeric" value={form.ruc || ''} onChange={(event) => setForm({ ...form, ruc: event.target.value })} className="field-input" /></Field><Field label="DNI"><input inputMode="numeric" value={form.dni || ''} onChange={(event) => setForm({ ...form, dni: event.target.value })} className="field-input" /></Field><Field label="Teléfono de contacto *"><input required value={form.telefono} onChange={(event) => setForm({ ...form, telefono: event.target.value })} className="field-input" /></Field><Field label="Correo electrónico"><input type="email" value={form.correo || ''} onChange={(event) => setForm({ ...form, correo: event.target.value })} className="field-input" /></Field><Field label="Producto de interés *"><input required value={form.producto_interes} onChange={(event) => setForm({ ...form, producto_interes: event.target.value })} className="field-input" /></Field><Field label="Líneas adicionales"><input value={form.lineas_adicionales || ''} onChange={(event) => setForm({ ...form, lineas_adicionales: event.target.value })} className="field-input" /></Field><Field label="Cantidad de productos"><input type="number" min="1" value={form.cantidad_productos} onChange={(event) => setForm({ ...form, cantidad_productos: Math.max(1, Number(event.target.value) || 1) })} className="field-input" /></Field><Field label="Estado del prospecto *"><select value={form.estado} onChange={(event) => setForm({ ...form, estado: event.target.value as ProspectStatus })} className="field-input">{PROSPECT_STATUSES.map((status) => <option key={status}>{status}</option>)}</select></Field><div className="sm:col-span-2 xl:col-span-3"><Field label="Observaciones"><textarea rows={3} value={form.observaciones || ''} onChange={(event) => setForm({ ...form, observaciones: event.target.value })} className="field-input resize-none" /></Field></div></FormSection>
             </div>

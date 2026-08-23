@@ -2375,6 +2375,7 @@ export default function App() {
                 <Prospectos
                   currentUser={activeUser}
                   users={users}
+                  sessions={sessions}
                 />
               )}
 

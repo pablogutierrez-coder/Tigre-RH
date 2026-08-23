@@ -16,6 +16,8 @@ const prospectSchema = z.object({
   fecha_registro: z.string().trim().min(1),
   formador_id: z.string().trim().min(1),
   formador_nombre: z.string().trim().min(1),
+  training_session_id: z.string().trim().default(''),
+  training_session_code: z.string().trim().default(''),
   ejecutivo_nombre: z.string().trim().min(1),
   ejecutivo_dni: z.string().trim().min(1),
   ejecutivo_inconcert: z.string().trim().default(''),
