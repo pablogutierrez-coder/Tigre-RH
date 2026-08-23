@@ -174,7 +174,7 @@ export default function Capacitaciones({
       if (!status || status === 'Seleccionar' || status === 'Pendiente' || (status as string) === 'Marcar' || (status as string) === '') {
         return false;
       }
-      return ['Asistió', 'Faltó', 'Tardanza', 'Desistió', 'Baja', 'Feriado'].includes(status);
+      return ['Asistió', 'Faltó', 'Tardanza', 'Descanso médico', 'Desistió', 'Baja', 'Feriado'].includes(status);
     };
 
     const isAttendanceComplete = sessionParts.length > 0 && sessionParts.every(p => {
@@ -266,7 +266,7 @@ export default function Capacitaciones({
       if (!record) return false;
       const status = record.estado_asistencia;
       if (!status || status === 'Seleccionar' || status === 'Pendiente' || (status as string) === 'Marcar' || (status as string) === '') return false;
-      return ['Asistió', 'Faltó', 'Tardanza', 'Desistió', 'Baja', 'Feriado'].includes(status);
+      return ['Asistió', 'Faltó', 'Tardanza', 'Descanso médico', 'Desistió', 'Baja', 'Feriado'].includes(status);
     };
 
     const isAttendanceComplete = sParts.length > 0 && sParts.every(p => requiredDays.every(d => checkAttendanceDay(p, d)));

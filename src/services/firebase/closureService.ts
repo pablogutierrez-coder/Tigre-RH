@@ -27,7 +27,7 @@ interface CloseTrainingParams extends ValidateClosureParams {
   observation?: string;
 }
 
-const VALID_ATTENDANCE = ['Asistió', 'Tardanza', 'Faltó', 'Desistió', 'Baja', 'Feriado'];
+const VALID_ATTENDANCE = ['Asistió', 'Tardanza', 'Faltó', 'Descanso médico', 'Desistió', 'Baja', 'Feriado'];
 const CLOSED_READY_STATES = ['En curso', 'Activa', 'Campaña cerrada'];
 
 const isFinishedByDate = (session: TrainingSession) => {

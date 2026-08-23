@@ -180,7 +180,7 @@ export interface Participant {
   cv_uploaded_by?: string;
 }
 
-export type AttendanceStatus = 'Seleccionar' | 'Asistió' | 'Tardanza' | 'Faltó' | 'Desistió' | 'Baja' | 'Feriado' | 'Pendiente';
+export type AttendanceStatus = 'Seleccionar' | 'Asistió' | 'Tardanza' | 'Faltó' | 'Descanso médico' | 'Desistió' | 'Baja' | 'Feriado' | 'Pendiente';
 
 export interface AttendanceRecord {
   id: string;

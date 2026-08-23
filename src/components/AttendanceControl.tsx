@@ -95,6 +95,7 @@ const normalizeStatus = (status?: string) =>
 
 const isPresentStatus = (status?: string) => ['asistio', 'tardanza'].includes(normalizeStatus(status));
 const isAbsenceStatus = (status?: string) => normalizeStatus(status) === 'falto';
+const isMedicalLeaveStatus = (status?: string) => normalizeStatus(status) === 'descanso medico';
 const isDropoutStatus = (status?: string) => ['desistio', 'baja'].includes(normalizeStatus(status));
 const isHolidayStatus = (status?: string) => normalizeStatus(status) === 'feriado';
 const isPendingStatus = (status?: string) => ['', 'seleccionar', 'pendiente'].includes(normalizeStatus(status));
@@ -111,6 +112,7 @@ const ATTENDANCE_OPTIONS: Array<{ value: AttendanceStatus; label: string }> = [
   { value: 'Asistió', label: 'Asistió' },
   { value: 'Tardanza', label: 'Tardanza' },
   { value: 'Faltó', label: 'Faltó' },
+  { value: 'Descanso médico', label: 'Descanso médico (DM)' },
   { value: 'Feriado', label: 'Feriado' },
   { value: 'Desistió', label: 'Desistió' },
   { value: 'Baja', label: 'Baja' },
@@ -170,6 +172,8 @@ export default function AttendanceControl({
   const [obsModalDay, setObsModalDay] = useState<number>(1);
   const [obsModalStatus, setObsModalStatus] = useState<AttendanceStatus>('Faltó');
   const [obsModalValue, setObsModalValue] = useState('');
+  const [obsEvidenceName, setObsEvidenceName] = useState('');
+  const [obsEvidenceFile, setObsEvidenceFile] = useState('');
 
   const [showReopenModal, setShowReopenModal] = useState(false);
   const [reopenMotivo, setReopenMotivo] = useState('Se me pasó el horario de registro');
@@ -521,6 +525,7 @@ export default function AttendanceControl({
     let asistio = 0;
     let tardanza = 0;
     let falto = 0;
+    let descansoMedico = 0;
     let desistio = 0;
     let feriado = 0;
     let pendiente = 0;
@@ -531,6 +536,7 @@ export default function AttendanceControl({
       if (isPresentStatus(status) && normalizeStatus(status) === 'asistio') asistio++;
       else if (normalizeStatus(status) === 'tardanza') tardanza++;
       else if (isAbsenceStatus(status)) falto++;
+      else if (isMedicalLeaveStatus(status)) descansoMedico++;
       else if (isDropoutStatus(status)) desistio++;
       else if (isHolidayStatus(status)) feriado++;
       else pendiente++;
@@ -539,7 +545,7 @@ export default function AttendanceControl({
     const marked = total - pendiente;
     const progressPercent = total > 0 ? Math.round((marked / total) * 100) : 0;
 
-    return { total, asistio, tardanza, falto, desistio, feriado, pendiente, marked, progressPercent };
+    return { total, asistio, tardanza, falto, descansoMedico, desistio, feriado, pendiente, marked, progressPercent };
   }, [filteredParts, attendanceMap, selectedDay]);
 
   const attendanceWindowLabel = useMemo(() => {
@@ -587,20 +593,26 @@ export default function AttendanceControl({
     return true;
   }, [currentUser, simulatedTime, reopens, session.id, selectedDay]);
 
-  const readEvidenceImage = (
+  const readEvidenceFile = (
     file: File | undefined,
-    onReady: (name: string, image: string) => void,
+    onReady: (name: string, content: string) => void,
   ) => {
     if (!file) {
       onReady('', '');
       return;
     }
-    if (!file.type.startsWith('image/')) {
-      alert('Solo se permiten archivos de imagen.');
+    const allowedTypes = [
+      'application/pdf',
+      'application/msword',
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    ];
+    const allowedExtension = /\.(jpe?g|png|webp|pdf|doc|docx)$/i.test(file.name);
+    if (!file.type.startsWith('image/') && !allowedTypes.includes(file.type) && !allowedExtension) {
+      alert('Formato no permitido. Sube una imagen, PDF, DOC o DOCX.');
       return;
     }
-    if (file.size > 900 * 1024) {
-      alert('La imagen debe pesar menos de 900 KB.');
+    if (file.size > 700 * 1024) {
+      alert('El sustento debe pesar menos de 700 KB.');
       return;
     }
     const reader = new FileReader();
@@ -635,13 +647,15 @@ export default function AttendanceControl({
       setDesistioEvidenceName('');
       setDesistioEvidenceImage('');
       setShowDesistioModal(true);
-    } else if (isAbsenceStatus(status) || normalizeStatus(status) === 'tardanza') {
+    } else if (isAbsenceStatus(status) || isMedicalLeaveStatus(status) || normalizeStatus(status) === 'tardanza') {
       // Open Novedad Observation capture modal
       const existing = attendanceMap[`${participant.id}_${day}`];
       setObsModalParticipant(participant);
       setObsModalDay(day);
       setObsModalStatus(status);
       setObsModalValue(existing?.observacion || '');
+      setObsEvidenceName(existing?.evidencia_nombre || '');
+      setObsEvidenceFile(existing?.evidencia_imagen || '');
       setShowObservationModal(true);
     } else {
       onSaveAttendance({
@@ -903,7 +917,7 @@ export default function AttendanceControl({
       </div>
 
       {/* ðŸ“Š INDICADORES VISUALES Y METRICAS DEL DIA */}
-      <div className="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-7 gap-3">
+      <div className="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-8 gap-3">
         {/* Total Card */}
         <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs flex items-center gap-3">
           <div className="p-3 bg-blue-50 text-blue-600 rounded-xl">
@@ -956,6 +970,17 @@ export default function AttendanceControl({
           <div>
             <span className="block text-[11px] text-slate-400 font-bold uppercase">Desistió</span>
             <span className="text-xl font-black text-slate-700">{stats.desistio}</span>
+          </div>
+        </div>
+
+        {/* Descanso médico Card */}
+        <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs flex items-center gap-3">
+          <div className="p-3 bg-sky-50 text-sky-600 rounded-xl">
+            <ShieldCheck className="w-5 h-5" />
+          </div>
+          <div>
+            <span className="block text-[11px] text-slate-400 font-bold uppercase">DM</span>
+            <span className="text-xl font-black text-sky-700">{stats.descansoMedico}</span>
           </div>
         </div>
 
@@ -1087,6 +1112,7 @@ export default function AttendanceControl({
                   <option value="Asistió">Asistió</option>
                   <option value="Tardanza">Tardanza</option>
                   <option value="Faltó">Faltó</option>
+                  <option value="Descanso médico">Descanso médico (DM)</option>
                   <option value="Feriado">Feriado</option>
                   <option value="Desistió">Desistió</option>
                   <option value="Baja">Baja</option>
@@ -1194,6 +1220,7 @@ export default function AttendanceControl({
                 <option value="Asistió">Marcar Asistencia</option>
                 <option value="Tardanza">Marcar Tardanza</option>
                 <option value="Faltó">Marcar Faltó</option>
+                <option value="Descanso médico">Marcar Descanso médico (DM)</option>
                 <option value="Feriado">Marcar Feriado</option>
                 <option value="Desistió">Marcar Desistencia</option>
                 <option value="Baja">Marcar Baja</option>
@@ -1270,6 +1297,7 @@ export default function AttendanceControl({
                   }
 
                   const activeDesistioRecord = rowAttendance.find(a => isDropoutStatus(a?.estado_asistencia));
+                  const activeMedicalLeaveRecord = rowAttendance.find(a => isMedicalLeaveStatus(a?.estado_asistencia));
 
                   return (
                     <tr key={part.id} className={`hover:bg-slate-50/40 transition-colors ${isSelected ? 'bg-indigo-50/20' : ''}`}>
@@ -1344,6 +1372,7 @@ export default function AttendanceControl({
                                   record.estado_asistencia === 'Asistió' ? 'bg-emerald-50 text-emerald-700' :
                                   record.estado_asistencia === 'Tardanza' ? 'bg-amber-50 text-amber-700' :
                                   record.estado_asistencia === 'Faltó' ? 'bg-rose-50 text-rose-700' :
+                                  record.estado_asistencia === 'Descanso médico' ? 'bg-sky-50 text-sky-700' :
                                   record.estado_asistencia === 'Feriado' ? 'bg-violet-50 text-violet-700' :
                                   record.estado_asistencia === 'Baja' ? 'bg-orange-50 text-orange-800' :
                                   'bg-red-50 text-red-800'
@@ -1351,6 +1380,7 @@ export default function AttendanceControl({
                                   {record.estado_asistencia === 'Asistió' ? 'Asistió' :
                                    record.estado_asistencia === 'Tardanza' ? 'Tarde' :
                                    record.estado_asistencia === 'Faltó' ? 'Faltó' :
+                                   record.estado_asistencia === 'Descanso médico' ? 'DM' :
                                    record.estado_asistencia === 'Feriado' ? 'Feriado' :
                                    record.estado_asistencia === 'Baja' ? 'Baja' : 'Desistió'}
                                 </span>
@@ -1366,6 +1396,7 @@ export default function AttendanceControl({
                                       record.estado_asistencia === 'Asistió' ? 'bg-emerald-100 text-emerald-800' :
                                       record.estado_asistencia === 'Tardanza' ? 'bg-amber-100 text-amber-800' :
                                       record.estado_asistencia === 'Faltó' ? 'bg-rose-100 text-rose-800' :
+                                      record.estado_asistencia === 'Descanso médico' ? 'bg-sky-100 text-sky-800' :
                                       record.estado_asistencia === 'Feriado' ? 'bg-violet-100 text-violet-800' :
                                       record.estado_asistencia === 'Baja' ? 'bg-orange-100 text-orange-800' :
                                       'bg-red-100 text-red-900'
@@ -1383,6 +1414,7 @@ export default function AttendanceControl({
                                       record?.estado_asistencia === 'Asistió' ? 'bg-emerald-50 border-emerald-200 text-emerald-700' :
                                       record?.estado_asistencia === 'Tardanza' ? 'bg-amber-50 border-amber-200 text-amber-700' :
                                       record?.estado_asistencia === 'Faltó' ? 'bg-rose-50 border-rose-200 text-rose-700' :
+                                      record?.estado_asistencia === 'Descanso médico' ? 'bg-sky-50 border-sky-200 text-sky-700' :
                                       record?.estado_asistencia === 'Feriado' ? 'bg-violet-50 border-violet-200 text-violet-700' :
                                       record?.estado_asistencia === 'Baja' ? 'bg-orange-50 border-orange-200 text-orange-800' :
                                       record?.estado_asistencia === 'Desistió' ? 'bg-red-50 border-red-200 text-red-800' :
@@ -1393,6 +1425,7 @@ export default function AttendanceControl({
                                     <option value="Asistió">Asistió</option>
                                     <option value="Tardanza">Tardanza</option>
                                     <option value="Faltó">Faltó</option>
+                                    <option value="Descanso médico">Descanso médico (DM)</option>
                                     <option value="Feriado">Feriado</option>
                                     <option value="Desistió">Desistió</option>
                                     <option value="Baja">Baja</option>
@@ -1541,22 +1574,24 @@ export default function AttendanceControl({
 
                       {/* Observation/Deserción Reason info */}
                       <td className="p-4 max-w-[150px] truncate">
-                        {activeDesistioRecord ? (
-                          <div className="text-[10px]" title={activeDesistioRecord.observacion}>
-                            <p className="font-semibold text-rose-600 truncate">{activeDesistioRecord.motivo_desercion}</p>
-                            <p className="text-slate-400 truncate italic">{activeDesistioRecord.observacion}</p>
-                            {activeDesistioRecord.evidencia_imagen && (
+                        {activeDesistioRecord || activeMedicalLeaveRecord ? (
+                          <div className="text-[10px]" title={(activeDesistioRecord || activeMedicalLeaveRecord)?.observacion}>
+                            <p className={`font-semibold truncate ${activeMedicalLeaveRecord ? 'text-sky-700' : 'text-rose-600'}`}>
+                              {activeMedicalLeaveRecord ? 'Descanso médico' : activeDesistioRecord?.motivo_desercion}
+                            </p>
+                            <p className="text-slate-400 truncate italic">{(activeDesistioRecord || activeMedicalLeaveRecord)?.observacion}</p>
+                            {(activeDesistioRecord || activeMedicalLeaveRecord)?.evidencia_imagen && (
                               <button
                                 type="button"
                                 onClick={() =>
                                   setEvidencePreview({
-                                    src: activeDesistioRecord.evidencia_imagen || '',
-                                    name: activeDesistioRecord.evidencia_nombre || 'Evidencia',
+                                    src: (activeDesistioRecord || activeMedicalLeaveRecord)?.evidencia_imagen || '',
+                                    name: (activeDesistioRecord || activeMedicalLeaveRecord)?.evidencia_nombre || 'Evidencia',
                                   })
                                 }
                                 className="mt-1 inline-flex text-[9px] font-bold text-indigo-600 underline"
                               >
-                                Ver imagen
+                                Ver sustento
                               </button>
                             )}
                           </div>
@@ -1590,7 +1625,19 @@ export default function AttendanceControl({
               </button>
             </div>
             <div className="max-h-[70vh] overflow-auto rounded-xl bg-slate-50 border border-slate-100 p-2">
-              <img src={evidencePreview.src} alt={evidencePreview.name} className="mx-auto max-h-[66vh] w-auto max-w-full rounded-lg object-contain" />
+              {evidencePreview.src.startsWith('data:image/') ? (
+                <img src={evidencePreview.src} alt={evidencePreview.name} className="mx-auto max-h-[66vh] w-auto max-w-full rounded-lg object-contain" />
+              ) : evidencePreview.src.startsWith('data:application/pdf') ? (
+                <iframe src={evidencePreview.src} title={evidencePreview.name} className="h-[66vh] w-full rounded-lg" />
+              ) : (
+                <div className="flex min-h-48 flex-col items-center justify-center gap-3 text-center">
+                  <FileUp className="h-10 w-10 text-indigo-500" />
+                  <p className="text-sm font-semibold text-slate-700">Este documento está listo para descargar.</p>
+                  <a href={evidencePreview.src} download={evidencePreview.name} className="rounded-xl bg-indigo-600 px-4 py-2 text-xs font-bold text-white hover:bg-indigo-700">
+                    Descargar documento
+                  </a>
+                </div>
+              )}
             </div>
           </div>
         </div>
@@ -1764,7 +1811,7 @@ export default function AttendanceControl({
                   type="file"
                   accept="image/*"
                   onChange={(event) =>
-                    readEvidenceImage(event.currentTarget.files?.[0], (name, image) => {
+                    readEvidenceFile(event.currentTarget.files?.[0], (name, image) => {
                       setDesistioEvidenceName(name);
                       setDesistioEvidenceImage(image);
                     })
@@ -1874,24 +1921,28 @@ export default function AttendanceControl({
         <div className="fixed inset-0 z-50 bg-slate-950/40 backdrop-blur-sm flex items-center justify-center p-4">
           <div className="bg-white/90 backdrop-blur-md rounded-2xl p-6 max-w-md w-full border border-white/40 shadow-xl space-y-4 animate-in fade-in-50 zoom-in-95 animate-duration-200">
             <div className={`flex items-center gap-2.5 border-b border-slate-100 pb-2 ${
-              obsModalStatus === 'Faltó' ? 'text-rose-600' : 'text-amber-600'
+              obsModalStatus === 'Faltó' ? 'text-rose-600' : isMedicalLeaveStatus(obsModalStatus) ? 'text-sky-600' : 'text-amber-600'
             }`}>
               <AlertTriangle className="w-5 h-5 animate-pulse" />
               <h3 className="font-bold text-base">Registrar Observación / Novedad</h3>
             </div>
 
             <p className="text-slate-600 text-xs leading-relaxed">
-              Estás registrando un estado de <strong>{obsModalStatus === 'Faltó' ? 'FALTA' : 'TARDANZA'}</strong> para{' '}
+              Estás registrando un estado de <strong>{isMedicalLeaveStatus(obsModalStatus) ? 'DESCANSO MÉDICO (DM)' : obsModalStatus === 'Faltó' ? 'FALTA' : 'TARDANZA'}</strong> para{' '}
               <strong>{obsModalParticipant.nombres} {obsModalParticipant.apellidos}</strong> en el Día {obsModalDay}.
             </p>
 
-            {obsModalStatus === 'Faltó' ? (
+            {isMedicalLeaveStatus(obsModalStatus) ? (
+              <div className="bg-sky-50 text-sky-800 text-[11px] p-3 rounded-lg border border-sky-100 font-medium">
+                Adjunta el documento o imagen que sustenta el descanso médico.
+              </div>
+            ) : obsModalStatus === 'Faltó' ? (
               <div className="bg-rose-50 text-rose-800 text-[11px] p-3 rounded-lg border border-rose-100 font-medium">
-                âš ï¸ El ingreso de observación o novedad es obligatorio para registrar una inasistencia (Faltó) en FDR.
+                El ingreso de observación o novedad es obligatorio para registrar una inasistencia (Faltó) en FDR.
               </div>
             ) : (
               <div className="bg-amber-50 text-amber-800 text-[11px] p-3 rounded-lg border border-amber-100 font-medium">
-                ðŸ’¡ Se recomienda detallar los minutos de tardanza o justificaciones entregadas por el participante.
+                Se recomienda detallar los minutos de tardanza o justificaciones entregadas por el participante.
               </div>
             )}
 
@@ -1901,11 +1952,32 @@ export default function AttendanceControl({
                 <textarea
                   value={obsModalValue}
                   onChange={(e) => setObsModalValue(e.target.value)}
-                  placeholder={obsModalStatus === 'Faltó' ? 'Indicar motivo (ej: Celular apagado, problema médico con certificado, no responde...)' : 'Detalle la tardanza (ej: Ingresó 15 minutos tarde por congestión vehicular...)'}
+                  placeholder={isMedicalLeaveStatus(obsModalStatus) ? 'Detalle el período o indicación del descanso médico...' : obsModalStatus === 'Faltó' ? 'Indicar motivo (ej: Celular apagado, problema médico con certificado, no responde...)' : 'Detalle la tardanza (ej: Ingresó 15 minutos tarde por congestión vehicular...)'}
                   rows={3}
                   className="w-full bg-slate-50 border rounded-xl p-2.5 outline-hidden focus:ring-1 focus:ring-indigo-500 text-xs text-slate-800"
                 />
               </div>
+              {isMedicalLeaveStatus(obsModalStatus) && (
+                <div>
+                  <label className="block font-bold text-slate-600 mb-1">Documento o imagen de sustento</label>
+                  <input
+                    type="file"
+                    accept="image/*,.pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                    onChange={(event) =>
+                      readEvidenceFile(event.currentTarget.files?.[0], (name, content) => {
+                        setObsEvidenceName(name);
+                        setObsEvidenceFile(content);
+                      })
+                    }
+                    className="w-full text-xs bg-slate-50 border rounded-xl p-2.5 text-slate-600"
+                  />
+                  {obsEvidenceName && (
+                    <p className="mt-2 truncate rounded-lg bg-sky-50 px-3 py-2 text-[10px] font-semibold text-sky-700">
+                      {obsEvidenceName}
+                    </p>
+                  )}
+                </div>
+              )}
             </div>
 
             <div className="flex justify-end gap-3 pt-3">
@@ -1913,6 +1985,8 @@ export default function AttendanceControl({
                 onClick={() => {
                   setShowObservationModal(false);
                   setObsModalParticipant(null);
+                  setObsEvidenceName('');
+                  setObsEvidenceFile('');
                 }}
                 className="bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold text-xs px-4 py-2 rounded-xl cursor-pointer"
               >
@@ -1931,10 +2005,14 @@ export default function AttendanceControl({
                     fecha: getDayDate(obsModalDay),
                     estado_asistencia: obsModalStatus,
                     observacion: obsModalValue,
+                    evidencia_nombre: obsEvidenceName || undefined,
+                    evidencia_imagen: obsEvidenceFile || undefined,
                     registrado_por: currentUser.id
                   });
                   setShowObservationModal(false);
                   setObsModalParticipant(null);
+                  setObsEvidenceName('');
+                  setObsEvidenceFile('');
                 }}
                 disabled={obsModalStatus === 'Faltó' && !obsModalValue.trim()}
                 className="bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white font-bold text-xs px-4 py-2 rounded-xl cursor-pointer"
@@ -1989,14 +2067,16 @@ export default function AttendanceControl({
                 />
               </div>
 
-              {(bulkStatus === 'Desistió' || bulkStatus === 'Baja') && (
+              {(bulkStatus === 'Desistió' || bulkStatus === 'Baja' || bulkStatus === 'Descanso médico') && (
                 <div>
-                  <label className="block font-bold text-slate-600 mb-1">Imagen de evidencia masiva (opcional)</label>
+                  <label className="block font-bold text-slate-600 mb-1">
+                    {bulkStatus === 'Descanso médico' ? 'Documento o imagen de sustento' : 'Evidencia masiva (opcional)'}
+                  </label>
                   <input
                     type="file"
-                    accept="image/*"
+                    accept="image/*,.pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
                     onChange={(event) =>
-                      readEvidenceImage(event.currentTarget.files?.[0], (name, image) => {
+                      readEvidenceFile(event.currentTarget.files?.[0], (name, image) => {
                         setBulkEvidenceName(name);
                         setBulkEvidenceImage(image);
                       })
@@ -2005,7 +2085,7 @@ export default function AttendanceControl({
                   />
                   {bulkEvidenceName && (
                     <div className="mt-2 flex items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 p-2">
-                      {bulkEvidenceImage && (
+                      {bulkEvidenceImage.startsWith('data:image/') && (
                         <img src={bulkEvidenceImage} alt="Evidencia masiva" className="h-12 w-12 rounded-lg object-cover border border-slate-200" />
                       )}
                       <span className="text-[10px] font-semibold text-slate-600 truncate">{bulkEvidenceName}</span>

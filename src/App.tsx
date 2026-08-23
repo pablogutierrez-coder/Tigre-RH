@@ -107,7 +107,7 @@ const isAbsenceAttendance = (status?: string) => normalizeAttendanceStatus(statu
 const isDropoutAttendanceStatus = (status?: string) => ['desistio', 'baja'].includes(normalizeAttendanceStatus(status));
 const isPendingAttendance = (status?: string) => ['pendiente', 'seleccionar', ''].includes(normalizeAttendanceStatus(status));
 const isValidCompletedAttendance = (status?: string) =>
-  ['asistio', 'tardanza', 'falto', 'feriado'].includes(normalizeAttendanceStatus(status));
+  ['asistio', 'tardanza', 'falto', 'descanso medico', 'feriado'].includes(normalizeAttendanceStatus(status));
 
 const EMPTY_USERS: User[] = [];
 const EMPTY_SESSIONS: TrainingSession[] = [];

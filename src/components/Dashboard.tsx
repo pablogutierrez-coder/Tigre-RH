@@ -735,10 +735,10 @@ export default function Dashboard({
           <div className="absolute inset-x-0 top-0 h-1 bg-rose-500"></div>
           <div className="flex justify-between items-start">
             <div>
-              <p className="text-slate-400 font-medium text-xs uppercase tracking-wider">Deserción Día 2 - Alta</p>
+              <p className="text-slate-400 font-medium text-xs uppercase tracking-wider">Deserción Día 2 - Alta Día 5</p>
               <h3 className="text-slate-900 text-3xl font-black mt-1">{metrics.desercionRate}%</h3>
               <p className="text-xs text-rose-500 font-medium mt-1">
-                {metrics.desistidos} de {metrics.asistieronDia2} no llegaron al alta
+                {metrics.desistidos} de {metrics.asistieronDia2} no llegaron al alta del Día 5
               </p>
             </div>
             <div className="bg-rose-50 rounded-xl p-2.5 text-rose-600 border border-rose-100">

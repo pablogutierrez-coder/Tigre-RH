@@ -12,6 +12,7 @@ const VALID_ATTENDANCE_STATUSES: AttendanceStatus[] = [
   'Asistió',
   'Tardanza',
   'Faltó',
+  'Descanso médico',
   'Desistió',
   'Baja',
   'Feriado',
@@ -97,11 +98,12 @@ export const getAttendanceSummary = async (sessionId: string) => {
       if (record.estado_asistencia === 'Asistió') summary.asistio += 1;
       if (record.estado_asistencia === 'Tardanza') summary.tardanza += 1;
       if (record.estado_asistencia === 'Faltó') summary.falto += 1;
+      if (record.estado_asistencia === 'Descanso médico') summary.descansoMedico += 1;
       if (record.estado_asistencia === 'Desistió') summary.desistio += 1;
       if (record.estado_asistencia === 'Baja') summary.desistio += 1;
       if (record.estado_asistencia === 'Feriado') summary.feriado += 1;
       return summary;
     },
-    { asistio: 0, tardanza: 0, falto: 0, desistio: 0, feriado: 0 },
+    { asistio: 0, tardanza: 0, falto: 0, descansoMedico: 0, desistio: 0, feriado: 0 },
   );
 };
