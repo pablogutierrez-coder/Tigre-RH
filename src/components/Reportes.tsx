@@ -36,6 +36,7 @@ export default function Reportes({
 }: ReportesProps) {
   const [reportType, setReportType] = useState<'asistencia' | 'desercion' | 'altas' | 'consolidado'>('consolidado');
   const [filterCampaña, setFilterCampaña] = useState('todos');
+  const [filterGeneracion, setFilterGeneracion] = useState('todos');
   const [searchTerm, setSearchTerm] = useState('');
 
   // Map sessions for fast lookup
@@ -67,6 +68,51 @@ export default function Reportes({
     return map;
   }, [attendance]);
 
+  const attendanceByParticipantDay = useMemo(() => {
+    const map: Record<string, Record<number, AttendanceRecord>> = {};
+    attendance.forEach(record => {
+      if (!map[record.participant_id]) map[record.participant_id] = {};
+      map[record.participant_id][record.dia] = record;
+    });
+    return map;
+  }, [attendance]);
+
+  const generationOptions = useMemo(() => {
+    return Array.from(new Set(
+      sessions
+        .filter(session => filterCampaña === 'todos' || session.campaña === filterCampaña)
+        .map(session => session.nombre_generacion)
+        .filter(Boolean)
+    )).sort((a, b) => a.localeCompare(b));
+  }, [sessions, filterCampaña]);
+
+  const getAttendanceStatus = (participant: Participant, day: number) => {
+    const recordStatus = attendanceByParticipantDay[participant.id]?.[day]?.estado_asistencia;
+    if (recordStatus) return recordStatus;
+
+    const directStatus = participant[`asistencia_dia_${day}` as keyof Participant];
+    return typeof directStatus === 'string' && directStatus !== 'Seleccionar'
+      ? directStatus
+      : 'Sin registro';
+  };
+
+  const getFinalResult = (participant: Participant) => {
+    return participant.resultado_formacion && participant.resultado_formacion !== 'Marcar'
+      ? participant.resultado_formacion
+      : participant.estado_final;
+  };
+
+  const getObservation = (participant: Participant) => {
+    const latestAttendanceObservation = Object.values(attendanceByParticipantDay[participant.id] || {})
+      .sort((a, b) => b.dia - a.dia)
+      .find(record => record.observacion?.trim())?.observacion;
+
+    return participant.observacion_general
+      || participant.observacion_evaluacion
+      || latestAttendanceObservation
+      || '';
+  };
+
   // Filter and build current report data
   const reportData = useMemo(() => {
     return participants.filter(p => {
@@ -75,6 +121,9 @@ export default function Reportes({
 
       // Filter by Campaign
       if (filterCampaña !== 'todos' && s.campaña !== filterCampaña) return false;
+
+      // Filter by generation code
+      if (filterGeneracion !== 'todos' && s.nombre_generacion !== filterGeneracion) return false;
 
       // Search term
       const matchesSearch = p.nombres.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -93,7 +142,7 @@ export default function Reportes({
 
       return true;
     });
-  }, [participants, sessionMap, confirmationsMap, reportType, filterCampaña, searchTerm]);
+  }, [participants, sessionMap, confirmationsMap, reportType, filterCampaña, filterGeneracion, searchTerm]);
 
   // CSV Generation & Browser Download
   const handleExportCSV = () => {
@@ -123,7 +172,11 @@ export default function Reportes({
         ];
       });
     } else if (reportType === 'asistencia') {
-      headers = ['DNI', 'Nombres', 'Apellidos', 'Campaña', 'Generación', 'Asistencias', 'Tardanzas', 'Faltas', 'Retiros'];
+      headers = [
+        'DNI', 'Nombres', 'Apellidos', 'Campaña', 'Generación',
+        ...Array.from({ length: 10 }, (_, index) => `Día ${index + 1}`),
+        'Asistencias', 'Tardanzas', 'Faltas', 'Retiros', 'Resultado Final', 'Observación'
+      ];
       rows = reportData.map(p => {
         const s = sessionMap[p.training_session_id];
         const counts = attendanceCounts[p.id] || { asistio: 0, tardanza: 0, falto: 0, desistio: 0 };
@@ -133,10 +186,13 @@ export default function Reportes({
           p.apellidos,
           s?.campaña || '',
           s?.nombre_generacion || '',
+          ...Array.from({ length: 10 }, (_, index) => getAttendanceStatus(p, index + 1)),
           String(counts.asistio),
           String(counts.tardanza),
           String(counts.falto),
-          String(counts.desistio)
+          String(counts.desistio),
+          getFinalResult(p),
+          getObservation(p)
         ];
       });
     } else if (reportType === 'desercion') {
@@ -197,14 +253,16 @@ export default function Reportes({
           'Exportación realizada por Coordinador',
           'Reportes exportables',
           `El Coordinador "${currentUser.nombre}" realizó una exportación de tipo "${reportType}" para la campaña "${filterCampaña}".`,
-          filterCampaña !== 'todos' ? filterCampaña : undefined
+          filterCampaña !== 'todos' ? filterCampaña : undefined,
+          filterGeneracion !== 'todos' ? filterGeneracion : undefined
         );
       } else if (currentUser.rol === 'Sistemas') {
         onAuditLog(
           'Exportación realizada por Sistemas',
           'Reportes exportables',
           `El usuario de Sistemas "${currentUser.nombre}" realizó una exportación de tipo "${reportType}" para la campaña "${filterCampaña}".`,
-          filterCampaña !== 'todos' ? filterCampaña : undefined
+          filterCampaña !== 'todos' ? filterCampaña : undefined,
+          filterGeneracion !== 'todos' ? filterGeneracion : undefined
         );
       }
     }
@@ -306,7 +364,7 @@ export default function Reportes({
 
       {/* Query Filters */}
       <div className="glass-card rounded-2xl p-5">
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
           <div className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 w-4 h-4" />
             <input
@@ -321,11 +379,27 @@ export default function Reportes({
           <div>
             <select
               value={filterCampaña}
-              onChange={(e) => setFilterCampaña(e.target.value)}
+              onChange={(e) => {
+                setFilterCampaña(e.target.value);
+                setFilterGeneracion('todos');
+              }}
               className="w-full glass-input text-slate-700 rounded-xl px-3 py-2.5 text-xs outline-hidden"
             >
               <option value="todos">Todas las Campañas</option>
               {BPO_CAMPAIGNS.map((item) => <option key={item} value={item}>{item}</option>)}
+            </select>
+          </div>
+
+          <div>
+            <select
+              value={filterGeneracion}
+              onChange={(e) => setFilterGeneracion(e.target.value)}
+              className="w-full glass-input text-slate-700 rounded-xl px-3 py-2.5 text-xs outline-hidden"
+            >
+              <option value="todos">Todos los códigos de generación</option>
+              {generationOptions.map(generation => (
+                <option key={generation} value={generation}>{generation}</option>
+              ))}
             </select>
           </div>
 
@@ -365,10 +439,15 @@ export default function Reportes({
                     <th className="p-3">DNI</th>
                     <th className="p-3">Candidato</th>
                     <th className="p-3">Campaña / Generación</th>
+                    {Array.from({ length: 10 }, (_, index) => (
+                      <th key={`day-header-${index + 1}`} className="p-3 text-center whitespace-nowrap">Día {index + 1}</th>
+                    ))}
                     <th className="p-3 text-center">Asistencias</th>
                     <th className="p-3 text-center">Tardanzas</th>
                     <th className="p-3 text-center">Faltas</th>
                     <th className="p-3 text-center">Retiros</th>
+                    <th className="p-3 whitespace-nowrap">Resultado Final</th>
+                    <th className="p-3 min-w-56">Observación</th>
                   </tr>
                 )}
                 {reportType === 'desercion' && (
@@ -431,11 +510,21 @@ export default function Reportes({
                         <>
                           <td className="p-3 font-mono text-slate-500">{p.dni}</td>
                           <td className="p-3 font-semibold text-slate-800">{p.nombres} {p.apellidos}</td>
-                          <td className="p-3">{s?.nombre_generacion}</td>
+                          <td className="p-3 whitespace-nowrap">
+                            <span className="font-semibold">{s?.nombre_generacion}</span>
+                            <span className="block text-[10px] text-slate-400">{s?.campaña}</span>
+                          </td>
+                          {Array.from({ length: 10 }, (_, index) => (
+                            <td key={`${p.id}-day-${index + 1}`} className="p-3 text-center whitespace-nowrap">
+                              {getAttendanceStatus(p, index + 1)}
+                            </td>
+                          ))}
                           <td className="p-3 text-center font-bold font-mono text-emerald-600">{counts.asistio}</td>
                           <td className="p-3 text-center font-bold font-mono text-amber-600">{counts.tardanza}</td>
                           <td className="p-3 text-center font-bold font-mono text-rose-500">{counts.falto}</td>
                           <td className="p-3 text-center font-bold font-mono text-rose-800">{counts.desistio}</td>
+                          <td className="p-3 font-semibold whitespace-nowrap">{getFinalResult(p)}</td>
+                          <td className="p-3 text-slate-500 min-w-56">{getObservation(p) || 'S/O'}</td>
                         </>
                       )}
 
