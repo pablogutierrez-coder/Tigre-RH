@@ -6,12 +6,10 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { authRoutes } from './routes/authRoutes.js';
 import { bootstrapRoutes } from './routes/bootstrapRoutes.js';
-import { highEmailRoutes } from './routes/highEmailRoutes.js';
 import { operationRoutes } from './routes/operationRoutes.js';
 import { prospectRoutes } from './routes/prospectRoutes.js';
 import { publicSurveyRoutes } from './routes/publicSurveyRoutes.js';
 import { selectionRoutes } from './routes/selectionRoutes.js';
-import { surveyEmailRoutes } from './routes/surveyEmailRoutes.js';
 import { surveyRoutes } from './routes/surveyRoutes.js';
 import { trainingRoutes } from './routes/trainingRoutes.js';
 import { trainingVariableRoutes } from './routes/trainingVariableRoutes.js';
@@ -79,13 +77,11 @@ app.get('/config.js', (_req, res) => {
 
 app.use('/api/auth', authRoutes);
 app.use('/api/bootstrap', bootstrapRoutes);
-app.use('/api/high-emails', highEmailRoutes);
 app.use('/api/operations', operationRoutes);
 app.use('/api/prospects', prospectRoutes);
 app.use('/api/public-surveys', publicSurveyRoutes);
 app.use('/api/selection', selectionRoutes);
 app.use('/api/surveys', surveyRoutes);
-app.use('/api/survey-emails', surveyEmailRoutes);
 app.use('/api/trainings', trainingRoutes);
 app.use('/api/formacion/variables', trainingVariableRoutes);
 app.use('/api/users', userRoutes);

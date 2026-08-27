@@ -549,10 +549,11 @@ export default function AttendanceControl({
   }, [filteredParts, attendanceMap, selectedDay]);
 
   const attendanceWindowLabel = useMemo(() => {
+    if (currentUser.rol === 'Formador') return '09:00 a 09:30';
     const [hour, minute] = (session.hora_capacitación || '09:00').split(':').map(Number);
     const end = hour * 60 + minute + 30;
     return `${session.hora_capacitación || '09:00'} a ${String(Math.floor(end / 60) % 24).padStart(2, '0')}:${String(end % 60).padStart(2, '0')}`;
-  }, [session.hora_capacitación]);
+  }, [currentUser.rol, session.hora_capacitación]);
 
   // Check if modification is locked based on Role, Simulated Time and Reopens
   const isTimeLocked = useMemo(() => {
@@ -570,11 +571,8 @@ export default function AttendanceControl({
       const min = simulatedTime.minute;
       const totalMinutes = hour * 60 + min;
 
-      const [startHour, startMinute] = (session.hora_capacitación || '09:00')
-        .split(':')
-        .map(Number);
-      const startMinutes = startHour * 60 + startMinute;
-      const endMinutes = startMinutes + 30;
+      const startMinutes = 9 * 60;
+      const endMinutes = 9 * 60 + 30;
 
       const isWithinNormalWindow = totalMinutes >= startMinutes && totalMinutes <= endMinutes;
 

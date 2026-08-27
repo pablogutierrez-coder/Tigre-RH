@@ -532,7 +532,7 @@ export default function Capacitaciones({
 
   const handleSaveEdit = () => {
     if (!editingSession) return;
-    const nextTrainingIdentifier = currentUser.rol === 'Administrador' ? editManualGenerationCode.trim() : editDisplayedCode;
+    const nextTrainingIdentifier = editManualGenerationCode.trim();
     if (!nextTrainingIdentifier) {
       alert('El código de generación es obligatorio.');
       return;
@@ -1414,7 +1414,7 @@ export default function Capacitaciones({
                     {/* Actions footer */}
                     <div className="bg-slate-50/50 p-4 rounded-b-2xl border-t border-slate-50 flex justify-between items-center gap-2">
                       <div className="flex items-center gap-1.5 flex-wrap">
-                        {currentUser.rol === 'Administrador' && permissions[currentUser.rol]?.canEditTraining && (
+                        {permissions[currentUser.rol]?.canEditTraining && (
                           <button
                             onClick={() => startEditing(session)}
                             className="text-slate-400 hover:text-indigo-600 p-2 rounded-lg hover:bg-indigo-50 transition-colors cursor-pointer"
@@ -2133,7 +2133,7 @@ export default function Capacitaciones({
                   </select>
                 </div>
 
-                {currentUser.rol === 'Administrador' && (
+                {permissions[currentUser.rol]?.canEditTraining && (
                   <div className="md:col-span-2">
                     <label className="block text-xs font-semibold text-slate-600 mb-1">Código de generación *</label>
                     <input
@@ -2143,7 +2143,7 @@ export default function Capacitaciones({
                       className="w-full text-sm bg-slate-50 text-slate-700 rounded-xl border border-slate-200 p-2.5 focus:ring-2 focus:ring-indigo-500 outline-hidden font-mono font-bold"
                       placeholder="Ej. CAP-EN20260714-01"
                     />
-                    <p className="text-[11px] text-slate-500 mt-1">Solo Administrador puede editar este identificador.</p>
+                    <p className="text-[11px] text-slate-500 mt-1">Este identificador se sincroniza con dashboard, asistencia y encuestas.</p>
                   </div>
                 )}
 

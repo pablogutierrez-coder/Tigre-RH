@@ -34,11 +34,10 @@ const assertTrainingAccess = async (
   req: AuthenticatedRequest,
   sessionId: string,
 ) => {
-  if (req.user!.rol !== 'Reclutador' && req.user!.rol !== 'Formador') return true;
+  if (req.user!.rol !== 'Formador') return true;
   const session = await adminDb.collection('sessions').doc(sessionId).get();
   if (!session.exists) return false;
-  if (req.user!.rol === 'Formador') return session.data()?.formador_id === req.user!.uid;
-  return session.data()?.reclutador_id === req.user!.uid;
+  return session.data()?.formador_id === req.user!.uid;
 };
 
 router.post('/', canManageTraining, async (req: AuthenticatedRequest, res: Response) => {
@@ -89,12 +88,12 @@ router.patch('/:sessionId', canPatchTraining, async (req: AuthenticatedRequest, 
     return;
   }
   delete changes.data.id;
-  if (req.user!.rol !== 'Administrador') {
+  if (req.user!.rol === 'Formador') {
     const keys = Object.keys(changes.data);
     const statusOnly = keys.length === 1 && keys[0] === 'estado';
     const allowedStatus = ['Capacitación cerrada', 'En curso'].includes(String(changes.data.estado || ''));
     if (!statusOnly || !allowedStatus) {
-      res.status(403).json({ message: 'Solo el Administrador puede editar datos de la capacitación.' });
+      res.status(403).json({ message: 'El Formador solo puede actualizar el estado de su capacitación asignada.' });
       return;
     }
   }

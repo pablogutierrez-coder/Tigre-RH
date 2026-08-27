@@ -1101,17 +1101,6 @@ export default function Encuestas({
           <ListFilter className="w-4 h-4" />
           Respuestas Individuales
         </button>
-        <button
-          onClick={() => setActiveTab('monitoreo')}
-          className={`py-2.5 px-4 text-xs font-bold border-b-2 transition-all flex items-center gap-2 cursor-pointer ${
-            activeTab === 'monitoreo'
-              ? 'border-fuchsia-600 text-fuchsia-600 font-extrabold'
-              : 'border-transparent text-slate-500 hover:text-slate-700'
-          }`}
-        >
-          <UserCheck className="w-4 h-4" />
-          Monitoreo de Envíos
-        </button>
         {/* Config surveys available for admin/formador/analista */}
         {(isAdmin || isTrainer || currentUser.rol === 'Analista') && (
           <button
@@ -1488,7 +1477,7 @@ export default function Encuestas({
       )}
 
       {/* TAB 4.4: MONITOREO DE ENVIOS (QUIEN RESPONDIO Y QUIEN NO) */}
-      {activeTab === 'monitoreo' && (
+      {false && activeTab === 'monitoreo' && (
         <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-xs space-y-5" id="monitoreo-tab-content">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 border-b border-slate-100 pb-3.5">
             <div>

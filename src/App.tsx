@@ -1714,14 +1714,6 @@ export default function App() {
   ) => {
     const session = sessions.find((item) => item.id === sessionId);
     if (!session || !activeUser) return;
-    if (
-      activeUser.rol === 'Reclutador' &&
-      session.reclutador_id !== activeUser.id
-    ) {
-      alert('Solo puedes agregar participantes a tus propias capacitaciónes.');
-      return;
-    }
-
     const sessionParticipants = participants.filter(
       (participant) => participant.training_session_id === sessionId,
     );
