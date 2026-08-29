@@ -81,10 +81,14 @@ const getStorageBucketCandidates = (preferredBucket?: string) => {
   ].filter((bucket): bucket is string => Boolean(bucket))));
 };
 
+const isAssignedTrainer = (data: Record<string, unknown> | undefined, userId: string) =>
+  data?.formador_id === userId ||
+  (Array.isArray(data?.formador_ids) && data.formador_ids.includes(userId));
+
 const ownsSession = async (req: AuthenticatedRequest, sessionId: string) => {
   const session = await adminDb.collection('sessions').doc(sessionId).get();
   if (!session.exists) return false;
-  if (req.user!.rol === 'Formador') return session.data()?.formador_id === req.user!.uid;
+  if (req.user!.rol === 'Formador') return isAssignedTrainer(session.data(), req.user!.uid);
   if (req.user!.rol === 'Reclutador') {
     const data = session.data();
     return data?.reclutador_id === req.user!.uid ||

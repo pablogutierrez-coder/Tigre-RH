@@ -29,6 +29,7 @@ import { TrainingSession, Participant, User as AppUser, AttendanceStatus, Attend
 import { permissions } from '../utils/permissions';
 import { getTrainingDays, getTrainingDaysCount } from '../utils/trainingDays';
 import { BPO_CAMPAIGNS, getCampaignPrefix, normalizeCampaignName } from '../constants/campaigns';
+import { getSessionTrainerNames, isSessionAssignedTrainer } from '../utils/trainingAssignments';
 
 interface CapacitacionesProps {
   sessions: TrainingSession[];
@@ -1227,7 +1228,7 @@ export default function Capacitaciones({
 
       // If user is a Formador, they can only see their own assigned sessions (this is double guarded here)
       const matchesRoleAccess =
-        currentUser.rol !== 'Formador' || s.formador_id === currentUser.id;
+        currentUser.rol !== 'Formador' || isSessionAssignedTrainer(s, currentUser.id);
 
       return matchesSearch && matchesCampaña && matchesEstado && matchesRoleAccess;
     });
@@ -1389,7 +1390,7 @@ export default function Capacitaciones({
                       <div className="flex items-center gap-2">
                         <User className="w-4 h-4 text-slate-400 shrink-0" />
                         <span>
-                          <strong>Formador:</strong> {session.formador_nombre}
+                          <strong>Formador:</strong> {getSessionTrainerNames(session).join(', ')}
                         </span>
                       </div>
                       <div className="flex items-center gap-2">
@@ -1443,7 +1444,7 @@ export default function Capacitaciones({
                         )}
 
                         {/* Close Campaign / Training button (Only for Admin, or assigned Formador if they want to submit close request) */}
-                        {session.estado !== 'Capacitación cerrada' && session.estado !== 'Campaña cerrada' && onCloseCampaign && (currentUser.rol === 'Administrador' || (currentUser.rol === 'Formador' && session.formador_id === currentUser.id)) && (
+                        {session.estado !== 'Capacitación cerrada' && session.estado !== 'Campaña cerrada' && onCloseCampaign && (currentUser.rol === 'Administrador' || (currentUser.rol === 'Formador' && isSessionAssignedTrainer(session, currentUser.id))) && (
                           <button
                             onClick={() => handleInitiateClose(session)}
                             className="bg-purple-50 hover:bg-purple-100 text-purple-700 font-bold text-xs px-2.5 py-1.5 rounded-lg transition-colors cursor-pointer"

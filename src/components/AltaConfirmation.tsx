@@ -22,6 +22,7 @@ import {
 } from 'lucide-react';
 import { TrainingSession, Participant, OperationConfirmation, AltaStatus, User as AppUser } from '../types';
 import { permissions } from '../utils/permissions';
+import { isSessionAssignedTrainer } from '../utils/trainingAssignments';
 
 interface AltaConfirmationProps {
   sessions: TrainingSession[];
@@ -105,7 +106,7 @@ export default function AltaConfirmation({
   // Restrict sessions list by Formador role
   const visibleSessions = useMemo(() => {
     if (isFormador) {
-      return sessions.filter(s => s.formador_id === currentUser.id);
+      return sessions.filter(s => isSessionAssignedTrainer(s, currentUser.id));
     }
     return sessions;
   }, [sessions, currentUser, isFormador]);
@@ -147,7 +148,7 @@ export default function AltaConfirmation({
       if (!s) return false;
 
       // Ensure formador only sees their own assigned sessions
-      if (isFormador && s.formador_id !== currentUser.id) return false;
+      if (isFormador && !isSessionAssignedTrainer(s, currentUser.id)) return false;
 
       // 1. Campaign Filter
       if (selectedCampaña !== 'todos' && s.campaña !== selectedCampaña) return false;

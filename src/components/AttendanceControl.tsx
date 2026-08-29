@@ -36,6 +36,7 @@ import {
 import { TrainingSession, Participant, AttendanceRecord, AttendanceStatus, User as AppUser, AttendanceReopenRequest, OperationConfirmation } from '../types';
 import { permissions } from '../utils/permissions';
 import { getTrainingDays, getTrainingDaysCount } from '../utils/trainingDays';
+import { getSessionTrainerNames, isSessionAssignedTrainer } from '../utils/trainingAssignments';
 import { getParticipantCvUrlRemote, uploadParticipantCvRemote } from '../services/operationService';
 import * as XLSX from 'xlsx';
 
@@ -247,7 +248,7 @@ export default function AttendanceControl({
 
   const canEditEvaluation = (part: Participant) => {
     const isTrainer = currentUser.rol === 'Formador';
-    const isAssignedTrainer = isTrainer && session.formador_id === currentUser.id;
+    const isAssignedTrainer = isTrainer && isSessionAssignedTrainer(session, currentUser.id);
     const rowAttendance = trainingDays.map(day => attendanceMap[`${part.id}_${day}`]);
     const hasDropout = part.estado_final === 'Desistió' || rowAttendance.some(a => isDropoutStatus(a?.estado_asistencia));
     const hasAnyPresent = rowAttendance.some(a => isPresentStatus(a?.estado_asistencia));
@@ -803,7 +804,7 @@ export default function AttendanceControl({
         Ciudad: part.ciudad || '',
         Campania: session.campaña,
         Generacion: session.generation_code || session.nombre_generacion,
-        Formador: session.formador_nombre,
+        Formador: getSessionTrainerNames(session).join(', '),
         Evaluacion: part.evaluacion_nota ?? '',
         'Resultado formacion': part.resultado_formacion || '',
         'Estado final': part.estado_final,
@@ -1484,7 +1485,7 @@ export default function AttendanceControl({
                       <td className="p-2 text-center bg-indigo-50/5">
                         {(() => {
                           const isTrainer = currentUser.rol === 'Formador';
-                          const isAssignedTrainer = isTrainer && session.formador_id === currentUser.id;
+                          const isAssignedTrainer = isTrainer && isSessionAssignedTrainer(session, currentUser.id);
                           const isAdmin = currentUser.rol === 'Administrador';
                           
                           const canMarkOutcome = canEditEvaluation(part) && (isAdmin || isAssignedTrainer);

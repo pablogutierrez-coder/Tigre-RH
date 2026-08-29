@@ -52,6 +52,7 @@ import * as XLSX from 'xlsx';
 import { sendSurveyInvitations } from '../services/surveyEmailService';
 import { permissions } from '../utils/permissions';
 import { isSurveyEligibleParticipant } from '../utils/trainingProgress';
+import { isSessionAssignedTrainer } from '../utils/trainingAssignments';
 
 interface EncuestasProps {
   surveys: TrainingSurvey[];
@@ -237,7 +238,7 @@ export default function Encuestas({
       return sessions.map(s => s.id);
     }
     if (isTrainer) {
-      return sessions.filter(s => s.formador_id === currentUser.id).map(s => s.id);
+      return sessions.filter(s => isSessionAssignedTrainer(s, currentUser.id)).map(s => s.id);
     }
     return [];
   }, [sessions, currentUser, isAdmin, isAnalyst, isTrainer, isRecruiter, isStaff]);

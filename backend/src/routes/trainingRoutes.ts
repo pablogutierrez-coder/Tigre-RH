@@ -18,6 +18,10 @@ const canPatchTraining = [
 ];
 const entitySchema = z.object({ id: z.string().min(1) }).passthrough();
 
+const isAssignedTrainer = (data: Record<string, unknown> | undefined, userId: string) =>
+  data?.formador_id === userId ||
+  (Array.isArray(data?.formador_ids) && data.formador_ids.includes(userId));
+
 const getTrainingCode = (session: Record<string, unknown>) =>
   String(session.generation_code || session.nombre_generacion || '').trim();
 
@@ -37,7 +41,7 @@ const assertTrainingAccess = async (
   if (req.user!.rol !== 'Formador') return true;
   const session = await adminDb.collection('sessions').doc(sessionId).get();
   if (!session.exists) return false;
-  return session.data()?.formador_id === req.user!.uid;
+  return isAssignedTrainer(session.data(), req.user!.uid);
 };
 
 router.post('/', canManageTraining, async (req: AuthenticatedRequest, res: Response) => {

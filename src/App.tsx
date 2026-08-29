@@ -65,6 +65,7 @@ import Prospectos from './components/Prospectos';
 
 import { getPeruNow, formatPeruDate, isAttendanceWindowOpen } from './utils/time';
 import { permissions } from './utils/permissions';
+import { isSessionAssignedTrainer } from './utils/trainingAssignments';
 import {
   loginWithUsername,
   logoutFirebase,
@@ -873,7 +874,7 @@ export default function App() {
     }
 
     // If Formador, check if they are the owner of the session
-    if (userRol === 'Formador' && session.formador_id !== activeUser?.id) {
+    if (userRol === 'Formador' && !isSessionAssignedTrainer(session, activeUser?.id)) {
       alert('Solo el formador asignado o un Administrador pueden cerrar esta capacitación.');
       return;
     }

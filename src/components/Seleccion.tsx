@@ -90,6 +90,8 @@ const emptyRequisition: Partial<SelectionRequisition> = {
   seguimiento_max_horas: 24,
   reclutador_ids: [],
   reclutador_nombres: [],
+  training_formador_ids: [],
+  training_formador_nombres: [],
   estado: 'Activa',
 };
 
@@ -380,6 +382,7 @@ export default function Seleccion({ currentUser, users, initialView = 'dashboard
   const [selectedApplicants, setSelectedApplicants] = useState<string[]>([]);
   const [assignTarget, setAssignTarget] = useState<SelectionRequisition | null>(null);
   const [assignForm, setAssignForm] = useState<Record<string, string>>({});
+  const [assignFormadorIds, setAssignFormadorIds] = useState<string[]>([]);
   const [dashboardView, setDashboardView] = useState('Vista general');
   const [filterCampaign, setFilterCampaign] = useState('Todos');
   const [filterRecruiter, setFilterRecruiter] = useState('Todos');
@@ -608,8 +611,38 @@ export default function Seleccion({ currentUser, users, initialView = 'dashboard
 
   const openEditRequisition = (req: SelectionRequisition) => {
     setEditingReq(req);
-    setReqForm(req);
+    setReqForm({
+      ...req,
+      training_formador_ids: req.training_formador_ids?.length
+        ? req.training_formador_ids
+        : req.training_formador_id
+          ? [req.training_formador_id]
+          : [],
+      training_formador_nombres: req.training_formador_nombres?.length
+        ? req.training_formador_nombres
+        : req.training_formador_nombre
+          ? [req.training_formador_nombre]
+          : [],
+    });
     setShowReqModal(true);
+  };
+
+  const toggleRequisitionTrainer = (user: AppUser) => {
+    setReqForm((prev) => {
+      const currentIds = prev.training_formador_ids || [];
+      const exists = currentIds.includes(user.id);
+      const nextIds = exists
+        ? currentIds.filter((id) => id !== user.id)
+        : [...currentIds, user.id];
+      const selectedTrainers = trainers.filter((trainer) => nextIds.includes(trainer.id));
+      return {
+        ...prev,
+        training_formador_ids: nextIds,
+        training_formador_nombres: selectedTrainers.map((trainer) => trainer.nombre),
+        training_formador_id: selectedTrainers[0]?.id || '',
+        training_formador_nombre: selectedTrainers[0]?.nombre || '',
+      };
+    });
   };
 
   const toggleRequisitionRecruiter = (user: AppUser) => {
@@ -633,6 +666,7 @@ export default function Seleccion({ currentUser, users, initialView = 'dashboard
     try {
       setSaving(true);
       const selectedRecruiters = recruiters.filter((user) => reqForm.reclutador_ids?.includes(user.id));
+      const selectedTrainers = trainers.filter((user) => reqForm.training_formador_ids?.includes(user.id));
       const payload = {
         codigo: reqForm.codigo,
         codigo_base: reqForm.codigo_base,
@@ -654,6 +688,10 @@ export default function Seleccion({ currentUser, users, initialView = 'dashboard
         coordinador_id: reqForm.coordinador_id || '',
         coordinador_nombre: reqForm.coordinador_nombre || '',
         reclutador_ids: reqForm.reclutador_ids || [],
+        training_formador_ids: selectedTrainers.map((user) => user.id),
+        training_formador_nombres: selectedTrainers.map((user) => user.nombre),
+        training_formador_id: selectedTrainers[0]?.id || '',
+        training_formador_nombre: selectedTrainers[0]?.nombre || '',
         sla_objetivo: Number(reqForm.sla_objetivo || 60),
         sla_unidad: reqForm.sla_unidad || 'minutos',
         sla_tipo: reqForm.sla_tipo || 'Horas calendario',
@@ -692,6 +730,7 @@ export default function Seleccion({ currentUser, users, initialView = 'dashboard
       }
       setShowReqModal(false);
       await loadData();
+      onPlatformDataChanged?.();
     } catch (err) {
       alert(err instanceof Error ? err.message : 'No se pudo guardar la convocatoria.');
     } finally {
@@ -874,9 +913,17 @@ export default function Seleccion({ currentUser, users, initialView = 'dashboard
     );
     setSelectedApplicants(aptos.map((item) => item.id));
     setAssignTarget(req);
+    const initialTrainerIds = req.training_formador_ids?.length
+      ? req.training_formador_ids
+      : req.training_formador_id
+        ? [req.training_formador_id]
+        : trainers[0]?.id
+          ? [trainers[0].id]
+          : [];
+    setAssignFormadorIds(initialTrainerIds);
     setAssignForm({
-      formador_id: req.training_formador_id || trainers[0]?.id || '',
-      formador_nombre: req.training_formador_nombre || trainers[0]?.nombre || '',
+      formador_id: initialTrainerIds[0] || '',
+      formador_nombre: trainers.find((user) => user.id === initialTrainerIds[0])?.nombre || '',
       fecha_inicio: req.training_fecha_inicio || '',
       fecha_fin: req.training_fecha_fin || '',
       hora_capacitacion: req.training_hora || '08:00',
@@ -889,10 +936,17 @@ export default function Seleccion({ currentUser, users, initialView = 'dashboard
     if (!assignTarget || selectedApplicants.length === 0) return;
     try {
       setSaving(true);
-      const trainer = trainers.find((user) => user.id === assignForm.formador_id);
+      const selectedTrainers = trainers.filter((user) => assignFormadorIds.includes(user.id));
+      if (selectedTrainers.length === 0) {
+        alert('Selecciona al menos un formador.');
+        return;
+      }
       await assignSelectionToTraining(assignTarget.id, selectedApplicants, {
         ...assignForm,
-        formador_nombre: trainer?.nombre || assignForm.formador_nombre,
+        formador_id: selectedTrainers[0].id,
+        formador_nombre: selectedTrainers[0].nombre,
+        formador_ids: selectedTrainers.map((user) => user.id),
+        formador_nombres: selectedTrainers.map((user) => user.nombre),
       });
       setAssignTarget(null);
       setSelectedApplicants([]);
@@ -1763,6 +1817,63 @@ export default function Seleccion({ currentUser, users, initialView = 'dashboard
                   )}
                 </div>
               </div>
+              <div className="text-xs font-black text-slate-500 md:col-span-2">
+                <div className="flex items-center justify-between gap-3">
+                  <span>Formadores asignados</span>
+                  <div className="flex items-center gap-3">
+                    <span className="text-[10px] text-slate-400">
+                      {(reqForm.training_formador_ids || []).length} seleccionados
+                    </span>
+                    {(reqForm.training_formador_ids || []).length > 0 && (
+                      <button
+                        type="button"
+                        onClick={() => setReqForm((prev) => ({
+                          ...prev,
+                          training_formador_ids: [],
+                          training_formador_nombres: [],
+                          training_formador_id: '',
+                          training_formador_nombre: '',
+                        }))}
+                        className="text-[10px] font-black text-rose-500 hover:text-rose-700"
+                      >
+                        Limpiar
+                      </button>
+                    )}
+                  </div>
+                </div>
+                <div className="mt-1 max-h-44 overflow-y-auto rounded-xl border border-slate-200 bg-slate-50 p-2 grid sm:grid-cols-2 gap-2">
+                  {trainers.map((user) => {
+                    const checked = Boolean(reqForm.training_formador_ids?.includes(user.id));
+                    return (
+                      <button
+                        key={user.id}
+                        type="button"
+                        onClick={() => toggleRequisitionTrainer(user)}
+                        className={`flex items-center gap-2 rounded-lg border px-3 py-2 text-left transition ${
+                          checked
+                            ? 'border-indigo-300 bg-white text-slate-900 shadow-xs'
+                            : 'border-slate-100 bg-white/70 text-slate-600 hover:border-slate-300'
+                        }`}
+                      >
+                        <span className={`w-5 h-5 rounded-md border flex items-center justify-center shrink-0 ${
+                          checked ? 'bg-indigo-600 border-indigo-600 text-white' : 'border-slate-300'
+                        }`}>
+                          {checked && <CheckCircle2 className="w-3.5 h-3.5" />}
+                        </span>
+                        <span className="min-w-0">
+                          <span className="block truncate text-xs font-black">{user.nombre}</span>
+                          <span className="block truncate text-[10px] font-semibold text-slate-400">{user.usuario}</span>
+                        </span>
+                      </button>
+                    );
+                  })}
+                  {trainers.length === 0 && (
+                    <div className="sm:col-span-2 rounded-lg bg-white p-3 text-xs text-slate-400">
+                      No hay formadores activos disponibles.
+                    </div>
+                  )}
+                </div>
+              </div>
               <label className="text-xs font-black text-slate-500">
                 Cantidad de posiciones requeridas
                 <input type="number" min={1} step={1} value={reqForm.vacantes || 1} onChange={(event) => setReqForm((prev) => ({ ...prev, vacantes: Number(event.target.value) }))} className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm" />
@@ -1926,13 +2037,36 @@ export default function Seleccion({ currentUser, users, initialView = 'dashboard
               <button onClick={() => setAssignTarget(null)}><X className="w-5 h-5" /></button>
             </div>
             <div className="p-5 grid md:grid-cols-2 gap-4">
-              <label className="text-xs font-black text-slate-500">
-                Formador
-                <select value={assignForm.formador_id || ''} onChange={(event) => setAssignForm((prev) => ({ ...prev, formador_id: event.target.value }))} className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm">
-                  <option value="">Seleccionar</option>
-                  {trainers.map((user) => <option key={user.id} value={user.id}>{user.nombre}</option>)}
-                </select>
-              </label>
+              <div className="text-xs font-black text-slate-500 md:col-span-2">
+                <div className="flex items-center justify-between gap-3">
+                  <span>Formadores</span>
+                  <span className="text-[10px] text-slate-400">{assignFormadorIds.length} seleccionados</span>
+                </div>
+                <div className="mt-1 max-h-40 overflow-y-auto rounded-xl border border-slate-200 bg-slate-50 p-2 grid sm:grid-cols-2 gap-2">
+                  {trainers.map((user) => {
+                    const checked = assignFormadorIds.includes(user.id);
+                    return (
+                      <button
+                        key={user.id}
+                        type="button"
+                        onClick={() => setAssignFormadorIds((current) =>
+                          checked ? current.filter((id) => id !== user.id) : [...current, user.id]
+                        )}
+                        className={`flex items-center gap-2 rounded-lg border px-3 py-2 text-left ${
+                          checked ? 'border-indigo-300 bg-white text-slate-900' : 'border-slate-100 bg-white/70 text-slate-600'
+                        }`}
+                      >
+                        <span className={`w-5 h-5 rounded-md border flex items-center justify-center ${
+                          checked ? 'bg-indigo-600 border-indigo-600 text-white' : 'border-slate-300'
+                        }`}>
+                          {checked && <CheckCircle2 className="w-3.5 h-3.5" />}
+                        </span>
+                        <span className="truncate">{user.nombre}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
               {[
                 ['fecha_inicio', 'Fecha inicio', 'date'],
                 ['fecha_fin', 'Fecha fin', 'date'],

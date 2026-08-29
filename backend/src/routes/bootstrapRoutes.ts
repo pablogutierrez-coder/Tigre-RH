@@ -53,6 +53,10 @@ const readStringField = (data: Record<string, unknown> | undefined, keys: string
   return '';
 };
 
+const isAssignedTrainer = (session: Record<string, unknown>, userId: string) =>
+  session.formador_id === userId ||
+  (Array.isArray(session.formador_ids) && session.formador_ids.includes(userId));
+
 router.get('/', requireAuth, async (req: AuthenticatedRequest, res: Response) => {
   try {
     const user = req.user!;
@@ -76,7 +80,7 @@ router.get('/', requireAuth, async (req: AuthenticatedRequest, res: Response) =>
       allResponses,
     ] = await Promise.all([
       readCollection('users'),
-      readCollection('sessions'),
+      readCollection('sessions', true),
       readCollection('participants'),
       readCollection('attendance'),
       readCollection('confirmations'),
@@ -90,7 +94,7 @@ router.get('/', requireAuth, async (req: AuthenticatedRequest, res: Response) =>
       ? allSessions
       : allSessions.filter((session) =>
           user.rol === 'Formador'
-            ? session.formador_id === user.uid
+            ? isAssignedTrainer(session, user.uid)
             : session.reclutador_id === user.uid,
         );
     const sessionIds = new Set(sessions.map((session) => String(session.id)));

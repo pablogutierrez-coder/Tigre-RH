@@ -44,6 +44,7 @@ import {
 } from '../utils/trainingMonthly';
 import { BPO_CAMPAIGNS } from '../constants/campaigns';
 import MonthlyTrainingView from './MonthlyTrainingView';
+import { getSessionTrainerIds, isSessionAssignedTrainer } from '../utils/trainingAssignments';
 
 interface DashboardProps {
   sessions: TrainingSession[];
@@ -97,7 +98,7 @@ export default function Dashboard({
 
   const roleScopedSessions = useMemo(() => {
     if (currentUser.rol === 'Formador') {
-      return sessions.filter((session) => session.formador_id === currentUser.id);
+      return sessions.filter((session) => isSessionAssignedTrainer(session, currentUser.id));
     }
     if (currentUser.rol === 'Reclutador') {
       return sessions.filter((session) => session.reclutador_id === currentUser.id);
@@ -106,7 +107,7 @@ export default function Dashboard({
   }, [sessions, currentUser]);
 
   const scopedTrainerIds = useMemo(
-    () => new Set(roleScopedSessions.map((session) => session.formador_id).filter(Boolean)),
+    () => new Set(roleScopedSessions.flatMap(getSessionTrainerIds).filter(Boolean)),
     [roleScopedSessions],
   );
 
@@ -139,7 +140,7 @@ export default function Dashboard({
   const filteredSessions = useMemo(() => {
     return roleScopedSessions.filter(s => {
       if (filterCampaña !== 'todos' && s.campaña !== filterCampaña) return false;
-      if (filterFormador !== 'todos' && s.formador_id !== filterFormador) return false;
+      if (filterFormador !== 'todos' && !getSessionTrainerIds(s).includes(filterFormador)) return false;
       if (filterConvocatoria !== 'todos' && getSessionConvocatoria(s) !== filterConvocatoria) return false;
       if (filterGeneracion !== 'todos' && s.nombre_generacion !== filterGeneracion) return false;
       if (filterFecha && (filterFecha < s.fecha_inicio || filterFecha > s.fecha_fin)) return false;
@@ -370,7 +371,7 @@ export default function Dashboard({
   // 3. Comparativo por Formador
   const formadorData = useMemo(() => {
     return visibleTrainers.map(t => {
-      const trainerSessions = filteredSessions.filter(s => s.formador_id === t.id);
+      const trainerSessions = filteredSessions.filter(s => getSessionTrainerIds(s).includes(t.id));
       const sIds = new Set(trainerSessions.map(s => s.id));
       const tParts = participants.filter(p => sIds.has(p.training_session_id));
       const tPartIds = new Set(tParts.map(p => p.id));

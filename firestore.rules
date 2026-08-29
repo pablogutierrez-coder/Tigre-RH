@@ -29,7 +29,13 @@ service cloud.firestore {
     function isAssignedTrainer(sessionId) {
       return signedIn()
         && exists(/databases/$(database)/documents/sessions/$(sessionId))
-        && get(/databases/$(database)/documents/sessions/$(sessionId)).data.formador_id == request.auth.uid;
+        && (
+          get(/databases/$(database)/documents/sessions/$(sessionId)).data.formador_id == request.auth.uid
+          || (
+            get(/databases/$(database)/documents/sessions/$(sessionId)).data.formador_ids is list
+            && request.auth.uid in get(/databases/$(database)/documents/sessions/$(sessionId)).data.formador_ids
+          )
+        );
     }
 
     match /{document=**} {
@@ -57,6 +63,7 @@ service cloud.firestore {
       allow read: if isAdmin()
         || hasAnyRole(['Analista', 'Coordinador', 'Sistemas'])
         || resource.data.formador_id == request.auth.uid
+        || (resource.data.formador_ids is list && request.auth.uid in resource.data.formador_ids)
         || resource.data.reclutador_id == request.auth.uid;
       allow create: if isAdmin() || hasAnyRole(['Analista', 'Reclutador']);
       allow update: if isAdmin() || hasAnyRole(['Analista']);
