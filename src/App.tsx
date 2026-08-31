@@ -958,15 +958,25 @@ export default function App() {
 
   // 2c. Update training session details (for Administrador edit)
   const handleUpdateSession = (sessionId: string, updatedFields: Partial<TrainingSession>) => {
-    const formador = updatedFields.formador_id
-      ? users.find(u => u.id === updatedFields.formador_id)
-      : undefined;
+    const assignedTrainerIds = Array.from(new Set([
+      ...(updatedFields.formador_ids || []),
+      updatedFields.formador_id,
+    ].filter(Boolean))) as string[];
+    const assignedTrainers = assignedTrainerIds
+      .map((trainerId) => users.find((user) => user.id === trainerId && user.rol === 'Formador'))
+      .filter((trainer): trainer is User => Boolean(trainer));
+    const formador = assignedTrainers[0];
     const reclutador = updatedFields.reclutador_id
       ? users.find(u => u.id === updatedFields.reclutador_id)
       : undefined;
     const normalizedFields: Partial<TrainingSession> = {
       ...updatedFields,
-      ...(formador ? { formador_nombre: formador.nombre } : {}),
+      ...(formador ? {
+        formador_id: formador.id,
+        formador_nombre: formador.nombre,
+        formador_ids: assignedTrainers.map((trainer) => trainer.id),
+        formador_nombres: assignedTrainers.map((trainer) => trainer.nombre),
+      } : {}),
       ...(reclutador ? { reclutador_nombre: reclutador.nombre } : {}),
     };
 
