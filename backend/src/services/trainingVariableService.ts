@@ -16,6 +16,16 @@ export interface TrainingVariableInput {
   porcentaje_satisfaccion: number;
   porcentaje_administrativo: number;
   observacion_administrativa?: string;
+  generation_ids?: string[];
+  codigos_generacion?: string[];
+  calculo_automatico?: boolean;
+  calculo_detalle?: {
+    participantes_dia_1: number;
+    participantes_dia_final: number;
+    prospectos_generados: number;
+    prospectos_venta_alta: number;
+    respuestas_encuesta: number;
+  };
 }
 
 export interface TrainingVariableEvaluation extends TrainingVariableInput {

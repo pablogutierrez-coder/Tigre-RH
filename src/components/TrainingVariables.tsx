@@ -1,9 +1,11 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import * as XLSX from 'xlsx';
 import {
   AlertTriangle,
   Calculator,
   CheckCircle,
   Eye,
+  FileSpreadsheet,
   FileText,
   Lock,
   Pencil,
@@ -11,16 +13,20 @@ import {
   RotateCcw,
   Save,
   Search,
+  Sparkles,
   Trash2,
   X,
 } from 'lucide-react';
 import type { TrainingVariableEvaluation, User } from '../types';
 import {
   deleteTrainingVariableEvaluation,
+  calculateTrainingVariableAutomatically,
   closeTrainingVariableEvaluation,
   createTrainingVariableEvaluation,
   listTrainingVariableEvaluations,
+  listTrainingVariableSources,
   reopenTrainingVariableEvaluation,
+  type TrainingVariableSource,
   type TrainingVariablePayload,
   updateTrainingVariableEvaluation,
 } from '../services/trainingVariableService';
@@ -63,6 +69,9 @@ const emptyForm = (trainer?: User, currentUser?: User): FormState => ({
   porcentaje_satisfaccion: 0,
   porcentaje_administrativo: 100,
   observacion_administrativa: currentUser ? '' : '',
+  generation_ids: [],
+  codigos_generacion: [],
+  calculo_automatico: false,
 });
 
 const numberValue = (value: unknown) => Number.isFinite(Number(value)) ? Number(value) : 0;
@@ -103,6 +112,10 @@ export default function TrainingVariables({ currentUser, users }: TrainingVariab
   const [modalMode, setModalMode] = useState<'create' | 'edit' | 'detail' | null>(null);
   const [editing, setEditing] = useState<TrainingVariableEvaluation | null>(null);
   const [form, setForm] = useState<FormState>(emptyForm(undefined, currentUser));
+  const [sourceOptions, setSourceOptions] = useState<TrainingVariableSource[]>([]);
+  const [loadingSources, setLoadingSources] = useState(false);
+  const [sourceError, setSourceError] = useState('');
+  const [calculating, setCalculating] = useState(false);
 
   const isAdmin = currentUser.rol === 'Administrador';
   const isCoordinator = currentUser.rol === 'Coordinador';
@@ -138,6 +151,35 @@ export default function TrainingVariables({ currentUser, users }: TrainingVariab
   useEffect(() => {
     void loadEvaluations();
   }, []);
+
+  useEffect(() => {
+    if (!modalMode || !form.id_formador) {
+      setSourceOptions([]);
+      setSourceError('');
+      return;
+    }
+
+    let active = true;
+    setLoadingSources(true);
+    setSourceError('');
+    void listTrainingVariableSources(form.id_formador, form.anio, form.mes)
+      .then((response) => {
+        if (active) setSourceOptions(response.sources);
+      })
+      .catch((err) => {
+        if (active) {
+          setSourceOptions([]);
+          setSourceError(err instanceof Error ? err.message : 'No se pudieron cargar los códigos de generación.');
+        }
+      })
+      .finally(() => {
+        if (active) setLoadingSources(false);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [form.anio, form.id_formador, form.mes, modalMode]);
 
   const filteredEvaluations = useMemo(() => {
     const normalizedSearch = searchTerm.trim().toLowerCase();
@@ -184,6 +226,10 @@ export default function TrainingVariables({ currentUser, users }: TrainingVariab
       porcentaje_satisfaccion: evaluation.porcentaje_satisfaccion,
       porcentaje_administrativo: evaluation.porcentaje_administrativo,
       observacion_administrativa: evaluation.observacion_administrativa || '',
+      generation_ids: evaluation.generation_ids || [],
+      codigos_generacion: evaluation.codigos_generacion || [],
+      calculo_automatico: Boolean(evaluation.calculo_automatico),
+      calculo_detalle: evaluation.calculo_detalle,
     });
     setModalMode('edit');
   };
@@ -199,8 +245,108 @@ export default function TrainingVariables({ currentUser, users }: TrainingVariab
 
   const updateTrainer = (trainerId: string) => {
     const trainer = trainers.find((item) => item.id === trainerId);
-    updateForm('id_formador', trainer?.id || '');
-    updateForm('nombre_formador', trainer?.nombre || '');
+    setForm((prev) => ({
+      ...prev,
+      id_formador: trainer?.id || '',
+      nombre_formador: trainer?.nombre || '',
+      generation_ids: [],
+      codigos_generacion: [],
+      calculo_automatico: false,
+      calculo_detalle: undefined,
+    }));
+  };
+
+  const updatePeriod = (key: 'anio' | 'mes', value: number) => {
+    setForm((prev) => ({
+      ...prev,
+      [key]: value,
+      generation_ids: [],
+      codigos_generacion: [],
+      calculo_automatico: false,
+      calculo_detalle: undefined,
+    }));
+  };
+
+  const toggleSource = (source: TrainingVariableSource) => {
+    setForm((prev) => {
+      const selected = new Set(prev.generation_ids || []);
+      if (selected.has(source.id)) selected.delete(source.id);
+      else selected.add(source.id);
+      const selectedIds = Array.from(selected);
+      return {
+        ...prev,
+        generation_ids: selectedIds,
+        codigos_generacion: sourceOptions.filter((item) => selected.has(item.id)).map((item) => item.codigo),
+        calculo_automatico: false,
+        calculo_detalle: undefined,
+      };
+    });
+  };
+
+  const handleAutomaticCalculation = async () => {
+    if (!form.id_formador) {
+      alert('Selecciona un formador.');
+      return;
+    }
+    if (!form.generation_ids?.length) {
+      alert('Selecciona al menos un código de generación.');
+      return;
+    }
+
+    setCalculating(true);
+    try {
+      const response = await calculateTrainingVariableAutomatically(
+        form.id_formador,
+        form.generation_ids,
+        form.anio,
+        form.mes,
+      );
+      const calculation = response.calculation;
+      setForm((prev) => ({
+        ...prev,
+        generation_ids: calculation.generation_ids,
+        codigos_generacion: calculation.codigos_generacion,
+        porcentaje_retencion: calculation.porcentaje_retencion,
+        porcentaje_produccion_individual: calculation.porcentaje_produccion_individual,
+        porcentaje_produccion_grupal: calculation.porcentaje_produccion_grupal,
+        porcentaje_satisfaccion: calculation.porcentaje_satisfaccion,
+        calculo_automatico: true,
+        calculo_detalle: calculation.detalle,
+      }));
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'No se pudo realizar el cálculo automático.');
+    } finally {
+      setCalculating(false);
+    }
+  };
+
+  const exportToExcel = () => {
+    const rows = filteredEvaluations.map((evaluation) => ({
+      Periodo: periodLabel(evaluation),
+      Formador: evaluation.nombre_formador,
+      Coordinador: evaluation.nombre_coordinador,
+      'Códigos de generación': (evaluation.codigos_generacion || []).join(', '),
+      'Tipo de cálculo': evaluation.calculo_automatico ? 'Automático' : 'Manual',
+      'Participantes Día 1': evaluation.calculo_detalle?.participantes_dia_1 ?? '',
+      'Participantes Día final': evaluation.calculo_detalle?.participantes_dia_final ?? '',
+      'Retención obtenida (%)': evaluation.porcentaje_retencion,
+      'Prospectos generados': evaluation.calculo_detalle?.prospectos_generados ?? '',
+      'Prospectos Venta / Alta': evaluation.calculo_detalle?.prospectos_venta_alta ?? '',
+      'Producción individual (%)': evaluation.porcentaje_produccion_individual,
+      'Producción grupal (%)': evaluation.porcentaje_produccion_grupal,
+      'Respuestas de encuesta': evaluation.calculo_detalle?.respuestas_encuesta ?? '',
+      'Satisfacción (%)': evaluation.porcentaje_satisfaccion,
+      'Administrativo (%)': evaluation.porcentaje_administrativo,
+      'Cumplimiento total (%)': evaluation.cumplimiento_total,
+      'Comisión total': evaluation.comision_total,
+      Estado: evaluation.estado,
+      'Fecha de cierre': evaluation.fecha_cierre ? new Date(evaluation.fecha_cierre).toLocaleDateString('es-PE') : '',
+      'Observación general': evaluation.observacion_general || '',
+    }));
+    const worksheet = XLSX.utils.json_to_sheet(rows);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, 'Medición de Variables');
+    XLSX.writeFile(workbook, `medicion-variables-${new Date().toISOString().slice(0, 10)}.xlsx`);
   };
 
   const validateForm = () => {
@@ -305,17 +451,27 @@ export default function TrainingVariables({ currentUser, users }: TrainingVariab
             Módulo de Medición de Variables
           </h2>
           <p className="text-slate-500 mt-1">
-            Registro manual mensual de KPI, ponderaciones y comisión por formador.
+            Cálculo mensual manual o automático de KPI, ponderaciones y comisión por formador.
           </p>
         </div>
         {canManage && (
-          <button
-            onClick={openCreate}
-            className="inline-flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-fuchsia-600 to-indigo-600 px-5 py-3 text-sm font-black text-white shadow-lg shadow-indigo-200 hover:opacity-95"
-          >
-            <Plus className="w-5 h-5" />
-            Nueva evaluación
-          </button>
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              onClick={exportToExcel}
+              disabled={!filteredEvaluations.length}
+              className="inline-flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-5 py-3 text-sm font-black text-slate-700 hover:bg-slate-50 disabled:opacity-40"
+            >
+              <FileSpreadsheet className="w-5 h-5" />
+              Descargar Excel
+            </button>
+            <button
+              onClick={openCreate}
+              className="inline-flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-fuchsia-600 to-indigo-600 px-5 py-3 text-sm font-black text-white shadow-lg shadow-indigo-200 hover:opacity-95"
+            >
+              <Plus className="w-5 h-5" />
+              Nueva evaluación
+            </button>
+          </div>
         )}
       </div>
 
@@ -373,7 +529,14 @@ export default function TrainingVariables({ currentUser, users }: TrainingVariab
               ) : pageItems.map((evaluation) => (
                 <tr key={evaluation.id} className="hover:bg-slate-50/80">
                   <td className="px-4 py-3 font-bold text-slate-900">{periodLabel(evaluation)}</td>
-                  <td className="px-4 py-3 text-slate-700">{evaluation.nombre_formador}</td>
+                  <td className="px-4 py-3 text-slate-700">
+                    <span className="block">{evaluation.nombre_formador}</span>
+                    {evaluation.codigos_generacion?.length ? (
+                      <span className="mt-1 block max-w-52 truncate text-[10px] font-bold text-indigo-600" title={evaluation.codigos_generacion.join(', ')}>
+                        {evaluation.codigos_generacion.join(', ')}
+                      </span>
+                    ) : null}
+                  </td>
                   <td className="px-4 py-3 text-slate-700">{evaluation.nombre_coordinador}</td>
                   <td className="px-4 py-3">{percent(evaluation.porcentaje_retencion)}</td>
                   <td className="px-4 py-3">{percent(evaluation.porcentaje_produccion_individual)}</td>
@@ -429,7 +592,7 @@ export default function TrainingVariables({ currentUser, users }: TrainingVariab
                   {isReadOnly ? <FileText className="w-6 h-6 text-indigo-600" /> : <Calculator className="w-6 h-6 text-fuchsia-600" />}
                   {modalMode === 'create' ? 'Nueva evaluación mensual' : modalMode === 'detail' ? 'Detalle de evaluación' : 'Editar evaluación'}
                 </h3>
-                <p className="text-sm text-slate-500">Todos los KPI son manuales y se recalculan al guardar.</p>
+                <p className="text-sm text-slate-500">Calcula los KPI operativos por generación o conserva el registro manual.</p>
               </div>
               <button onClick={() => setModalMode(null)} className="rounded-xl p-2 text-slate-400 hover:bg-slate-100"><X className="w-5 h-5" /></button>
             </div>
@@ -441,13 +604,13 @@ export default function TrainingVariables({ currentUser, users }: TrainingVariab
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                     <label className="space-y-1">
                       <span className={labelClass}>Año</span>
-                      <select disabled={isReadOnly} value={form.anio} onChange={(event) => updateForm('anio', Number(event.target.value))} className={inputClass}>
+                      <select disabled={isReadOnly} value={form.anio} onChange={(event) => updatePeriod('anio', Number(event.target.value))} className={inputClass}>
                         {years.map((year) => <option key={year} value={year}>{year}</option>)}
                       </select>
                     </label>
                     <label className="space-y-1">
                       <span className={labelClass}>Mes</span>
-                      <select disabled={isReadOnly} value={form.mes} onChange={(event) => updateForm('mes', Number(event.target.value))} className={inputClass}>
+                      <select disabled={isReadOnly} value={form.mes} onChange={(event) => updatePeriod('mes', Number(event.target.value))} className={inputClass}>
                         {monthNames.map((month, index) => <option key={month} value={index + 1}>{month}</option>)}
                       </select>
                     </label>
@@ -463,6 +626,75 @@ export default function TrainingVariables({ currentUser, users }: TrainingVariab
                       <textarea disabled={isReadOnly} value={form.observacion_general || ''} onChange={(event) => updateForm('observacion_general', event.target.value)} rows={3} className={inputClass} />
                     </label>
                   </div>
+                </section>
+
+                <section className="rounded-2xl border border-slate-200 p-4">
+                  <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+                    <div>
+                      <h4 className="font-black text-slate-900">Códigos de generación</h4>
+                      <p className="mt-1 text-xs text-slate-500">Selecciona una o varias capacitaciones asignadas al formador durante el periodo.</p>
+                    </div>
+                    {!isReadOnly && (
+                      <button
+                        type="button"
+                        onClick={() => void handleAutomaticCalculation()}
+                        disabled={calculating || !form.generation_ids?.length}
+                        className="inline-flex items-center justify-center gap-2 rounded-xl bg-indigo-600 px-4 py-2.5 text-sm font-black text-white disabled:opacity-40"
+                      >
+                        <Sparkles className="h-4 w-4" />
+                        {calculating ? 'Calculando...' : 'Calcular automáticamente'}
+                      </button>
+                    )}
+                  </div>
+
+                  <details className="mt-4 rounded-xl border border-slate-200 bg-slate-50">
+                    <summary className="cursor-pointer list-none px-4 py-3 text-sm font-black text-slate-700">
+                      {loadingSources
+                        ? 'Cargando códigos...'
+                        : `${form.generation_ids?.length || 0} código(s) seleccionado(s)`}
+                    </summary>
+                    <div className="grid max-h-64 grid-cols-1 gap-2 overflow-y-auto border-t border-slate-200 p-3 md:grid-cols-2">
+                      {sourceOptions.length === 0 && !loadingSources ? (
+                        <p className="col-span-full py-3 text-center text-sm text-slate-500">No hay códigos asignados al formador en este periodo.</p>
+                      ) : sourceOptions.map((source) => (
+                        <label key={source.id} className="flex items-start gap-3 rounded-xl border border-slate-200 bg-white p-3 text-sm">
+                          <input
+                            type="checkbox"
+                            disabled={isReadOnly}
+                            checked={Boolean(form.generation_ids?.includes(source.id))}
+                            onChange={() => toggleSource(source)}
+                            className="mt-0.5 h-4 w-4 accent-indigo-600"
+                          />
+                          <span>
+                            <span className="block font-black text-slate-900">{source.codigo}</span>
+                            <span className="block text-xs text-slate-500">{source.campana} · {source.fecha_inicio}</span>
+                          </span>
+                        </label>
+                      ))}
+                    </div>
+                  </details>
+
+                  {sourceError ? (
+                    <p className="mt-3 rounded-xl border border-rose-200 bg-rose-50 p-3 text-sm font-semibold text-rose-700">{sourceError}</p>
+                  ) : null}
+
+                  {form.codigos_generacion?.length ? (
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      {form.codigos_generacion.map((code) => (
+                        <span key={code} className="rounded-full bg-indigo-50 px-2.5 py-1 text-[11px] font-black text-indigo-700">{code}</span>
+                      ))}
+                    </div>
+                  ) : null}
+
+                  {form.calculo_automatico && form.calculo_detalle && (
+                    <div className="mt-4 grid grid-cols-2 gap-3 rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-xs md:grid-cols-5">
+                      <ReadMetric label="Día 1" value={String(form.calculo_detalle.participantes_dia_1)} />
+                      <ReadMetric label="Día final" value={String(form.calculo_detalle.participantes_dia_final)} />
+                      <ReadMetric label="Prospectos" value={String(form.calculo_detalle.prospectos_generados)} />
+                      <ReadMetric label="Venta / Alta" value={String(form.calculo_detalle.prospectos_venta_alta)} />
+                      <ReadMetric label="Encuestas" value={String(form.calculo_detalle.respuestas_encuesta)} />
+                    </div>
+                  )}
                 </section>
 
                 <section className="grid grid-cols-1 lg:grid-cols-2 gap-4">

@@ -15,7 +15,29 @@ export type TrainingVariablePayload = Pick<
   | 'porcentaje_satisfaccion'
   | 'porcentaje_administrativo'
   | 'observacion_administrativa'
+  | 'generation_ids'
+  | 'codigos_generacion'
+  | 'calculo_automatico'
+  | 'calculo_detalle'
 >;
+
+export interface TrainingVariableSource {
+  id: string;
+  codigo: string;
+  campana: string;
+  fecha_inicio: string;
+  fecha_fin: string;
+}
+
+export interface AutomaticTrainingVariableCalculation {
+  generation_ids: string[];
+  codigos_generacion: string[];
+  porcentaje_retencion: number;
+  porcentaje_produccion_individual: number;
+  porcentaje_produccion_grupal: number;
+  porcentaje_satisfaccion: number;
+  detalle: NonNullable<TrainingVariableEvaluation['calculo_detalle']>;
+}
 
 const API_BASE_URL =
   getRuntimeEnv('VITE_API_BASE_URL') || (import.meta.env.PROD ? '' : 'http://localhost:8080');
@@ -38,6 +60,21 @@ const request = async <T>(path: string, options: RequestInit = {}) => {
 
 export const listTrainingVariableEvaluations = () =>
   request<{ evaluations: TrainingVariableEvaluation[] }>('/api/formacion/variables');
+
+export const listTrainingVariableSources = (formadorId: string, anio: number, mes: number) => {
+  const query = new URLSearchParams({ formador_id: formadorId, anio: String(anio), mes: String(mes) });
+  return request<{ sources: TrainingVariableSource[] }>(`/api/formacion/variables/fuentes/codigos?${query}`);
+};
+
+export const calculateTrainingVariableAutomatically = (
+  formadorId: string,
+  generationIds: string[],
+  anio: number,
+  mes: number,
+) => request<{ calculation: AutomaticTrainingVariableCalculation }>('/api/formacion/variables/calcular/automatico', {
+  method: 'POST',
+  body: JSON.stringify({ formador_id: formadorId, generation_ids: generationIds, anio, mes }),
+});
 
 export const createTrainingVariableEvaluation = (payload: TrainingVariablePayload) =>
   request<{ evaluation: TrainingVariableEvaluation }>('/api/formacion/variables', {

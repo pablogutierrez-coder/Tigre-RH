@@ -11,6 +11,10 @@ import {
   updateTrainingVariableEvaluation,
 } from '../services/trainingVariableService.js';
 import {
+  calculateTrainingVariableFromSources,
+  listTrainingVariableSources,
+} from '../services/trainingVariableSourceService.js';
+import {
   type AuthenticatedRequest,
   requireAuth,
   requireRole,
@@ -30,6 +34,26 @@ const inputSchema = z.object({
   porcentaje_satisfaccion: z.coerce.number().min(0).max(100),
   porcentaje_administrativo: z.coerce.number().min(0).max(100),
   observacion_administrativa: z.string().trim().optional().default(''),
+  generation_ids: z.array(z.string().trim().min(1)).max(100).optional().default([]),
+  codigos_generacion: z.array(z.string().trim().min(1)).max(100).optional().default([]),
+  calculo_automatico: z.boolean().optional().default(false),
+  calculo_detalle: z.object({
+    participantes_dia_1: z.coerce.number().int().min(0),
+    participantes_dia_final: z.coerce.number().int().min(0),
+    prospectos_generados: z.coerce.number().int().min(0),
+    prospectos_venta_alta: z.coerce.number().int().min(0),
+    respuestas_encuesta: z.coerce.number().int().min(0),
+  }).optional(),
+});
+
+const sourceQuerySchema = z.object({
+  formador_id: z.string().trim().min(1),
+  anio: z.coerce.number().int().min(2020).max(2100),
+  mes: z.coerce.number().int().min(1).max(12),
+});
+
+const automaticCalculationSchema = sourceQuerySchema.extend({
+  generation_ids: z.array(z.string().trim().min(1)).min(1).max(100),
 });
 
 const asActor = (req: AuthenticatedRequest) => ({
@@ -52,6 +76,41 @@ router.get('/', requireAuth, requireRole(['Administrador']), async (req: Authent
   try {
     const evaluations = await listTrainingVariableEvaluations(asActor(req));
     res.json({ evaluations });
+  } catch (error) {
+    sendError(res, error);
+  }
+});
+
+router.get('/fuentes/codigos', requireAuth, requireRole(['Administrador']), async (req: AuthenticatedRequest, res: Response) => {
+  const parsed = sourceQuerySchema.safeParse(req.query);
+  if (!parsed.success) {
+    res.status(400).json({ message: parsed.error.issues[0]?.message || 'Filtros de códigos inválidos.' });
+    return;
+  }
+
+  try {
+    const sources = await listTrainingVariableSources(parsed.data.formador_id, parsed.data.anio, parsed.data.mes);
+    res.json({ sources });
+  } catch (error) {
+    sendError(res, error);
+  }
+});
+
+router.post('/calcular/automatico', requireAuth, requireRole(['Administrador']), async (req: AuthenticatedRequest, res: Response) => {
+  const parsed = automaticCalculationSchema.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ message: parsed.error.issues[0]?.message || 'Datos para cálculo automático inválidos.' });
+    return;
+  }
+
+  try {
+    const calculation = await calculateTrainingVariableFromSources(
+      parsed.data.formador_id,
+      parsed.data.generation_ids,
+      parsed.data.anio,
+      parsed.data.mes,
+    );
+    res.json({ calculation });
   } catch (error) {
     sendError(res, error);
   }
