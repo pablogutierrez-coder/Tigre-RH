@@ -33,6 +33,7 @@ import {
   listProspects,
   updateProspect,
 } from '../services/firebase/prospectService';
+import { isSessionAssignedTrainer } from '../utils/trainingAssignments';
 
 interface ProspectosProps {
   currentUser: User;
@@ -109,6 +110,9 @@ const isSaleStatus = (status?: string) => normalizedKey(status || '') === 'venta
 const getSessionCode = (session: TrainingSession) =>
   session.nombre_generacion || session.generation_code || session.id;
 
+const isActiveProspectSession = (session: TrainingSession) =>
+  session.estado === 'Activa' || session.estado === 'En curso';
+
 const resolveProspectSession = (prospect: Prospect, sessions: TrainingSession[]) => {
   const explicit = sessions.find((session) =>
     session.id === prospect.training_session_id ||
@@ -157,6 +161,20 @@ export default function Prospectos({ currentUser, users, sessions }: ProspectosP
   const [form, setForm] = useState<ProspectForm>(() => emptyForm(currentUser));
   const [saving, setSaving] = useState(false);
   const deletedProspectIds = useRef(new Set<string>());
+
+  const activeSessionsForCurrentTrainer = useMemo(
+    () => sessions.filter((session) =>
+      isActiveProspectSession(session) && isSessionAssignedTrainer(session, currentUser.id)),
+    [sessions, currentUser.id],
+  );
+
+  const formCampaignOptions = useMemo(() => {
+    if (currentUser.rol !== 'Formador') return [...PROSPECT_CAMPAIGNS];
+    const campaigns = activeSessionsForCurrentTrainer.map((session) => session.campaña);
+    if (editing?.campana) campaigns.push(editing.campana);
+    return Array.from(new Set<string>(campaigns))
+      .sort((a, b) => a.localeCompare(b, 'es'));
+  }, [activeSessionsForCurrentTrainer, currentUser.rol, editing]);
 
   const loadProspects = async (showLoading = false) => {
     if (showLoading) setLoading(true);
@@ -276,7 +294,12 @@ export default function Prospectos({ currentUser, users, sessions }: ProspectosP
 
   const openCreate = () => {
     setEditing(null);
-    setForm(emptyForm(currentUser));
+    const nextForm = emptyForm(currentUser);
+    if (currentUser.rol === 'Formador') {
+      nextForm.campana = Array.from(new Set<string>(activeSessionsForCurrentTrainer.map((session) => session.campaña)))
+        .sort((a, b) => a.localeCompare(b, 'es'))[0] || '';
+    }
+    setForm(nextForm);
     setShowModal(true);
   };
 
@@ -313,8 +336,13 @@ export default function Prospectos({ currentUser, users, sessions }: ProspectosP
 
   const formSessionOptions = useMemo(() => sessions
     .filter((session) => normalizedKey(session.campaña) === normalizedKey(form.campana))
-    .filter((session) => !form.formador_id || session.formador_id === form.formador_id)
-    .sort((a, b) => b.fecha_inicio.localeCompare(a.fecha_inicio)), [sessions, form.campana, form.formador_id]);
+    .filter((session) => currentUser.rol !== 'Formador' || editing || isActiveProspectSession(session))
+    .filter((session) => !form.formador_id || (
+      currentUser.rol === 'Formador'
+        ? isSessionAssignedTrainer(session, form.formador_id)
+        : session.formador_id === form.formador_id
+    ))
+    .sort((a, b) => b.fecha_inicio.localeCompare(a.fecha_inicio)), [sessions, form.campana, form.formador_id, currentUser.rol, editing]);
 
   const clearFilters = () => {
     setCampaignFilter('todas');
@@ -519,7 +547,7 @@ export default function Prospectos({ currentUser, users, sessions }: ProspectosP
           <form onSubmit={handleSave} className="flex max-h-[92vh] w-full max-w-4xl flex-col overflow-hidden rounded-2xl bg-white shadow-2xl">
             <div className="flex items-center justify-between border-b border-slate-100 px-5 py-4"><div><h2 className="text-lg font-black text-slate-900">{editing ? 'Editar prospecto' : 'Registrar prospecto'}</h2><p className="text-xs text-slate-500">Completa la información comercial del registro.</p></div><button type="button" title="Cerrar" onClick={() => setShowModal(false)} className="rounded-lg p-2 text-slate-400 hover:bg-slate-100"><X className="h-5 w-5" /></button></div>
             <div className="space-y-6 overflow-y-auto p-5">
-              <FormSection title="1. Datos generales"><Field label="Campaña *"><select value={form.campana} onChange={(event) => setForm({ ...form, campana: event.target.value, training_session_id: '', training_session_code: '' })} className="field-input">{PROSPECT_CAMPAIGNS.map((campaign) => <option key={campaign}>{campaign}</option>)}</select></Field><Field label="Fecha de registro *"><input type="date" required value={form.fecha_registro} onChange={(event) => setForm({ ...form, fecha_registro: event.target.value })} className="field-input" /></Field><Field label="Formador responsable *"><select required disabled={!isAdmin} value={form.formador_id} onChange={(event) => handleTrainerChange(event.target.value)} className="field-input disabled:bg-slate-50"><option value="">Seleccionar formador</option>{trainers.map((trainer) => <option key={trainer.id} value={trainer.id}>{trainer.nombre}</option>)}</select></Field><Field label="Código de capacitación asociada"><select value={form.training_session_id || ''} onChange={(event) => handleSessionChange(event.target.value)} className="field-input"><option value="">Sin capacitación asociada</option>{formSessionOptions.map((session) => <option key={session.id} value={session.id}>{getSessionCode(session)}</option>)}</select></Field></FormSection>
+              <FormSection title="1. Datos generales"><Field label="Campaña *"><select required value={form.campana} onChange={(event) => setForm({ ...form, campana: event.target.value, training_session_id: '', training_session_code: '' })} className="field-input">{currentUser.rol === 'Formador' && <option value="">Seleccionar campaña</option>}{formCampaignOptions.map((campaign) => <option key={campaign}>{campaign}</option>)}</select></Field><Field label="Fecha de registro *"><input type="date" required value={form.fecha_registro} onChange={(event) => setForm({ ...form, fecha_registro: event.target.value })} className="field-input" /></Field><Field label="Formador responsable *"><select required disabled={!isAdmin} value={form.formador_id} onChange={(event) => handleTrainerChange(event.target.value)} className="field-input disabled:bg-slate-50"><option value="">Seleccionar formador</option>{trainers.map((trainer) => <option key={trainer.id} value={trainer.id}>{trainer.nombre}</option>)}</select></Field><Field label="Código de capacitación asociada"><select value={form.training_session_id || ''} onChange={(event) => handleSessionChange(event.target.value)} className="field-input"><option value="">Sin capacitación asociada</option>{formSessionOptions.map((session) => <option key={session.id} value={session.id}>{getSessionCode(session)}</option>)}</select></Field></FormSection>
               <FormSection title="2. Datos del ejecutivo"><Field label="Nombre completo *"><input required value={form.ejecutivo_nombre} onChange={(event) => setForm({ ...form, ejecutivo_nombre: event.target.value })} className="field-input" /></Field><Field label="DNI *"><input required inputMode="numeric" value={form.ejecutivo_dni} onChange={(event) => setForm({ ...form, ejecutivo_dni: event.target.value })} className="field-input" /></Field><Field label="Usuario de InConcert"><input value={form.ejecutivo_inconcert} onChange={(event) => setForm({ ...form, ejecutivo_inconcert: event.target.value })} className="field-input" /></Field></FormSection>
               <FormSection title="3. Datos del prospecto"><Field label="Nombre / Razón Social *"><input required value={form.prospecto_nombre} onChange={(event) => setForm({ ...form, prospecto_nombre: event.target.value })} className="field-input" /></Field><Field label="RUC"><input inputMode="numeric" value={form.ruc || ''} onChange={(event) => setForm({ ...form, ruc: event.target.value })} className="field-input" /></Field><Field label="DNI"><input inputMode="numeric" value={form.dni || ''} onChange={(event) => setForm({ ...form, dni: event.target.value })} className="field-input" /></Field><Field label="Teléfono de contacto *"><input required value={form.telefono} onChange={(event) => setForm({ ...form, telefono: event.target.value })} className="field-input" /></Field><Field label="Correo electrónico"><input type="email" value={form.correo || ''} onChange={(event) => setForm({ ...form, correo: event.target.value })} className="field-input" /></Field><Field label="Producto de interés *"><input required value={form.producto_interes} onChange={(event) => setForm({ ...form, producto_interes: event.target.value })} className="field-input" /></Field><Field label="Líneas adicionales"><input value={form.lineas_adicionales || ''} onChange={(event) => setForm({ ...form, lineas_adicionales: event.target.value })} className="field-input" /></Field><Field label="Cantidad de productos"><input type="number" min="1" value={form.cantidad_productos} onChange={(event) => setForm({ ...form, cantidad_productos: Math.max(1, Number(event.target.value) || 1) })} className="field-input" /></Field><Field label="Estado del prospecto *"><select value={form.estado} onChange={(event) => setForm({ ...form, estado: event.target.value as ProspectStatus })} className="field-input">{PROSPECT_STATUSES.map((status) => <option key={status}>{status}</option>)}</select></Field><div className="sm:col-span-2 xl:col-span-3"><Field label="Observaciones"><textarea rows={3} value={form.observaciones || ''} onChange={(event) => setForm({ ...form, observaciones: event.target.value })} className="field-input resize-none" /></Field></div></FormSection>
             </div>
