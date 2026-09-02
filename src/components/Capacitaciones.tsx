@@ -399,8 +399,11 @@ export default function Capacitaciones({
   // Confirm reopen routine
   const handleConfirmReopen = () => {
     if (!sessionToReopen) return;
-    if (reopenReason.trim().length < 15) {
-      alert('El motivo de reapertura debe tener al menos 15 caracteres.');
+    const minimumReasonLength = currentUser.rol === 'Administrador' ? 1 : 15;
+    if (reopenReason.trim().length < minimumReasonLength) {
+      alert(currentUser.rol === 'Administrador'
+        ? 'Ingresa el motivo de la reapertura.'
+        : 'El motivo de reapertura debe tener al menos 15 caracteres.');
       return;
     }
 
@@ -1537,8 +1540,11 @@ export default function Capacitaciones({
                           </button>
                         )}
 
-                        {/* Reopen closed training button (Only for Admin or Analista) */}
-                        {session.estado === 'Capacitación cerrada' && (currentUser.rol === 'Administrador' || currentUser.rol === 'Analista') && (
+                        {/* Reopen closed training button (Admin can reopen either closed state) */}
+                        {(
+                          session.estado === 'Capacitación cerrada' ||
+                          (currentUser.rol === 'Administrador' && session.estado === 'Campaña cerrada')
+                        ) && (currentUser.rol === 'Administrador' || currentUser.rol === 'Analista') && (
                           <button
                             onClick={() => handleInitiateReopen(session)}
                             className="bg-emerald-50 hover:bg-emerald-100 text-emerald-700 font-bold text-xs px-2.5 py-1.5 rounded-lg transition-colors cursor-pointer"
@@ -2631,7 +2637,9 @@ export default function Capacitaciones({
 
               <div>
                 <label className="block text-xs font-semibold text-slate-600 mb-1.5">
-                  Motivo de la reapertura (Mínimo 15 caracteres) *
+                  {currentUser.rol === 'Administrador'
+                    ? 'Motivo de la reapertura *'
+                    : 'Motivo de la reapertura (Mínimo 15 caracteres) *'}
                 </label>
                 <textarea
                   value={reopenReason}
@@ -2641,9 +2649,11 @@ export default function Capacitaciones({
                   className="w-full text-xs bg-slate-50 text-slate-700 rounded-xl border border-slate-200 p-3 focus:ring-2 focus:ring-emerald-500 outline-hidden leading-relaxed"
                 />
                 <div className="flex justify-between text-[10px] mt-1 font-semibold text-slate-400">
-                  <span>Mínimo requerido: 15 caracteres</span>
-                  <span className={reopenReason.trim().length >= 15 ? 'text-emerald-600' : 'text-rose-500'}>
-                    {reopenReason.trim().length} / 15
+                  <span>{currentUser.rol === 'Administrador' ? 'Motivo obligatorio' : 'Mínimo requerido: 15 caracteres'}</span>
+                  <span className={reopenReason.trim().length >= (currentUser.rol === 'Administrador' ? 1 : 15) ? 'text-emerald-600' : 'text-rose-500'}>
+                    {currentUser.rol === 'Administrador'
+                      ? `${reopenReason.trim().length} caracteres`
+                      : `${reopenReason.trim().length} / 15`}
                   </span>
                 </div>
               </div>
@@ -2659,10 +2669,10 @@ export default function Capacitaciones({
               </button>
               <button
                 type="button"
-                disabled={reopenReason.trim().length < 15}
+                disabled={reopenReason.trim().length < (currentUser.rol === 'Administrador' ? 1 : 15)}
                 onClick={handleConfirmReopen}
                 className={`text-white text-xs font-bold px-5 py-2 rounded-xl transition-all ${
-                  reopenReason.trim().length >= 15
+                  reopenReason.trim().length >= (currentUser.rol === 'Administrador' ? 1 : 15)
                     ? 'bg-emerald-600 hover:bg-emerald-700 cursor-pointer shadow-md'
                     : 'bg-slate-300 text-slate-500 cursor-not-allowed'
                 }`}
