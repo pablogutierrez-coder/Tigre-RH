@@ -104,6 +104,8 @@ const normalizedKey = (value: string) => value
   .replace(/[^a-zA-Z0-9]/g, '')
   .toLowerCase();
 
+const isSaleStatus = (status?: string) => normalizedKey(status || '') === 'ventaalta';
+
 const getSessionCode = (session: TrainingSession) =>
   session.nombre_generacion || session.generation_code || session.id;
 
@@ -219,20 +221,18 @@ export default function Prospectos({ currentUser, users, sessions }: ProspectosP
     });
   }, [prospects, search, campaignFilter, trainerFilter, dateFilter, sessionFilter, sessions]);
 
-  const lastFiveDays = useMemo(() => {
-    const today = new Date(`${peruDate()}T12:00:00`);
-    return Array.from({ length: 5 }, (_, index) => {
-      const date = new Date(today);
-      date.setDate(today.getDate() - (4 - index));
-      return new Intl.DateTimeFormat('en-CA', { year: 'numeric', month: '2-digit', day: '2-digit' }).format(date);
-    });
-  }, []);
+  const lastFiveDays = useMemo(
+    () => Array.from(new Set(filteredProspects.map((prospect) => prospect.fecha_registro).filter(Boolean)))
+      .sort()
+      .slice(-5),
+    [filteredProspects],
+  );
 
   const ojtProspects = useMemo(
     () => filteredProspects.filter((prospect) => lastFiveDays.includes(prospect.fecha_registro)),
     [filteredProspects, lastFiveDays],
   );
-  const sales = ojtProspects.filter((prospect) => prospect.estado === 'Venta / Alta').length;
+  const sales = ojtProspects.filter((prospect) => isSaleStatus(prospect.estado)).length;
   const conversion = ojtProspects.length > 0 ? Math.round((sales / ojtProspects.length) * 100) : 0;
   const dailyData = lastFiveDays.map((date, index) => {
     const dayProspects = ojtProspects.filter((prospect) => prospect.fecha_registro === date);
@@ -240,7 +240,7 @@ export default function Prospectos({ currentUser, users, sessions }: ProspectosP
       name: `Día ${index + 1}`,
       fecha: formatDate(date),
       Prospectos: dayProspects.length,
-      Ventas: dayProspects.filter((prospect) => prospect.estado === 'Venta / Alta').length,
+      Ventas: dayProspects.filter((prospect) => isSaleStatus(prospect.estado)).length,
     };
   });
   const executiveData = useMemo(() => {
@@ -254,25 +254,25 @@ export default function Prospectos({ currentUser, users, sessions }: ProspectosP
         ventas: 0,
       };
       row.prospectos += 1;
-      if (prospect.estado === 'Venta / Alta') row.ventas += 1;
+      if (isSaleStatus(prospect.estado)) row.ventas += 1;
       grouped.set(key, row);
     });
     return Array.from(grouped.values())
       .map((row) => ({ ...row, conversion: row.prospectos ? Math.round((row.ventas / row.prospectos) * 100) : 0 }))
       .sort((a, b) => b.prospectos - a.prospectos);
   }, [ojtProspects]);
-  const campaignData = useMemo(() => PROSPECT_CAMPAIGNS
+  const campaignData = useMemo(() => campaignOptions
     .filter((campaign) => campaignFilter === 'todas' || campaign === campaignFilter)
     .map((campaign) => {
       const campaignProspects = ojtProspects.filter((prospect) => prospect.campana === campaign);
-      const campaignSales = campaignProspects.filter((prospect) => prospect.estado === 'Venta / Alta').length;
+      const campaignSales = campaignProspects.filter((prospect) => isSaleStatus(prospect.estado)).length;
       return {
         campaign,
         prospects: campaignProspects.length,
         sales: campaignSales,
         conversion: campaignProspects.length > 0 ? Math.round((campaignSales / campaignProspects.length) * 100) : 0,
       };
-    }), [ojtProspects, campaignFilter]);
+    }), [campaignOptions, ojtProspects, campaignFilter]);
 
   const openCreate = () => {
     setEditing(null);
@@ -448,7 +448,7 @@ export default function Prospectos({ currentUser, users, sessions }: ProspectosP
       <section className="space-y-4">
         <div>
           <h2 className="text-lg font-black text-slate-900">Medición de Prospectos OJT</h2>
-          <p className="text-xs text-slate-500">Resultados de los últimos 5 días por ejecutivo y campaña.</p>
+          <p className="text-xs text-slate-500">Resultados de los últimos 5 días con actividad según los filtros aplicados.</p>
         </div>
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
           {[
@@ -486,7 +486,7 @@ export default function Prospectos({ currentUser, users, sessions }: ProspectosP
             </div>
             <div className="border-b border-slate-100 px-5 py-3"><h3 className="text-sm font-black text-slate-800">Comparativo por ejecutivo</h3></div>
             <div className="max-h-56 overflow-auto">
-              {executiveData.length === 0 ? <p className="px-5 py-10 text-center text-sm text-slate-400">Sin registros en los últimos 5 días.</p> : executiveData.map((row) => (
+              {executiveData.length === 0 ? <p className="px-5 py-10 text-center text-sm text-slate-400">Sin registros para los filtros aplicados.</p> : executiveData.map((row) => (
                 <div key={`${row.ejecutivo}-${row.campana}`} className="grid grid-cols-[1fr_auto] gap-3 border-b border-slate-50 px-5 py-3 last:border-0">
                   <div className="min-w-0"><p className="truncate text-xs font-bold text-slate-800">{row.ejecutivo}</p><p className="truncate text-[10px] text-slate-400">{row.campana} · {row.prospectos} prospectos · {row.ventas} ventas</p></div>
                   <span className="rounded-lg bg-emerald-50 px-2 py-1 text-xs font-black text-emerald-700">{row.conversion}%</span>
@@ -507,7 +507,7 @@ export default function Prospectos({ currentUser, users, sessions }: ProspectosP
             <thead className="bg-slate-50 text-[10px] uppercase text-slate-500"><tr><th className="p-3">Fecha</th><th className="p-3">Campaña</th><th className="p-3">Ejecutivo</th><th className="p-3">Prospecto</th><th className="p-3">Producto</th><th className="p-3">Estado</th><th className="p-3 text-right">Acciones</th></tr></thead>
             <tbody>
               {loading ? <tr><td colSpan={7} className="p-10 text-center text-slate-400">Cargando prospectos...</td></tr> : filteredProspects.length === 0 ? <tr><td colSpan={7} className="p-10 text-center text-slate-400">No se encontraron prospectos.</td></tr> : filteredProspects.map((prospect) => (
-                <tr key={prospect.id} className="border-t border-slate-100 hover:bg-slate-50/60"><td className="whitespace-nowrap p-3 text-slate-500">{formatDate(prospect.fecha_registro)}</td><td className="whitespace-nowrap p-3"><p className="font-semibold text-slate-700">{prospect.campana}</p><p className="text-[10px] font-medium text-indigo-500">{resolveProspectSession(prospect, sessions) ? getSessionCode(resolveProspectSession(prospect, sessions)!) : 'Sin capacitación asociada'}</p></td><td className="p-3"><p className="font-bold text-slate-800">{prospect.ejecutivo_nombre}</p><p className="text-[10px] text-slate-400">{prospect.ejecutivo_inconcert || prospect.ejecutivo_dni}</p></td><td className="p-3"><p className="font-bold text-slate-800">{prospect.prospecto_nombre}</p><p className="text-[10px] text-slate-400">{prospect.ruc || prospect.dni || prospect.telefono}</p></td><td className="p-3 text-slate-600">{prospect.producto_interes}</td><td className="p-3"><span className={`whitespace-nowrap rounded-full px-2 py-1 text-[10px] font-black ${statusStyle[prospect.estado]}`}>{prospect.estado}</span></td><td className="p-3"><div className="flex justify-end gap-1"><button type="button" title="Editar prospecto" onClick={() => openEdit(prospect)} className="rounded-lg p-2 text-slate-500 hover:bg-indigo-50 hover:text-indigo-600"><Pencil className="h-4 w-4" /></button>{isAdmin && <button type="button" title="Eliminar prospecto" onClick={() => handleDelete(prospect)} className="rounded-lg p-2 text-slate-500 hover:bg-rose-50 hover:text-rose-600"><Trash2 className="h-4 w-4" /></button>}</div></td></tr>
+                <tr key={prospect.id} className="border-t border-slate-100 hover:bg-slate-50/60"><td className="whitespace-nowrap p-3 text-slate-500">{formatDate(prospect.fecha_registro)}</td><td className="whitespace-nowrap p-3"><p className="font-semibold text-slate-700">{prospect.campana}</p><p className="text-[10px] font-medium text-indigo-500">{resolveProspectSession(prospect, sessions) ? getSessionCode(resolveProspectSession(prospect, sessions)!) : 'Sin capacitación asociada'}</p></td><td className="p-3"><p className="font-bold text-slate-800">{prospect.ejecutivo_nombre}</p><p className="text-[10px] text-slate-400">{prospect.ejecutivo_inconcert || prospect.ejecutivo_dni}</p></td><td className="p-3"><p className="font-bold text-slate-800">{prospect.prospecto_nombre}</p><p className="text-[10px] text-slate-400">{prospect.ruc || prospect.dni || prospect.telefono}</p></td><td className="p-3 text-slate-600">{prospect.producto_interes}</td><td className="p-3"><span className={`whitespace-nowrap rounded-full px-2 py-1 text-[10px] font-black ${statusStyle[prospect.estado] || 'bg-slate-100 text-slate-700'}`}>{prospect.estado}</span></td><td className="p-3"><div className="flex justify-end gap-1"><button type="button" title="Editar prospecto" onClick={() => openEdit(prospect)} className="rounded-lg p-2 text-slate-500 hover:bg-indigo-50 hover:text-indigo-600"><Pencil className="h-4 w-4" /></button>{isAdmin && <button type="button" title="Eliminar prospecto" onClick={() => handleDelete(prospect)} className="rounded-lg p-2 text-slate-500 hover:bg-rose-50 hover:text-rose-600"><Trash2 className="h-4 w-4" /></button>}</div></td></tr>
               ))}
             </tbody>
           </table>

@@ -5,11 +5,13 @@ import {
   type AuthenticatedRequest,
   requireAuth,
   requireRole,
+  requireRoleOrModule,
 } from '../utils/authMiddleware.js';
 
 const router = Router();
 const COLLECTION = 'prospects';
 const ALLOWED_ROLES = ['Administrador', 'Formador'];
+const VIEW_ROLES = ['Administrador', 'Formador', 'Coordinador', 'Analista'];
 
 const prospectSchema = z.object({
   campana: z.string().trim().min(1),
@@ -38,7 +40,7 @@ const sendError = (res: Response, error: unknown) => {
   res.status(500).json({ message: 'No se pudo procesar el prospecto.' });
 };
 
-router.get('/', requireAuth, requireRole(ALLOWED_ROLES), async (_req, res) => {
+router.get('/', requireAuth, requireRoleOrModule(VIEW_ROLES, 'formacion:prospectos'), async (_req, res) => {
   try {
     const snapshot = await adminDb.collection(COLLECTION).get();
     const prospects = snapshot.docs

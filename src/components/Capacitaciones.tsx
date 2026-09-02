@@ -23,7 +23,8 @@ import {
   FileSpreadsheet,
   Grid,
   Clock,
-  Edit3
+  Edit3,
+  X
 } from 'lucide-react';
 import { TrainingSession, Participant, User as AppUser, AttendanceStatus, AttendanceRecord, TrainingSurvey, SurveyResponse } from '../types';
 import { permissions } from '../utils/permissions';
@@ -2189,7 +2190,7 @@ export default function Capacitaciones({
                 onClick={() => setEditingSession(null)}
                 className="text-white/80 hover:text-white hover:bg-white/10 p-1.5 rounded-lg text-xs"
               >
-                âœ•
+                <X className="h-4 w-4" />
               </button>
             </div>
 
@@ -2622,7 +2623,7 @@ export default function Capacitaciones({
 
             <div className="p-6 space-y-4">
               <div className="bg-amber-50 border border-amber-200 rounded-2xl p-3.5 flex gap-2.5 text-amber-800 text-[11px] leading-relaxed">
-                <span className="text-sm">âš ï¸</span>
+                <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
                 <p className="font-medium">
                   <strong>Atención:</strong> Al reabrir esta capacitación, su estado volverá a <strong className="text-amber-950 font-black">En curso</strong>, lo que permitirá a los formadores corregir marcas de asistencia o calificaciones. Esta acción requiere justificación obligatoria y se registrará en la auditoría del sistema.
                 </p>
