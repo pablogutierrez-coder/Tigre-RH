@@ -144,7 +144,7 @@ router.get('/', requireAuth, async (req: AuthenticatedRequest, res: Response) =>
 
     res.json({
       users:
-        user.rol === 'Administrador' || user.rol === 'Analista'
+        user.rol === 'Administrador' || user.rol === 'Analista' || user.module_access.includes('administrador:usuarios')
           ? allUsers
           : allUsers.filter(
               (profile) =>

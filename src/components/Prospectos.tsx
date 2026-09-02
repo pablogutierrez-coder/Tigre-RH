@@ -1,9 +1,11 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
+import * as XLSX from 'xlsx';
 import {
   BarChart3,
   BriefcaseBusiness,
   CalendarDays,
   Filter,
+  FileSpreadsheet,
   Pencil,
   Plus,
   RotateCcw,
@@ -135,6 +137,7 @@ const resolveProspectSession = (prospect: Prospect, sessions: TrainingSession[])
 
 export default function Prospectos({ currentUser, users, sessions }: ProspectosProps) {
   const isAdmin = currentUser.rol === 'Administrador';
+  const canExport = ['Administrador', 'Coordinador', 'Analista'].includes(currentUser.rol);
   const trainers = useMemo(
     () => users.filter((user) => user.rol === 'Formador' && user.estado === 'Activo'),
     [users],
@@ -198,7 +201,11 @@ export default function Prospectos({ currentUser, users, sessions }: ProspectosP
       if (campaignFilter !== 'todas' && prospect.campana !== campaignFilter) return false;
       if (trainerFilter !== 'todos' && prospect.formador_id !== trainerFilter) return false;
       if (dateFilter && prospect.fecha_registro !== dateFilter) return false;
-      if (sessionFilter !== 'todas' && resolveProspectSession(prospect, sessions)?.id !== sessionFilter) return false;
+      if (sessionFilter !== 'todas') {
+        const resolvedSession = resolveProspectSession(prospect, sessions);
+        const resolvedCode = prospect.training_session_code || (resolvedSession ? getSessionCode(resolvedSession) : '');
+        if (resolvedCode !== sessionFilter) return false;
+      }
       if (!term) return true;
       return [
         prospect.ejecutivo_nombre,
@@ -317,6 +324,36 @@ export default function Prospectos({ currentUser, users, sessions }: ProspectosP
     setSearch('');
   };
 
+  const handleExport = () => {
+    if (!canExport) return;
+    const rows = filteredProspects.map((prospect) => {
+      const session = resolveProspectSession(prospect, sessions);
+      return {
+        'Fecha de registro': prospect.fecha_registro,
+        Campaña: prospect.campana,
+        'Código de generación': prospect.training_session_code || (session ? getSessionCode(session) : ''),
+        'Formador responsable': prospect.formador_nombre,
+        'Ejecutivo': prospect.ejecutivo_nombre,
+        'DNI ejecutivo': prospect.ejecutivo_dni,
+        'Usuario InConcert': prospect.ejecutivo_inconcert || '',
+        'Prospecto / Razón social': prospect.prospecto_nombre,
+        RUC: prospect.ruc || '',
+        DNI: prospect.dni || '',
+        Teléfono: prospect.telefono,
+        Correo: prospect.correo || '',
+        'Producto de interés': prospect.producto_interes,
+        'Líneas adicionales': prospect.lineas_adicionales || '',
+        'Cantidad de productos': prospect.cantidad_productos,
+        Estado: prospect.estado,
+        Observaciones: prospect.observaciones || '',
+      };
+    });
+    const worksheet = XLSX.utils.json_to_sheet(rows);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, 'Prospectos');
+    XLSX.writeFile(workbook, `prospectos-${peruDate()}.xlsx`);
+  };
+
   const handleSave = async (event: React.FormEvent) => {
     event.preventDefault();
     if (!form.formador_id || !form.ejecutivo_nombre.trim() || !form.ejecutivo_dni.trim() || !form.prospecto_nombre.trim() || !form.telefono.trim() || !form.producto_interes.trim()) {
@@ -360,9 +397,16 @@ export default function Prospectos({ currentUser, users, sessions }: ProspectosP
           <h1 className="mt-1 text-2xl font-black text-slate-900 sm:text-3xl">Prospectos</h1>
           <p className="mt-1 text-sm text-slate-500">Registro comercial y medición de resultados durante OJT.</p>
         </div>
-        <button type="button" onClick={openCreate} className="inline-flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-fuchsia-600 to-indigo-600 px-4 py-3 text-sm font-bold text-white shadow-sm hover:brightness-105">
-          <Plus className="h-4 w-4" /> Registrar prospecto
-        </button>
+        <div className="flex flex-wrap items-center gap-2">
+          {canExport && (
+            <button type="button" onClick={handleExport} className="inline-flex items-center justify-center gap-2 rounded-xl border border-emerald-200 bg-white px-4 py-3 text-sm font-bold text-emerald-700 shadow-sm hover:bg-emerald-50">
+              <FileSpreadsheet className="h-4 w-4" /> Descargar Excel
+            </button>
+          )}
+          <button type="button" onClick={openCreate} className="inline-flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-fuchsia-600 to-indigo-600 px-4 py-3 text-sm font-bold text-white shadow-sm hover:brightness-105">
+            <Plus className="h-4 w-4" /> Registrar prospecto
+          </button>
+        </div>
       </div>
 
       {error && <div className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-semibold text-rose-700">{error}</div>}
@@ -395,8 +439,8 @@ export default function Prospectos({ currentUser, users, sessions }: ProspectosP
             <input type="date" value={dateFilter} onChange={(event) => setDateFilter(event.target.value)} className="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-xs text-slate-700 outline-none focus:border-indigo-400" />
           </label>
           <label className="space-y-1">
-            <span className="text-[10px] font-black uppercase text-slate-500">Código de capacitación</span>
-            <select value={sessionFilter} onChange={(event) => setSessionFilter(event.target.value)} className="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-xs text-slate-700 outline-none focus:border-indigo-400"><option value="todas">Todas las capacitaciones</option>{sessionOptions.map((session) => <option key={session.id} value={session.id}>{getSessionCode(session)}</option>)}</select>
+            <span className="text-[10px] font-black uppercase text-slate-500">Código de generación</span>
+            <select value={sessionFilter} onChange={(event) => setSessionFilter(event.target.value)} className="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-xs text-slate-700 outline-none focus:border-indigo-400"><option value="todas">Todos los códigos</option>{Array.from(new Set([...sessionOptions.map(getSessionCode), ...prospects.map((prospect) => prospect.training_session_code).filter(Boolean)])).sort().map((code) => <option key={code} value={code}>{code}</option>)}</select>
           </label>
         </div>
       </section>

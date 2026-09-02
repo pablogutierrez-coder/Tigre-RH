@@ -85,6 +85,22 @@ const isAssignedTrainer = (data: Record<string, unknown> | undefined, userId: st
   data?.formador_id === userId ||
   (Array.isArray(data?.formador_ids) && data.formador_ids.includes(userId));
 
+const hasSplitTrainerAssignment = (data: Record<string, unknown> | undefined) =>
+  Array.isArray(data?.formador_capacitacion_inicial_ids) || Array.isArray(data?.formador_ojt_ids);
+
+const isInitialTrainer = (data: Record<string, unknown> | undefined, userId: string) =>
+  hasSplitTrainerAssignment(data)
+    ? Array.isArray(data?.formador_capacitacion_inicial_ids) && data.formador_capacitacion_inicial_ids.includes(userId)
+    : isAssignedTrainer(data, userId);
+
+const isOjtTrainer = (data: Record<string, unknown> | undefined, userId: string) =>
+  hasSplitTrainerAssignment(data)
+    ? Array.isArray(data?.formador_ojt_ids) && data.formador_ojt_ids.includes(userId)
+    : isAssignedTrainer(data, userId);
+
+const canTrainerEditAttendanceDay = (data: Record<string, unknown> | undefined, userId: string, day: number) =>
+  (day <= 5 && isInitialTrainer(data, userId)) || (day >= 6 && isOjtTrainer(data, userId));
+
 const ownsSession = async (req: AuthenticatedRequest, sessionId: string) => {
   const session = await adminDb.collection('sessions').doc(sessionId).get();
   if (!session.exists) return false;
@@ -115,6 +131,13 @@ router.put(
     if (!parsed.success || !(await ownsSession(req, parsed.data.training_session_id))) {
       res.status(403).json({ message: 'No puedes modificar esta asistencia.' });
       return;
+    }
+    if (req.user!.rol === 'Formador') {
+      const session = await adminDb.collection('sessions').doc(parsed.data.training_session_id).get();
+      if (!canTrainerEditAttendanceDay(session.data(), req.user!.uid, Number(parsed.data.dia))) {
+        res.status(403).json({ message: 'Este día de asistencia no corresponde a tu fase asignada.' });
+        return;
+      }
     }
     await adminDb.collection('attendance').doc(req.params.id).set(parsed.data, { merge: true });
     res.json({ ok: true });
@@ -170,14 +193,27 @@ router.put(
       return;
     }
     if (req.user!.rol === 'Formador') {
-      delete parsed.data.cv_file_name;
-      delete parsed.data.cv_file_path;
-      delete parsed.data.cv_storage_provider;
-      delete parsed.data.cv_drive_file_id;
-      delete parsed.data.cv_drive_folder_id;
-      delete parsed.data.cv_content_type;
-      delete parsed.data.cv_uploaded_at;
-      delete parsed.data.cv_uploaded_by;
+      const session = await adminDb.collection('sessions').doc(parsed.data.training_session_id).get();
+      const sessionData = session.data();
+      const allowed: Record<string, unknown> = {};
+      if (isInitialTrainer(sessionData, req.user!.uid)) {
+        allowed.evaluacion_nota = parsed.data.evaluacion_nota;
+        allowed.observacion_evaluacion = parsed.data.observacion_evaluacion;
+      }
+      if (isOjtTrainer(sessionData, req.user!.uid)) {
+        allowed.resultado_formacion = parsed.data.resultado_formacion;
+        allowed.comentario_aptitud = parsed.data.comentario_aptitud;
+        allowed.motivo_no_apt = parsed.data.motivo_no_apt;
+        allowed.estado_final = parsed.data.estado_final;
+      }
+      const sanitized = Object.fromEntries(Object.entries(allowed).filter(([, value]) => value !== undefined));
+      if (Object.keys(sanitized).length === 0) {
+        res.status(403).json({ message: 'No tienes permisos para modificar estos campos.' });
+        return;
+      }
+      await adminDb.collection('participants').doc(req.params.id).set(sanitized, { merge: true });
+      res.json({ ok: true });
+      return;
     }
     await adminDb.collection('participants').doc(req.params.id).set(parsed.data, { merge: true });
     res.json({ ok: true });

@@ -29,7 +29,13 @@ import { TrainingSession, Participant, User as AppUser, AttendanceStatus, Attend
 import { permissions } from '../utils/permissions';
 import { getTrainingDays, getTrainingDaysCount } from '../utils/trainingDays';
 import { BPO_CAMPAIGNS, getCampaignPrefix, normalizeCampaignName } from '../constants/campaigns';
-import { getSessionTrainerIds, getSessionTrainerNames, isSessionAssignedTrainer } from '../utils/trainingAssignments';
+import {
+  getSessionInitialTrainerIds,
+  getSessionOjtTrainerIds,
+  getSessionTrainerIds,
+  getSessionTrainerNames,
+  isSessionAssignedTrainer,
+} from '../utils/trainingAssignments';
 
 interface CapacitacionesProps {
   sessions: TrainingSession[];
@@ -82,6 +88,49 @@ const getTrainingIdentifier = (
   session?: Pick<TrainingSession, 'generation_code' | 'nombre_generacion'>,
 ) => session?.generation_code?.trim() || session?.nombre_generacion?.trim() || 'Sin código';
 
+const TrainerMultiSelect = ({
+  label,
+  trainerIds,
+  trainers,
+  onChange,
+  required = false,
+}: {
+  label: string;
+  trainerIds: string[];
+  trainers: AppUser[];
+  onChange: (ids: string[]) => void;
+  required?: boolean;
+}) => (
+  <div>
+    <label className="mb-1 block text-xs font-semibold text-slate-600">{label}{required ? ' *' : ''}</label>
+    <details className="rounded-xl border border-slate-200 bg-slate-50">
+      <summary className="cursor-pointer list-none px-3 py-2.5 text-sm font-semibold text-slate-700">
+        {trainerIds.length === 0 ? 'Seleccionar formadores' : `${trainerIds.length} formador(es) seleccionado(s)`}
+      </summary>
+      <div className="max-h-52 space-y-1 overflow-y-auto border-t border-slate-200 p-2">
+        {trainers.map((trainer) => (
+          <label key={trainer.id} className="flex cursor-pointer items-center gap-2 rounded-lg bg-white px-3 py-2 text-sm text-slate-700 hover:bg-indigo-50">
+            <input
+              type="checkbox"
+              checked={trainerIds.includes(trainer.id)}
+              onChange={() => onChange(trainerIds.includes(trainer.id)
+                ? trainerIds.filter((id) => id !== trainer.id)
+                : [...trainerIds, trainer.id])}
+              className="h-4 w-4 accent-indigo-600"
+            />
+            <span>{trainer.nombre}</span>
+          </label>
+        ))}
+      </div>
+    </details>
+    {trainerIds.length > 0 && (
+      <p className="mt-1 truncate text-[11px] text-slate-500" title={trainers.filter((trainer) => trainerIds.includes(trainer.id)).map((trainer) => trainer.nombre).join(', ')}>
+        {trainers.filter((trainer) => trainerIds.includes(trainer.id)).map((trainer) => trainer.nombre).join(', ')}
+      </p>
+    )}
+  </div>
+);
+
 export default function Capacitaciones({
   sessions,
   participants,
@@ -109,7 +158,8 @@ export default function Capacitaciones({
   const [fechaFin, setFechaFin] = useState('2026-07-06');
   const [campaña, setCampaña] = useState<string>(BPO_CAMPAIGNS[0]);
   const [tipoCapacitacion, setTipoCapacitacion] = useState('Capacitación regular');
-  const [formadorId, setFormadorId] = useState('');
+  const [formadorInicialIds, setFormadorInicialIds] = useState<string[]>([]);
+  const [formadorOjtIds, setFormadorOjtIds] = useState<string[]>([]);
   const [reclutadorId, setReclutadorId] = useState(
     currentUser.rol === 'Reclutador' ? currentUser.id : '',
   );
@@ -126,7 +176,8 @@ export default function Capacitaciones({
   const [editHoraCapacitacion, setEditHoraCapacitacion] = useState('');
   const [editTurno, setEditTurno] = useState<'Part time' | 'Full time' | 'Mini full'>('Full time');
   const [editTipoCapacitacion, setEditTipoCapacitacion] = useState('Capacitación regular');
-  const [editFormadorIds, setEditFormadorIds] = useState<string[]>([]);
+  const [editFormadorInicialIds, setEditFormadorInicialIds] = useState<string[]>([]);
+  const [editFormadorOjtIds, setEditFormadorOjtIds] = useState<string[]>([]);
   const [editReclutadorId, setEditReclutadorId] = useState('');
   const [editEstado, setEditEstado] = useState<'Pendiente de inicio' | 'En curso' | 'Activa' | 'Campaña cerrada' | 'Capacitación cerrada'>('En curso');
   const [editObservaciones, setEditObservaciones] = useState('');
@@ -485,10 +536,10 @@ export default function Capacitaciones({
   }, [currentUser.rol, editCampaña, editFechaInicio, editGenerationCode, editManualGenerationCode, editingSession]);
   // Set default formador
   React.useEffect(() => {
-    if (trainers.length > 0 && !formadorId) {
-      setFormadorId(trainers[0].id);
+    if (trainers.length > 0 && formadorInicialIds.length === 0) {
+      setFormadorInicialIds([trainers[0].id]);
     }
-  }, [trainers, formadorId]);
+  }, [trainers, formadorInicialIds.length]);
 
   React.useEffect(() => {
     if (currentUser.rol === 'Reclutador') {
@@ -524,7 +575,8 @@ export default function Capacitaciones({
     setEditHoraCapacitacion(s.hora_capacitación || '08:00');
     setEditTurno(s.turno as any);
     setEditTipoCapacitacion(s.tipo_capacitación);
-    setEditFormadorIds(getSessionTrainerIds(s));
+    setEditFormadorInicialIds(getSessionInitialTrainerIds(s));
+    setEditFormadorOjtIds(getSessionOjtTrainerIds(s));
     setEditReclutadorId(s.reclutador_id || '');
     setEditEstado(s.estado as any);
     setEditObservaciones(s.observaciones || '');
@@ -533,9 +585,12 @@ export default function Capacitaciones({
 
   const handleSaveEdit = () => {
     if (!editingSession) return;
-    const selectedTrainers = trainers.filter((trainer) => editFormadorIds.includes(trainer.id));
-    if (selectedTrainers.length === 0) {
-      alert('Selecciona al menos un formador asignado.');
+    const initialTrainers = trainers.filter((trainer) => editFormadorInicialIds.includes(trainer.id));
+    const ojtTrainers = trainers.filter((trainer) => editFormadorOjtIds.includes(trainer.id));
+    const selectedTrainers = trainers.filter((trainer) =>
+      editFormadorInicialIds.includes(trainer.id) || editFormadorOjtIds.includes(trainer.id));
+    if (initialTrainers.length === 0) {
+      alert('Selecciona al menos un Formador de Capacitación Inicial.');
       return;
     }
     const nextTrainingIdentifier = editManualGenerationCode.trim();
@@ -552,10 +607,14 @@ export default function Capacitaciones({
         hora_capacitación: editHoraCapacitacion,
         turno: editTurno,
         tipo_capacitación: editTipoCapacitacion,
-        formador_id: selectedTrainers[0].id,
-        formador_nombre: selectedTrainers[0].nombre,
+        formador_id: initialTrainers[0].id,
+        formador_nombre: initialTrainers[0].nombre,
         formador_ids: selectedTrainers.map((trainer) => trainer.id),
         formador_nombres: selectedTrainers.map((trainer) => trainer.nombre),
+        formador_capacitacion_inicial_ids: initialTrainers.map((trainer) => trainer.id),
+        formador_capacitacion_inicial_nombres: initialTrainers.map((trainer) => trainer.nombre),
+        formador_ojt_ids: ojtTrainers.map((trainer) => trainer.id),
+        formador_ojt_nombres: ojtTrainers.map((trainer) => trainer.nombre),
         reclutador_id: editReclutadorId,
         estado: editEstado,
         observaciones: editObservaciones,
@@ -893,7 +952,7 @@ export default function Capacitaciones({
         normalizedTName.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "")
       );
       if (matchedTrainer) {
-        setFormadorId(matchedTrainer.id);
+        setFormadorInicialIds([matchedTrainer.id]);
       }
     }
 
@@ -1164,6 +1223,15 @@ export default function Capacitaciones({
       return;
     }
 
+    const initialTrainers = trainers.filter((trainer) => formadorInicialIds.includes(trainer.id));
+    const ojtTrainers = trainers.filter((trainer) => formadorOjtIds.includes(trainer.id));
+    const selectedTrainers = trainers.filter((trainer) =>
+      formadorInicialIds.includes(trainer.id) || formadorOjtIds.includes(trainer.id));
+    if (initialTrainers.length === 0) {
+      alert('Selecciona al menos un Formador de Capacitación Inicial.');
+      return;
+    }
+
     onAddSession(
       {
         nombre_generacion: trainingIdentifier,
@@ -1172,7 +1240,13 @@ export default function Capacitaciones({
         fecha_inicio: fechaInicio,
         fecha_fin: fechaFin,
         hora_capacitación: horaCapacitacion,
-        formador_id: formadorId,
+        formador_id: initialTrainers[0].id,
+        formador_ids: selectedTrainers.map((trainer) => trainer.id),
+        formador_nombres: selectedTrainers.map((trainer) => trainer.nombre),
+        formador_capacitacion_inicial_ids: initialTrainers.map((trainer) => trainer.id),
+        formador_capacitacion_inicial_nombres: initialTrainers.map((trainer) => trainer.nombre),
+        formador_ojt_ids: ojtTrainers.map((trainer) => trainer.id),
+        formador_ojt_nombres: ojtTrainers.map((trainer) => trainer.nombre),
         reclutador_id: reclutadorId || currentUser.id,
         modalidad,
         turno,
@@ -1559,18 +1633,20 @@ export default function Capacitaciones({
                   />
                 </div>
 
-                <div>
-                  <label className="block text-xs font-semibold text-slate-600 mb-1">Formador Asignado *</label>
-                  <select
-                    value={formadorId}
-                    onChange={(e) => setFormadorId(e.target.value)}
-                    className="w-full text-sm bg-slate-50 text-slate-700 rounded-xl border border-slate-200 p-2.5 focus:ring-2 focus:ring-fuchsia-500 outline-hidden"
-                  >
-                    {trainers.map(t => (
-                      <option key={t.id} value={t.id}>{t.nombre}</option>
-                    ))}
-                  </select>
-                </div>
+                <TrainerMultiSelect
+                  label="Formador Capacitación Inicial"
+                  trainerIds={formadorInicialIds}
+                  trainers={trainers}
+                  onChange={setFormadorInicialIds}
+                  required
+                />
+
+                <TrainerMultiSelect
+                  label="Formador OJT"
+                  trainerIds={formadorOjtIds}
+                  trainers={trainers}
+                  onChange={setFormadorOjtIds}
+                />
 
 
                 <div>
@@ -2199,38 +2275,20 @@ export default function Capacitaciones({
                   </select>
                 </div>
 
-                <div>
-                  <label className="block text-xs font-semibold text-slate-600 mb-1">Formadores Asignados *</label>
-                  <details className="rounded-xl border border-slate-200 bg-slate-50">
-                    <summary className="cursor-pointer list-none px-3 py-2.5 text-sm font-semibold text-slate-700">
-                      {editFormadorIds.length === 0
-                        ? 'Seleccionar formadores'
-                        : `${editFormadorIds.length} formador(es) seleccionado(s)`}
-                    </summary>
-                    <div className="max-h-52 space-y-1 overflow-y-auto border-t border-slate-200 p-2">
-                      {trainers.map((trainer) => (
-                        <label key={trainer.id} className="flex cursor-pointer items-center gap-2 rounded-lg bg-white px-3 py-2 text-sm text-slate-700 hover:bg-indigo-50">
-                          <input
-                            type="checkbox"
-                            checked={editFormadorIds.includes(trainer.id)}
-                            onChange={() => setEditFormadorIds((current) =>
-                              current.includes(trainer.id)
-                                ? current.filter((id) => id !== trainer.id)
-                                : [...current, trainer.id]
-                            )}
-                            className="h-4 w-4 accent-indigo-600"
-                          />
-                          <span>{trainer.nombre}</span>
-                        </label>
-                      ))}
-                    </div>
-                  </details>
-                  {editFormadorIds.length > 0 && (
-                    <p className="mt-1 truncate text-[11px] text-slate-500" title={trainers.filter((trainer) => editFormadorIds.includes(trainer.id)).map((trainer) => trainer.nombre).join(', ')}>
-                      {trainers.filter((trainer) => editFormadorIds.includes(trainer.id)).map((trainer) => trainer.nombre).join(', ')}
-                    </p>
-                  )}
-                </div>
+                <TrainerMultiSelect
+                  label="Formador Capacitación Inicial"
+                  trainerIds={editFormadorInicialIds}
+                  trainers={trainers}
+                  onChange={setEditFormadorInicialIds}
+                  required
+                />
+
+                <TrainerMultiSelect
+                  label="Formador OJT"
+                  trainerIds={editFormadorOjtIds}
+                  trainers={trainers}
+                  onChange={setEditFormadorOjtIds}
+                />
 
                 <div>
                   <label className="block text-xs font-semibold text-slate-600 mb-1">Reclutador Asignado *</label>

@@ -6,6 +6,8 @@ export interface AuthenticatedUser {
   rol: string;
   usuario: string;
   nombre: string;
+  areas: string[];
+  module_access: string[];
 }
 
 export interface AuthenticatedRequest extends Request {
@@ -17,6 +19,8 @@ const profileCache = new Map<string, {
   profile: Record<string, unknown>;
 }>();
 const PROFILE_CACHE_TTL_MS = 60 * 1000;
+
+export const invalidateProfileCache = (uid: string) => profileCache.delete(uid);
 
 export const requireAuth = async (
   req: AuthenticatedRequest,
@@ -72,6 +76,8 @@ export const requireAuth = async (
       rol: String(profile?.rol || ''),
       usuario: String(profile?.usuario_normalizado || profile?.usuario || ''),
       nombre: String(profile?.nombre || ''),
+      areas: Array.isArray(profile?.areas) ? profile.areas.map(String) : [],
+      module_access: Array.isArray(profile?.module_access) ? profile.module_access.map(String) : [],
     };
 
     next();
@@ -98,5 +104,18 @@ export const requireRole =
       return;
     }
 
+    next();
+  };
+
+export const requireRoleOrModule = (roles: string[], moduleId: string) =>
+  (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+    if (!req.user) {
+      res.status(401).json({ message: 'Token requerido.' });
+      return;
+    }
+    if (!roles.includes(req.user.rol) && !req.user.module_access.includes(moduleId)) {
+      res.status(403).json({ message: 'No tienes permisos para esta accion.' });
+      return;
+    }
     next();
   };

@@ -42,17 +42,29 @@ const normalizeStringArray = (value: unknown) =>
     : [];
 
 const getTrainerAssignment = (data: Record<string, unknown>) => {
+  const initialIds = normalizeStringArray(data.training_formador_inicial_ids || data.formador_capacitacion_inicial_ids);
+  const initialNames = normalizeStringArray(data.training_formador_inicial_nombres || data.formador_capacitacion_inicial_nombres);
+  const ojtIds = normalizeStringArray(data.training_formador_ojt_ids || data.formador_ojt_ids);
+  const ojtNames = normalizeStringArray(data.training_formador_ojt_nombres || data.formador_ojt_nombres);
   const ids = normalizeStringArray(data.training_formador_ids || data.formador_ids);
   const names = normalizeStringArray(data.training_formador_nombres || data.formador_nombres);
   const primaryId = normalize(data.training_formador_id || data.formador_id);
   const primaryName = normalize(data.training_formador_nombre || data.formador_nombre);
-  if (ids.length === 0 && primaryId) ids.push(primaryId);
-  if (names.length === 0 && primaryName) names.push(primaryName);
+  if (initialIds.length === 0 && ids.length > 0) initialIds.push(...ids);
+  if (initialNames.length === 0 && names.length > 0) initialNames.push(...names);
+  if (initialIds.length === 0 && primaryId) initialIds.push(primaryId);
+  if (initialNames.length === 0 && primaryName) initialNames.push(primaryName);
+  const allIds = Array.from(new Set([...ids, ...initialIds, ...ojtIds]));
+  const allNames = Array.from(new Set([...names, ...initialNames, ...ojtNames]));
   return {
-    ids,
-    names,
-    primaryId: ids[0] || primaryId,
-    primaryName: names[0] || primaryName,
+    ids: allIds,
+    names: allNames,
+    initialIds,
+    initialNames,
+    ojtIds,
+    ojtNames,
+    primaryId: initialIds[0] || allIds[0] || primaryId,
+    primaryName: initialNames[0] || allNames[0] || primaryName,
   };
 };
 
@@ -320,6 +332,10 @@ router.post(
         training_formador_nombres: trainerAssignment.names,
         training_formador_id: trainerAssignment.primaryId,
         training_formador_nombre: trainerAssignment.primaryName,
+        training_formador_inicial_ids: trainerAssignment.initialIds,
+        training_formador_inicial_nombres: trainerAssignment.initialNames,
+        training_formador_ojt_ids: trainerAssignment.ojtIds,
+        training_formador_ojt_nombres: trainerAssignment.ojtNames,
         fecha_creacion: timestamp,
         created_at: timestamp,
         updated_at: timestamp,
@@ -384,6 +400,10 @@ router.patch(
       'training_formador_nombres',
       'training_formador_id',
       'training_formador_nombre',
+      'training_formador_inicial_ids',
+      'training_formador_inicial_nombres',
+      'training_formador_ojt_ids',
+      'training_formador_ojt_nombres',
     ].some((key) => Object.prototype.hasOwnProperty.call(changes.data, key));
     if (trainerFieldsChanged) {
       const trainerAssignment = getTrainerAssignment(changes.data);
@@ -391,6 +411,10 @@ router.patch(
       changes.data.training_formador_nombres = trainerAssignment.names;
       changes.data.training_formador_id = trainerAssignment.primaryId;
       changes.data.training_formador_nombre = trainerAssignment.primaryName;
+      changes.data.training_formador_inicial_ids = trainerAssignment.initialIds;
+      changes.data.training_formador_inicial_nombres = trainerAssignment.initialNames;
+      changes.data.training_formador_ojt_ids = trainerAssignment.ojtIds;
+      changes.data.training_formador_ojt_nombres = trainerAssignment.ojtNames;
     }
     const payload = { ...changes.data, updated_at: nowIso(), updated_by: req.user!.uid };
     await adminDb.collection(COLLECTIONS.requisitions).doc(req.params.id).set(payload, { merge: true });
@@ -401,6 +425,10 @@ router.patch(
         formador_nombre: trainerAssignment.primaryName,
         formador_ids: trainerAssignment.ids,
         formador_nombres: trainerAssignment.names,
+        formador_capacitacion_inicial_ids: trainerAssignment.initialIds,
+        formador_capacitacion_inicial_nombres: trainerAssignment.initialNames,
+        formador_ojt_ids: trainerAssignment.ojtIds,
+        formador_ojt_nombres: trainerAssignment.ojtNames,
       };
       const writer = adminDb.bulkWriter();
       const linkedSessions = await adminDb
@@ -416,7 +444,13 @@ router.patch(
           .collection(COLLECTIONS.surveys)
           .where('training_session_id', '==', sessionId)
           .get();
-        linkedSurveys.docs.forEach((survey) => writer.set(survey.ref, sessionTrainerPayload, { merge: true }));
+        const surveyTrainerPayload = {
+          formador_id: trainerAssignment.primaryId,
+          formador_nombre: trainerAssignment.primaryName,
+          formador_ids: trainerAssignment.initialIds,
+          formador_nombres: trainerAssignment.initialNames,
+        };
+        linkedSurveys.docs.forEach((survey) => writer.set(survey.ref, surveyTrainerPayload, { merge: true }));
       }
       await writer.close();
     }
@@ -747,6 +781,10 @@ router.post(
       training_formador_nombres: training.formador_nombres || requisition.training_formador_nombres,
       training_formador_id: training.formador_id || requisition.training_formador_id,
       training_formador_nombre: training.formador_nombre || requisition.training_formador_nombre,
+      training_formador_inicial_ids: training.formador_capacitacion_inicial_ids || requisition.training_formador_inicial_ids,
+      training_formador_inicial_nombres: training.formador_capacitacion_inicial_nombres || requisition.training_formador_inicial_nombres,
+      training_formador_ojt_ids: training.formador_ojt_ids || requisition.training_formador_ojt_ids,
+      training_formador_ojt_nombres: training.formador_ojt_nombres || requisition.training_formador_ojt_nombres,
     });
     const formadorId = trainerAssignment.primaryId;
     const formadorNombre = trainerAssignment.primaryName;
@@ -787,6 +825,10 @@ router.post(
       formador_nombre: formadorNombre,
       formador_ids: trainerAssignment.ids,
       formador_nombres: trainerAssignment.names,
+      formador_capacitacion_inicial_ids: trainerAssignment.initialIds,
+      formador_capacitacion_inicial_nombres: trainerAssignment.initialNames,
+      formador_ojt_ids: trainerAssignment.ojtIds,
+      formador_ojt_nombres: trainerAssignment.ojtNames,
       reclutador_id: String(applicants[0].reclutador_id || req.user!.uid),
       reclutador_nombre: String(applicants[0].reclutador_nombre || req.user!.nombre),
       modalidad: normalize(training.modalidad || requisition.training_modalidad || 'Presencial'),
@@ -806,8 +848,8 @@ router.post(
       campaña: String(requisition.cuenta || ''),
       formador_id: formadorId,
       formador_nombre: formadorNombre,
-      formador_ids: trainerAssignment.ids,
-      formador_nombres: trainerAssignment.names,
+      formador_ids: trainerAssignment.initialIds,
+      formador_nombres: trainerAssignment.initialNames,
       estado: 'Deshabilitada',
       token: `survey-${Math.random().toString(36).slice(2, 12)}`,
       training_type: session.tipo_capacitacion,
@@ -875,6 +917,10 @@ router.post(
       training_formador_nombre: formadorNombre,
       training_formador_ids: trainerAssignment.ids,
       training_formador_nombres: trainerAssignment.names,
+      training_formador_inicial_ids: trainerAssignment.initialIds,
+      training_formador_inicial_nombres: trainerAssignment.initialNames,
+      training_formador_ojt_ids: trainerAssignment.ojtIds,
+      training_formador_ojt_nombres: trainerAssignment.ojtNames,
       updated_at: timestamp,
       updated_by: req.user!.uid,
     }, { merge: true });

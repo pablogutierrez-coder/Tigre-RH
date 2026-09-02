@@ -92,6 +92,10 @@ const emptyRequisition: Partial<SelectionRequisition> = {
   reclutador_nombres: [],
   training_formador_ids: [],
   training_formador_nombres: [],
+  training_formador_inicial_ids: [],
+  training_formador_inicial_nombres: [],
+  training_formador_ojt_ids: [],
+  training_formador_ojt_nombres: [],
   estado: 'Activa',
 };
 
@@ -382,7 +386,8 @@ export default function Seleccion({ currentUser, users, initialView = 'dashboard
   const [selectedApplicants, setSelectedApplicants] = useState<string[]>([]);
   const [assignTarget, setAssignTarget] = useState<SelectionRequisition | null>(null);
   const [assignForm, setAssignForm] = useState<Record<string, string>>({});
-  const [assignFormadorIds, setAssignFormadorIds] = useState<string[]>([]);
+  const [assignFormadorInicialIds, setAssignFormadorInicialIds] = useState<string[]>([]);
+  const [assignFormadorOjtIds, setAssignFormadorOjtIds] = useState<string[]>([]);
   const [dashboardView, setDashboardView] = useState('Vista general');
   const [filterCampaign, setFilterCampaign] = useState('Todos');
   const [filterRecruiter, setFilterRecruiter] = useState('Todos');
@@ -613,23 +618,31 @@ export default function Seleccion({ currentUser, users, initialView = 'dashboard
     setEditingReq(req);
     setReqForm({
       ...req,
-      training_formador_ids: req.training_formador_ids?.length
-        ? req.training_formador_ids
+      training_formador_inicial_ids: req.training_formador_inicial_ids?.length
+        ? req.training_formador_inicial_ids
+        : req.training_formador_ids?.length
+          ? req.training_formador_ids
         : req.training_formador_id
           ? [req.training_formador_id]
           : [],
-      training_formador_nombres: req.training_formador_nombres?.length
-        ? req.training_formador_nombres
+      training_formador_inicial_nombres: req.training_formador_inicial_nombres?.length
+        ? req.training_formador_inicial_nombres
+        : req.training_formador_nombres?.length
+          ? req.training_formador_nombres
         : req.training_formador_nombre
           ? [req.training_formador_nombre]
           : [],
+      training_formador_ojt_ids: req.training_formador_ojt_ids || [],
+      training_formador_ojt_nombres: req.training_formador_ojt_nombres || [],
     });
     setShowReqModal(true);
   };
 
-  const toggleRequisitionTrainer = (user: AppUser) => {
+  const toggleRequisitionTrainer = (user: AppUser, phase: 'inicial' | 'ojt') => {
     setReqForm((prev) => {
-      const currentIds = prev.training_formador_ids || [];
+      const idsKey = phase === 'inicial' ? 'training_formador_inicial_ids' : 'training_formador_ojt_ids';
+      const namesKey = phase === 'inicial' ? 'training_formador_inicial_nombres' : 'training_formador_ojt_nombres';
+      const currentIds = prev[idsKey] || [];
       const exists = currentIds.includes(user.id);
       const nextIds = exists
         ? currentIds.filter((id) => id !== user.id)
@@ -637,10 +650,8 @@ export default function Seleccion({ currentUser, users, initialView = 'dashboard
       const selectedTrainers = trainers.filter((trainer) => nextIds.includes(trainer.id));
       return {
         ...prev,
-        training_formador_ids: nextIds,
-        training_formador_nombres: selectedTrainers.map((trainer) => trainer.nombre),
-        training_formador_id: selectedTrainers[0]?.id || '',
-        training_formador_nombre: selectedTrainers[0]?.nombre || '',
+        [idsKey]: nextIds,
+        [namesKey]: selectedTrainers.map((trainer) => trainer.nombre),
       };
     });
   };
@@ -666,7 +677,9 @@ export default function Seleccion({ currentUser, users, initialView = 'dashboard
     try {
       setSaving(true);
       const selectedRecruiters = recruiters.filter((user) => reqForm.reclutador_ids?.includes(user.id));
-      const selectedTrainers = trainers.filter((user) => reqForm.training_formador_ids?.includes(user.id));
+      const initialTrainers = trainers.filter((user) => reqForm.training_formador_inicial_ids?.includes(user.id));
+      const ojtTrainers = trainers.filter((user) => reqForm.training_formador_ojt_ids?.includes(user.id));
+      const selectedTrainers = trainers.filter((user) => initialTrainers.some((item) => item.id === user.id) || ojtTrainers.some((item) => item.id === user.id));
       const payload = {
         codigo: reqForm.codigo,
         codigo_base: reqForm.codigo_base,
@@ -690,8 +703,12 @@ export default function Seleccion({ currentUser, users, initialView = 'dashboard
         reclutador_ids: reqForm.reclutador_ids || [],
         training_formador_ids: selectedTrainers.map((user) => user.id),
         training_formador_nombres: selectedTrainers.map((user) => user.nombre),
-        training_formador_id: selectedTrainers[0]?.id || '',
-        training_formador_nombre: selectedTrainers[0]?.nombre || '',
+        training_formador_id: initialTrainers[0]?.id || '',
+        training_formador_nombre: initialTrainers[0]?.nombre || '',
+        training_formador_inicial_ids: initialTrainers.map((user) => user.id),
+        training_formador_inicial_nombres: initialTrainers.map((user) => user.nombre),
+        training_formador_ojt_ids: ojtTrainers.map((user) => user.id),
+        training_formador_ojt_nombres: ojtTrainers.map((user) => user.nombre),
         sla_objetivo: Number(reqForm.sla_objetivo || 60),
         sla_unidad: reqForm.sla_unidad || 'minutos',
         sla_tipo: reqForm.sla_tipo || 'Horas calendario',
@@ -913,14 +930,17 @@ export default function Seleccion({ currentUser, users, initialView = 'dashboard
     );
     setSelectedApplicants(aptos.map((item) => item.id));
     setAssignTarget(req);
-    const initialTrainerIds = req.training_formador_ids?.length
+    const initialTrainerIds = req.training_formador_inicial_ids?.length
+      ? req.training_formador_inicial_ids
+      : req.training_formador_ids?.length
       ? req.training_formador_ids
       : req.training_formador_id
         ? [req.training_formador_id]
         : trainers[0]?.id
           ? [trainers[0].id]
           : [];
-    setAssignFormadorIds(initialTrainerIds);
+    setAssignFormadorInicialIds(initialTrainerIds);
+    setAssignFormadorOjtIds(req.training_formador_ojt_ids || []);
     setAssignForm({
       formador_id: initialTrainerIds[0] || '',
       formador_nombre: trainers.find((user) => user.id === initialTrainerIds[0])?.nombre || '',
@@ -936,17 +956,23 @@ export default function Seleccion({ currentUser, users, initialView = 'dashboard
     if (!assignTarget || selectedApplicants.length === 0) return;
     try {
       setSaving(true);
-      const selectedTrainers = trainers.filter((user) => assignFormadorIds.includes(user.id));
-      if (selectedTrainers.length === 0) {
-        alert('Selecciona al menos un formador.');
+      const initialTrainers = trainers.filter((user) => assignFormadorInicialIds.includes(user.id));
+      const ojtTrainers = trainers.filter((user) => assignFormadorOjtIds.includes(user.id));
+      const selectedTrainers = trainers.filter((user) => initialTrainers.some((item) => item.id === user.id) || ojtTrainers.some((item) => item.id === user.id));
+      if (initialTrainers.length === 0) {
+        alert('Selecciona al menos un Formador de Capacitación Inicial.');
         return;
       }
       await assignSelectionToTraining(assignTarget.id, selectedApplicants, {
         ...assignForm,
-        formador_id: selectedTrainers[0].id,
-        formador_nombre: selectedTrainers[0].nombre,
+        formador_id: initialTrainers[0].id,
+        formador_nombre: initialTrainers[0].nombre,
         formador_ids: selectedTrainers.map((user) => user.id),
         formador_nombres: selectedTrainers.map((user) => user.nombre),
+        formador_capacitacion_inicial_ids: initialTrainers.map((user) => user.id),
+        formador_capacitacion_inicial_nombres: initialTrainers.map((user) => user.nombre),
+        formador_ojt_ids: ojtTrainers.map((user) => user.id),
+        formador_ojt_nombres: ojtTrainers.map((user) => user.nombre),
       });
       setAssignTarget(null);
       setSelectedApplicants([]);
@@ -1819,18 +1845,18 @@ export default function Seleccion({ currentUser, users, initialView = 'dashboard
               </div>
               <div className="text-xs font-black text-slate-500 md:col-span-2">
                 <div className="flex items-center justify-between gap-3">
-                  <span>Formadores asignados</span>
+                  <span>Formador Capacitación Inicial</span>
                   <div className="flex items-center gap-3">
                     <span className="text-[10px] text-slate-400">
-                      {(reqForm.training_formador_ids || []).length} seleccionados
+                      {(reqForm.training_formador_inicial_ids || []).length} seleccionados
                     </span>
-                    {(reqForm.training_formador_ids || []).length > 0 && (
+                    {(reqForm.training_formador_inicial_ids || []).length > 0 && (
                       <button
                         type="button"
                         onClick={() => setReqForm((prev) => ({
                           ...prev,
-                          training_formador_ids: [],
-                          training_formador_nombres: [],
+                          training_formador_inicial_ids: [],
+                          training_formador_inicial_nombres: [],
                           training_formador_id: '',
                           training_formador_nombre: '',
                         }))}
@@ -1843,12 +1869,12 @@ export default function Seleccion({ currentUser, users, initialView = 'dashboard
                 </div>
                 <div className="mt-1 max-h-44 overflow-y-auto rounded-xl border border-slate-200 bg-slate-50 p-2 grid sm:grid-cols-2 gap-2">
                   {trainers.map((user) => {
-                    const checked = Boolean(reqForm.training_formador_ids?.includes(user.id));
+                    const checked = Boolean(reqForm.training_formador_inicial_ids?.includes(user.id));
                     return (
                       <button
                         key={user.id}
                         type="button"
-                        onClick={() => toggleRequisitionTrainer(user)}
+                        onClick={() => toggleRequisitionTrainer(user, 'inicial')}
                         className={`flex items-center gap-2 rounded-lg border px-3 py-2 text-left transition ${
                           checked
                             ? 'border-indigo-300 bg-white text-slate-900 shadow-xs'
@@ -1872,6 +1898,26 @@ export default function Seleccion({ currentUser, users, initialView = 'dashboard
                       No hay formadores activos disponibles.
                     </div>
                   )}
+                </div>
+              </div>
+              <div className="text-xs font-black text-slate-500 md:col-span-2">
+                <div className="flex items-center justify-between gap-3">
+                  <span>Formador OJT</span>
+                  <span className="text-[10px] text-slate-400">{(reqForm.training_formador_ojt_ids || []).length} seleccionados</span>
+                </div>
+                <div className="mt-1 max-h-44 overflow-y-auto rounded-xl border border-slate-200 bg-slate-50 p-2 grid sm:grid-cols-2 gap-2">
+                  {trainers.map((user) => {
+                    const checked = Boolean(reqForm.training_formador_ojt_ids?.includes(user.id));
+                    return (
+                      <button key={user.id} type="button" onClick={() => toggleRequisitionTrainer(user, 'ojt')}
+                        className={`flex items-center gap-2 rounded-lg border px-3 py-2 text-left transition ${checked ? 'border-indigo-300 bg-white text-slate-900 shadow-xs' : 'border-slate-100 bg-white/70 text-slate-600 hover:border-slate-300'}`}>
+                        <span className={`w-5 h-5 rounded-md border flex items-center justify-center shrink-0 ${checked ? 'bg-indigo-600 border-indigo-600 text-white' : 'border-slate-300'}`}>
+                          {checked && <CheckCircle2 className="w-3.5 h-3.5" />}
+                        </span>
+                        <span className="min-w-0"><span className="block truncate text-xs font-black">{user.nombre}</span><span className="block truncate text-[10px] font-semibold text-slate-400">{user.usuario}</span></span>
+                      </button>
+                    );
+                  })}
                 </div>
               </div>
               <label className="text-xs font-black text-slate-500">
@@ -2039,17 +2085,17 @@ export default function Seleccion({ currentUser, users, initialView = 'dashboard
             <div className="p-5 grid md:grid-cols-2 gap-4">
               <div className="text-xs font-black text-slate-500 md:col-span-2">
                 <div className="flex items-center justify-between gap-3">
-                  <span>Formadores</span>
-                  <span className="text-[10px] text-slate-400">{assignFormadorIds.length} seleccionados</span>
+                  <span>Formador Capacitación Inicial</span>
+                  <span className="text-[10px] text-slate-400">{assignFormadorInicialIds.length} seleccionados</span>
                 </div>
                 <div className="mt-1 max-h-40 overflow-y-auto rounded-xl border border-slate-200 bg-slate-50 p-2 grid sm:grid-cols-2 gap-2">
                   {trainers.map((user) => {
-                    const checked = assignFormadorIds.includes(user.id);
+                    const checked = assignFormadorInicialIds.includes(user.id);
                     return (
                       <button
                         key={user.id}
                         type="button"
-                        onClick={() => setAssignFormadorIds((current) =>
+                        onClick={() => setAssignFormadorInicialIds((current) =>
                           checked ? current.filter((id) => id !== user.id) : [...current, user.id]
                         )}
                         className={`flex items-center gap-2 rounded-lg border px-3 py-2 text-left ${
@@ -2059,6 +2105,26 @@ export default function Seleccion({ currentUser, users, initialView = 'dashboard
                         <span className={`w-5 h-5 rounded-md border flex items-center justify-center ${
                           checked ? 'bg-indigo-600 border-indigo-600 text-white' : 'border-slate-300'
                         }`}>
+                          {checked && <CheckCircle2 className="w-3.5 h-3.5" />}
+                        </span>
+                        <span className="truncate">{user.nombre}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+              <div className="text-xs font-black text-slate-500 md:col-span-2">
+                <div className="flex items-center justify-between gap-3">
+                  <span>Formador OJT</span>
+                  <span className="text-[10px] text-slate-400">{assignFormadorOjtIds.length} seleccionados</span>
+                </div>
+                <div className="mt-1 max-h-40 overflow-y-auto rounded-xl border border-slate-200 bg-slate-50 p-2 grid sm:grid-cols-2 gap-2">
+                  {trainers.map((user) => {
+                    const checked = assignFormadorOjtIds.includes(user.id);
+                    return (
+                      <button key={user.id} type="button" onClick={() => setAssignFormadorOjtIds((current) => checked ? current.filter((id) => id !== user.id) : [...current, user.id])}
+                        className={`flex items-center gap-2 rounded-lg border px-3 py-2 text-left ${checked ? 'border-indigo-300 bg-white text-slate-900' : 'border-slate-100 bg-white/70 text-slate-600'}`}>
+                        <span className={`w-5 h-5 rounded-md border flex items-center justify-center ${checked ? 'bg-indigo-600 border-indigo-600 text-white' : 'border-slate-300'}`}>
                           {checked && <CheckCircle2 className="w-3.5 h-3.5" />}
                         </span>
                         <span className="truncate">{user.nombre}</span>

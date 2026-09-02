@@ -10,12 +10,13 @@ import {
 } from '../services/userService.js';
 import {
   type AuthenticatedRequest,
+  invalidateProfileCache,
   requireAuth,
-  requireRole,
+  requireRoleOrModule,
 } from '../utils/authMiddleware.js';
 
 const router = Router();
-const canManageUsers = [requireAuth, requireRole(['Administrador', 'Analista'])];
+const canManageUsers = [requireAuth, requireRoleOrModule(['Administrador', 'Analista'], 'administrador:usuarios')];
 
 const roleSchema = z.enum([
   'Administrador',
@@ -90,6 +91,7 @@ router.patch('/:uid', canManageUsers, async (req: AuthenticatedRequest, res: Res
       uid: req.user!.uid,
       nombre: req.user!.nombre,
     });
+    invalidateProfileCache(req.params.uid);
     res.json({ ok: true });
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Error interno.';

@@ -65,7 +65,13 @@ import Prospectos from './components/Prospectos';
 
 import { getPeruNow, formatPeruDate, isAttendanceWindowOpen } from './utils/time';
 import { permissions } from './utils/permissions';
-import { isSessionAssignedTrainer } from './utils/trainingAssignments';
+import {
+  getSessionInitialTrainerIds,
+  getSessionOjtTrainerIds,
+  isSessionAssignedTrainer,
+  isSessionInitialTrainer,
+  isSessionOjtTrainer,
+} from './utils/trainingAssignments';
 import {
   loginWithUsername,
   logoutFirebase,
@@ -134,38 +140,23 @@ const getModuleAccessKey = (area: UserArea, moduleId: string) => {
   return `${area}:${moduleId}`;
 };
 
-const REQUIRED_ROLE_MODULES: Partial<Record<User['rol'], string[]>> = {
-  Analista: [
-    'formacion:dashboard',
-    'formacion:capacitaciones',
-    'formacion:asistencia',
-    'formacion:altas',
-    'formacion:encuestas',
-    'formacion:reportes',
-  ],
-};
-
-const userHasRoleRequiredModuleAccess = (user: User, area: UserArea, moduleId: string) =>
-  Boolean(REQUIRED_ROLE_MODULES[user.rol]?.includes(getModuleAccessKey(area, moduleId)));
-
 const userHasExplicitModuleAccess = (user: User, area: UserArea, moduleId: string) =>
   Boolean(user.module_access?.includes(getModuleAccessKey(area, moduleId)));
 
 const userHasAreaAccess = (user: User, area: UserArea) => {
-  if (REQUIRED_ROLE_MODULES[user.rol]?.some(moduleId => moduleId.startsWith(`${area}:`))) return true;
   if (!hasConfiguredUserAccess(user)) return getDefaultAreasForRole(user.rol).includes(area);
   return Boolean(user.areas?.includes(area) || user.module_access?.some(moduleId => moduleId.startsWith(`${area}:`)));
 };
 
 const userHasModuleAccess = (user: User, area: UserArea, moduleId: string) => {
   if (!userHasAreaAccess(user, area)) return false;
+  if (userHasExplicitModuleAccess(user, area, moduleId)) return true;
+  if (user.module_access && user.module_access.length > 0) return false;
   if (area === 'formacion' && moduleId === 'variables') return user.rol === 'Administrador';
   if (area === 'formacion' && moduleId === 'prospectos') return ['Administrador', 'Formador'].includes(user.rol);
-  if (userHasRoleRequiredModuleAccess(user, area, moduleId)) return true;
   if (area === 'formacion' && moduleId === 'reportes' && permissions[user.rol]?.canExportReports) return true;
   if (area === 'formacion' && moduleId === 'variables' && permissions[user.rol]?.canViewTrainingVariables) return true;
-  if (!user.module_access || user.module_access.length === 0) return true;
-  return user.module_access.includes(getModuleAccessKey(area, moduleId));
+  return true;
 };
 
 const getDefaultRouteForUser = (user: User): { currentView: string; selectionView?: SelectionViewMode } => {
@@ -958,24 +949,42 @@ export default function App() {
 
   // 2c. Update training session details (for Administrador edit)
   const handleUpdateSession = (sessionId: string, updatedFields: Partial<TrainingSession>) => {
+    const currentSession = sessions.find((session) => session.id === sessionId);
+    const initialTrainerIds = updatedFields.formador_capacitacion_inicial_ids ||
+      (currentSession ? getSessionInitialTrainerIds(currentSession) : []);
+    const ojtTrainerIds = updatedFields.formador_ojt_ids ||
+      (currentSession ? getSessionOjtTrainerIds(currentSession) : []);
     const assignedTrainerIds = Array.from(new Set([
       ...(updatedFields.formador_ids || []),
+      ...initialTrainerIds,
+      ...ojtTrainerIds,
       updatedFields.formador_id,
     ].filter(Boolean))) as string[];
     const assignedTrainers = assignedTrainerIds
       .map((trainerId) => users.find((user) => user.id === trainerId && user.rol === 'Formador'))
       .filter((trainer): trainer is User => Boolean(trainer));
     const formador = assignedTrainers[0];
+    const initialTrainers = initialTrainerIds
+      .map((trainerId) => users.find((user) => user.id === trainerId && user.rol === 'Formador'))
+      .filter((trainer): trainer is User => Boolean(trainer));
+    const ojtTrainers = ojtTrainerIds
+      .map((trainerId) => users.find((user) => user.id === trainerId && user.rol === 'Formador'))
+      .filter((trainer): trainer is User => Boolean(trainer));
+    const primaryTrainer = initialTrainers[0] || formador;
     const reclutador = updatedFields.reclutador_id
       ? users.find(u => u.id === updatedFields.reclutador_id)
       : undefined;
     const normalizedFields: Partial<TrainingSession> = {
       ...updatedFields,
-      ...(formador ? {
-        formador_id: formador.id,
-        formador_nombre: formador.nombre,
+      ...(primaryTrainer ? {
+        formador_id: primaryTrainer.id,
+        formador_nombre: primaryTrainer.nombre,
         formador_ids: assignedTrainers.map((trainer) => trainer.id),
         formador_nombres: assignedTrainers.map((trainer) => trainer.nombre),
+        formador_capacitacion_inicial_ids: initialTrainers.map((trainer) => trainer.id),
+        formador_capacitacion_inicial_nombres: initialTrainers.map((trainer) => trainer.nombre),
+        formador_ojt_ids: ojtTrainers.map((trainer) => trainer.id),
+        formador_ojt_nombres: ojtTrainers.map((trainer) => trainer.nombre),
       } : {}),
       ...(reclutador ? { reclutador_nombre: reclutador.nombre } : {}),
     };
@@ -1250,14 +1259,22 @@ export default function App() {
     const part = participants.find(p => p.id === pId);
     if (!part) return;
     const sess = sessions.find(s => s.id === part.training_session_id);
+    if (!sess || !activeUser) return;
+    const canEditScore = activeUser.rol === 'Administrador' ||
+      (activeUser.rol === 'Formador' && isSessionInitialTrainer(sess, activeUser.id));
+    const canEditOutcome = activeUser.rol === 'Administrador' ||
+      (activeUser.rol === 'Formador' && isSessionOjtTrainer(sess, activeUser.id));
+    const evaluationRequested = evaluationScore !== undefined || evaluationObservation.trim().length > 0;
     const nextParticipant: Participant = {
       ...part,
-      resultado_formacion: outcome,
-      comentario_aptitud: outcome === 'Apto' ? comment : '',
-      motivo_no_apt: outcome === 'No apto' ? reason : '',
-      evaluacion_nota: evaluationScore ?? null,
-      observacion_evaluacion: evaluationObservation,
-      estado_final: outcome === 'Apto' ? 'Pendiente de alta' : (outcome === 'No apto' ? 'Completó capacitación' : part.estado_final)
+      resultado_formacion: canEditOutcome ? outcome : part.resultado_formacion,
+      comentario_aptitud: canEditOutcome ? (outcome === 'Apto' ? comment : '') : part.comentario_aptitud,
+      motivo_no_apt: canEditOutcome ? (outcome === 'No apto' ? reason : '') : part.motivo_no_apt,
+      evaluacion_nota: canEditScore && evaluationRequested ? evaluationScore ?? null : part.evaluacion_nota,
+      observacion_evaluacion: canEditScore && evaluationRequested ? evaluationObservation : part.observacion_evaluacion,
+      estado_final: canEditOutcome
+        ? (outcome === 'Apto' ? 'Pendiente de alta' : (outcome === 'No apto' ? 'Completó capacitación' : part.estado_final))
+        : part.estado_final,
     };
     void persistParticipant(nextParticipant).catch((error) => {
       console.error('Error persisting participant outcome:', error);
@@ -1624,6 +1641,7 @@ export default function App() {
       if (u.id === id) return { ...u, ...profileUpdate };
       return u;
     }));
+    setActiveUser((current) => current?.id === id ? { ...current, ...profileUpdate } : current);
 
     let actionName = 'Modificación de usuario';
     let detailMsg = `Se modificó la cuenta del usuario de sistema "${prevUser.nombre}".`;
@@ -1982,7 +2000,7 @@ export default function App() {
                         setSelectedSessionId(null);
                       }}
                       className={`group w-full rounded-2xl px-2 py-3 flex flex-col items-center gap-1 text-[10px] font-black transition ${
-                        currentView !== 'seleccion' && !(activeUser.rol === 'Administrador' && ['usuarios', 'reportes', 'auditoria'].includes(currentView)) ? 'bg-white text-slate-950 shadow-lg' : 'text-white/65 hover:bg-white/10 hover:text-white'
+                        currentView !== 'seleccion' && !(['usuarios', 'reportes', 'auditoria'].includes(currentView) && userHasAreaAccess(activeUser, 'administrador')) ? 'bg-white text-slate-950 shadow-lg' : 'text-white/65 hover:bg-white/10 hover:text-white'
                       }`}
                       title="Formación"
                     >
@@ -1990,7 +2008,7 @@ export default function App() {
                       <span>Formación</span>
                     </button>
                   )}
-                  {activeUser.rol === 'Administrador' && userHasAreaAccess(activeUser, 'administrador') && (
+                  {userHasAreaAccess(activeUser, 'administrador') && (
                     <button
                       onClick={() => { setCurrentView(getAdminViewForUser(activeUser)); setSelectedSessionId(null); }}
                       className={`group w-full rounded-2xl px-2 py-3 flex flex-col items-center gap-1 text-[10px] font-black transition ${
@@ -2019,14 +2037,14 @@ export default function App() {
                       <p className="text-[10px] font-black uppercase tracking-widest text-fuchsia-600">
                         {currentView === 'seleccion'
                           ? 'Módulo Selección'
-                          : activeUser.rol === 'Administrador' && ['usuarios', 'reportes', 'auditoria'].includes(currentView)
+                          : ['usuarios', 'reportes', 'auditoria'].includes(currentView) && userHasAreaAccess(activeUser, 'administrador')
                             ? 'Módulo Administrador'
                             : 'Módulo Formación'}
                       </p>
                       <h2 className="mt-1 text-lg font-black text-slate-950 truncate">
                         {currentView === 'seleccion'
                           ? 'Selección Masiva'
-                          : activeUser.rol === 'Administrador' && ['usuarios', 'reportes', 'auditoria'].includes(currentView)
+                          : ['usuarios', 'reportes', 'auditoria'].includes(currentView) && userHasAreaAccess(activeUser, 'administrador')
                             ? 'Administración'
                             : 'Formación y Desarrollo'}
                       </h2>
@@ -2048,7 +2066,7 @@ export default function App() {
                 <nav className="flex-1 p-4 space-y-5 overflow-y-auto" id="sidebar-nav">
                   {(() => {
                     const inSelection = currentView === 'seleccion' && userHasAreaAccess(activeUser, 'seleccion');
-                    const inAdmin = activeUser.rol === 'Administrador' && ['usuarios', 'reportes', 'auditoria'].includes(currentView) && userHasAreaAccess(activeUser, 'administrador');
+                    const inAdmin = ['usuarios', 'reportes', 'auditoria'].includes(currentView) && userHasAreaAccess(activeUser, 'administrador');
                     const activeArea: UserArea = inSelection ? 'seleccion' : inAdmin ? 'administrador' : 'formacion';
                     const selectionGroups = [
                       { title: 'Monitoreo', items: [['dashboard', 'Dashboard de Selección', LayoutDashboard]] },
@@ -2178,14 +2196,14 @@ export default function App() {
 	                <span className="text-[10px] text-indigo-600 font-bold uppercase tracking-widest font-mono">
                     {currentView === 'seleccion'
                       ? 'Área Selección'
-                      : activeUser.rol === 'Administrador' && ['usuarios', 'reportes', 'auditoria'].includes(currentView)
+                      : ['usuarios', 'reportes', 'auditoria'].includes(currentView) && userHasAreaAccess(activeUser, 'administrador')
                         ? 'Área Administrador'
                         : 'Área Formación'}
                   </span>
 	                <h2 className="text-slate-900 text-lg font-black leading-tight tracking-tight">
                     {currentView === 'seleccion'
                       ? 'Selección | Convocatorias y Postulantes'
-                      : activeUser.rol === 'Administrador' && ['usuarios', 'reportes', 'auditoria'].includes(currentView)
+                      : ['usuarios', 'reportes', 'auditoria'].includes(currentView) && userHasAreaAccess(activeUser, 'administrador')
                         ? 'Administrador | Gestión y Reportes'
                         : APP_NAME}
                   </h2>
@@ -2257,7 +2275,7 @@ export default function App() {
               )}
 
               {/* View 2: Sessions List */}
-              {currentView === 'capacitaciónes' && (
+              {currentView === 'capacitaciónes' && userHasModuleAccess(activeUser, 'formacion', 'capacitaciones') && (
                 <Capacitaciones
                   sessions={sessions}
                   participants={participants}
@@ -2278,7 +2296,7 @@ export default function App() {
               )}
 
               {/* View 3: Grid Daily Attendance Control */}
-              {currentView === 'asistencia' && activeSession && (
+              {currentView === 'asistencia' && activeSession && userHasModuleAccess(activeUser, 'formacion', 'asistencia') && (
                 <AttendanceControl
                   session={activeSession}
                   participants={participants}
@@ -2299,7 +2317,7 @@ export default function App() {
               )}
 
               {/* View 4: Operation Confirmed Altas */}
-              {currentView === 'altas' && (
+              {currentView === 'altas' && userHasModuleAccess(activeUser, 'formacion', 'altas') && (
                 <AltaConfirmation
                   sessions={sessions}
                   participants={participants}
@@ -2313,7 +2331,7 @@ export default function App() {
               )}
 
               {/* View 5: Reopens requests lists */}
-              {currentView === 'reaperturas' && (
+              {currentView === 'reaperturas' && userHasModuleAccess(activeUser, 'formacion', 'reaperturas') && (
                 <Reaperturas
                   reopens={reopens}
                   currentUser={activeUser}
@@ -2323,7 +2341,7 @@ export default function App() {
               )}
 
               {/* View 6: Users Management */}
-              {currentView === 'usuarios' && activeUser.rol === 'Administrador' && (
+              {currentView === 'usuarios' && userHasModuleAccess(activeUser, 'administrador', 'usuarios') && (
                 <Usuarios
                   users={users}
                   currentUser={activeUser}
@@ -2336,6 +2354,9 @@ export default function App() {
 
               {/* View 7: Reportes Exportables */}
               {currentView === 'reportes' && (
+                userHasModuleAccess(activeUser, 'formacion', 'reportes') ||
+                userHasModuleAccess(activeUser, 'administrador', 'reportes')
+              ) && (
                 <Reportes
                   sessions={sessions}
                   participants={participants}
@@ -2347,12 +2368,12 @@ export default function App() {
               )}
 
               {/* View 8: Audit Log view */}
-              {currentView === 'auditoria' && activeUser.rol === 'Administrador' && (
+              {currentView === 'auditoria' && userHasModuleAccess(activeUser, 'administrador', 'auditoria') && (
                 <Auditoria logs={logs} />
               )}
 
               {/* View 9: Satisfaction Surveys Panel */}
-              {currentView === 'encuestas' && (
+              {currentView === 'encuestas' && userHasModuleAccess(activeUser, 'formacion', 'encuestas') && (
                 <Encuestas
                   surveys={surveys}
                   responses={responses}
@@ -2367,14 +2388,14 @@ export default function App() {
                 />
               )}
 
-              {currentView === 'variables' && permissions[activeUser.rol]?.canViewTrainingVariables && (
+              {currentView === 'variables' && userHasModuleAccess(activeUser, 'formacion', 'variables') && (
                 <TrainingVariables
                   currentUser={activeUser}
                   users={users}
                 />
               )}
 
-              {currentView === 'prospectos' && ['Administrador', 'Formador'].includes(activeUser.rol) && (
+              {currentView === 'prospectos' && userHasModuleAccess(activeUser, 'formacion', 'prospectos') && (
                 <Prospectos
                   currentUser={activeUser}
                   users={users}

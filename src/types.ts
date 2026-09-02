@@ -114,6 +114,10 @@ export interface TrainingSession {
   formador_nombre: string;
   formador_ids?: string[];
   formador_nombres?: string[];
+  formador_capacitacion_inicial_ids?: string[];
+  formador_capacitacion_inicial_nombres?: string[];
+  formador_ojt_ids?: string[];
+  formador_ojt_nombres?: string[];
   reclutador_id: string; // User ID of the recruiter
   reclutador_nombre: string;
   modalidad: 'Presencial' | 'Virtual' | 'Híbrida';
@@ -441,6 +445,10 @@ export interface SelectionRequisition {
   training_formador_nombre?: string;
   training_formador_ids?: string[];
   training_formador_nombres?: string[];
+  training_formador_inicial_ids?: string[];
+  training_formador_inicial_nombres?: string[];
+  training_formador_ojt_ids?: string[];
+  training_formador_ojt_nombres?: string[];
   training_fecha_inicio?: string;
   training_fecha_fin?: string;
   training_hora?: string;

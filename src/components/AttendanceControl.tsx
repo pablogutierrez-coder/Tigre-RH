@@ -36,7 +36,7 @@ import {
 import { TrainingSession, Participant, AttendanceRecord, AttendanceStatus, User as AppUser, AttendanceReopenRequest, OperationConfirmation } from '../types';
 import { permissions } from '../utils/permissions';
 import { getTrainingDays, getTrainingDaysCount } from '../utils/trainingDays';
-import { getSessionTrainerNames, isSessionAssignedTrainer } from '../utils/trainingAssignments';
+import { getSessionTrainerNames, isSessionInitialTrainer, isSessionOjtTrainer } from '../utils/trainingAssignments';
 import { getParticipantCvUrlRemote, uploadParticipantCvRemote } from '../services/operationService';
 import * as XLSX from 'xlsx';
 
@@ -141,6 +141,11 @@ export default function AttendanceControl({
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedDay, setSelectedDay] = useState<number>(1);
   const [selectedParticipants, setSelectedParticipants] = useState<string[]>([]);
+  const isAdmin = currentUser.rol === 'Administrador';
+  const isInitialTrainer = currentUser.rol === 'Formador' && isSessionInitialTrainer(session, currentUser.id);
+  const isOjtTrainer = currentUser.rol === 'Formador' && isSessionOjtTrainer(session, currentUser.id);
+  const canRoleEditAttendanceDay = (day: number) =>
+    isAdmin || (isInitialTrainer && day <= 5) || (isOjtTrainer && day >= 6);
 
   useEffect(() => {
     if (selectedDay > trainingDaysCount) {
@@ -247,12 +252,17 @@ export default function AttendanceControl({
   };
 
   const canEditEvaluation = (part: Participant) => {
-    const isTrainer = currentUser.rol === 'Formador';
-    const isAssignedTrainer = isTrainer && isSessionAssignedTrainer(session, currentUser.id);
     const rowAttendance = trainingDays.map(day => attendanceMap[`${part.id}_${day}`]);
     const hasDropout = part.estado_final === 'Desistió' || rowAttendance.some(a => isDropoutStatus(a?.estado_asistencia));
     const hasAnyPresent = rowAttendance.some(a => isPresentStatus(a?.estado_asistencia));
-    return !hasDropout && hasAnyPresent && (currentUser.rol === 'Administrador' || isAssignedTrainer);
+    return !hasDropout && hasAnyPresent && (isAdmin || isInitialTrainer);
+  };
+
+  const canEditOutcome = (part: Participant) => {
+    const rowAttendance = trainingDays.map(day => attendanceMap[`${part.id}_${day}`]);
+    const hasDropout = part.estado_final === 'Desistió' || rowAttendance.some(a => isDropoutStatus(a?.estado_asistencia));
+    const hasAnyPresent = rowAttendance.some(a => isPresentStatus(a?.estado_asistencia));
+    return !hasDropout && hasAnyPresent && (isAdmin || isOjtTrainer);
   };
 
   const saveEvaluation = (part: Participant, rawScore: string, observation: string) => {
@@ -261,7 +271,14 @@ export default function AttendanceControl({
     const cleanObservation = observation.trim();
 
     if (!trimmedScore) {
-      onUpdateParticipantOutcome(part.id, 'Marcar', '', '', undefined, cleanObservation);
+      onUpdateParticipantOutcome(
+        part.id,
+        part.resultado_formacion || 'Marcar',
+        part.comentario_aptitud || '',
+        part.motivo_no_apt || '',
+        undefined,
+        cleanObservation,
+      );
       return;
     }
 
@@ -280,9 +297,9 @@ export default function AttendanceControl({
 
     onUpdateParticipantOutcome(
       part.id,
-      isApproved ? 'Apto' : 'No apto',
-      isApproved ? finalObservation : '',
-      isApproved ? '' : finalObservation,
+      part.resultado_formacion || 'Marcar',
+      part.comentario_aptitud || '',
+      part.motivo_no_apt || '',
       roundedScore,
       finalObservation,
     );
@@ -563,6 +580,8 @@ export default function AttendanceControl({
     // Central Guard: check if role has permission to edit attendance at all
     if (!permissions[currentUser.rol]?.canEditAttendance) return true;
 
+    if (!canRoleEditAttendanceDay(selectedDay)) return true;
+
     // Rule: Administrador -> Access permitted always
     if (currentUser.rol === 'Administrador') return false;
 
@@ -590,7 +609,7 @@ export default function AttendanceControl({
     }
 
     return true;
-  }, [currentUser, simulatedTime, reopens, session.id, selectedDay]);
+  }, [currentUser, simulatedTime, reopens, session.id, selectedDay, isAdmin, isInitialTrainer, isOjtTrainer]);
 
   const readEvidenceFile = (
     file: File | undefined,
@@ -622,6 +641,12 @@ export default function AttendanceControl({
   // Handle single attendance click change
   const handleStatusChange = (participant: Participant, day: number, status: AttendanceStatus) => {
     if (isTimeLocked) {
+      if (currentUser.rol === 'Formador' && !canRoleEditAttendanceDay(day)) {
+        alert(day <= 5
+          ? 'Los primeros 5 días solo pueden ser editados por el Formador de Capacitación Inicial.'
+          : 'Los últimos 5 días solo pueden ser editados por el Formador OJT.');
+        return;
+      }
       const isReadOnly = !permissions[currentUser.rol]?.canEditAttendance;
       if (isReadOnly) {
         if (onAttemptLockedEdit) {
@@ -1083,10 +1108,12 @@ export default function AttendanceControl({
 
               <button
                 onClick={() => {
+                  if (isTimeLocked) return;
                   setShowSaveFeedback(true);
                   setTimeout(() => setShowSaveFeedback(false), 5000);
                 }}
-                className="bg-emerald-600 hover:bg-emerald-700 text-white flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer shadow-xs"
+                disabled={isTimeLocked}
+                className="bg-emerald-600 hover:bg-emerald-700 text-white flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer shadow-xs disabled:cursor-not-allowed disabled:opacity-50"
                 title="Sincronizar y Confirmar Marcas en FDR"
               >
                 <RefreshCw className="w-3.5 h-3.5" />
@@ -1361,10 +1388,11 @@ export default function AttendanceControl({
                       {trainingDays.map((dayNum) => {
                         const record = attendanceMap[`${part.id}_${dayNum}`];
                         const isCurrentDay = selectedDay === dayNum;
+                        const isDayEditLocked = isTimeLocked || !isCurrentDay || !canRoleEditAttendanceDay(dayNum);
 
                         return (
                           <td key={dayNum} className={`p-2 text-center ${isCurrentDay ? 'bg-indigo-50/20' : ''}`}>
-                            {isTimeLocked && !isCurrentDay ? (
+                            {isDayEditLocked && !isCurrentDay ? (
                               // Passive static display
                               record ? (
                                 <span className={`inline-flex items-center justify-center font-bold px-2.5 py-1 rounded-full text-[10px] ${
@@ -1389,7 +1417,7 @@ export default function AttendanceControl({
                             ) : (
                               // Interactive selectors for selectedDay
                               <div className="flex items-center justify-center gap-1">
-                                {isTimeLocked ? (
+                                {isDayEditLocked ? (
                                   record ? (
                                     <span className={`inline-flex items-center justify-center font-bold px-2.5 py-1 rounded-full text-[10px] ${
                                       record.estado_asistencia === 'Asistió' ? 'bg-emerald-100 text-emerald-800' :
@@ -1484,11 +1512,7 @@ export default function AttendanceControl({
                       {/* Resultado formación cell */}
                       <td className="p-2 text-center bg-indigo-50/5">
                         {(() => {
-                          const isTrainer = currentUser.rol === 'Formador';
-                          const isAssignedTrainer = isTrainer && isSessionAssignedTrainer(session, currentUser.id);
-                          const isAdmin = currentUser.rol === 'Administrador';
-                          
-                          const canMarkOutcome = canEditEvaluation(part) && (isAdmin || isAssignedTrainer);
+                          const canMarkOutcome = canEditOutcome(part);
 
                           const outcome = part.resultado_formacion || 'Marcar';
 
