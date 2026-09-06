@@ -105,7 +105,7 @@ const normalizedKey = (value: string) => value
   .replace(/[^a-zA-Z0-9]/g, '')
   .toLowerCase();
 
-const isSaleStatus = (status?: string) => normalizedKey(status || '') === 'ventaalta';
+const isSaleStatus = (status?: string) => ['venta', 'alta', 'ventaalta'].includes(normalizedKey(status || ''));
 
 const getSessionCode = (session: TrainingSession) =>
   session.nombre_generacion || session.generation_code || session.id;
@@ -274,36 +274,45 @@ export default function Prospectos({ currentUser, users, sessions }: ProspectosP
       Ventas: dayProspects.filter((prospect) => isSaleStatus(prospect.estado)).length,
     };
   });
-  const executiveData = useMemo(() => {
-    const grouped = new Map<string, { ejecutivo: string; campana: string; prospectos: number; ventas: number }>();
-    ojtProspects.forEach((prospect) => {
-      const key = `${prospect.ejecutivo_inconcert || prospect.ejecutivo_dni}-${prospect.campana}`;
-      const row = grouped.get(key) || {
+  const { executiveData, campaignData } = useMemo(() => {
+    const executives = new Map<string, { ejecutivo: string; campana: string; prospectos: number; ventas: number }>();
+    const campaigns = new Map<string, { prospects: number; sales: number }>();
+
+    filteredProspects.forEach((prospect) => {
+      const isSale = isSaleStatus(prospect.estado);
+      const executiveKey = `${prospect.ejecutivo_inconcert || prospect.ejecutivo_dni}-${prospect.campana}`;
+      const executive = executives.get(executiveKey) || {
         ejecutivo: prospect.ejecutivo_nombre,
         campana: prospect.campana,
         prospectos: 0,
         ventas: 0,
       };
-      row.prospectos += 1;
-      if (isSaleStatus(prospect.estado)) row.ventas += 1;
-      grouped.set(key, row);
+      executive.prospectos += 1;
+      if (isSale) executive.ventas += 1;
+      executives.set(executiveKey, executive);
+
+      const campaign = campaigns.get(prospect.campana) || { prospects: 0, sales: 0 };
+      campaign.prospects += 1;
+      if (isSale) campaign.sales += 1;
+      campaigns.set(prospect.campana, campaign);
     });
-    return Array.from(grouped.values())
-      .map((row) => ({ ...row, conversion: row.prospectos ? Math.round((row.ventas / row.prospectos) * 100) : 0 }))
-      .sort((a, b) => b.prospectos - a.prospectos);
-  }, [ojtProspects]);
-  const campaignData = useMemo(() => campaignOptions
-    .filter((campaign) => campaignFilter === 'todas' || campaign === campaignFilter)
-    .map((campaign) => {
-      const campaignProspects = ojtProspects.filter((prospect) => prospect.campana === campaign);
-      const campaignSales = campaignProspects.filter((prospect) => isSaleStatus(prospect.estado)).length;
-      return {
-        campaign,
-        prospects: campaignProspects.length,
-        sales: campaignSales,
-        conversion: campaignProspects.length > 0 ? Math.round((campaignSales / campaignProspects.length) * 100) : 0,
-      };
-    }), [campaignOptions, ojtProspects, campaignFilter]);
+
+    const visibleCampaigns = campaignOptions
+      .filter((campaign) => campaignFilter === 'todas' || campaign === campaignFilter);
+    return {
+      executiveData: Array.from(executives.values())
+        .map((row) => ({ ...row, conversion: row.prospectos ? Math.round((row.ventas / row.prospectos) * 100) : 0 }))
+        .sort((a, b) => b.prospectos - a.prospectos),
+      campaignData: visibleCampaigns.map((campaign) => {
+        const totals = campaigns.get(campaign) || { prospects: 0, sales: 0 };
+        return {
+          campaign,
+          ...totals,
+          conversion: totals.prospects > 0 ? Math.round((totals.sales / totals.prospects) * 100) : 0,
+        };
+      }),
+    };
+  }, [filteredProspects, campaignOptions, campaignFilter]);
 
   const openCreate = () => {
     setEditing(null);
