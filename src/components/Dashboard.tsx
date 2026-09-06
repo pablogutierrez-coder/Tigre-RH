@@ -81,20 +81,11 @@ export default function Dashboard({
   // Filters state
   const [filterCampaña, setFilterCampaña] = useState<string>('todos');
   const [filterFormador, setFilterFormador] = useState<string>('todos');
-  const [filterConvocatoria, setFilterConvocatoria] = useState<string>('todos');
   const [filterGeneracion, setFilterGeneracion] = useState<string>('todos');
-  const [filterFecha, setFilterFecha] = useState<string>('');
+  const [filterFechaInicio, setFilterFechaInicio] = useState<string>('');
+  const [filterFechaFin, setFilterFechaFin] = useState<string>('');
   const [filterMes, setFilterMes] = useState<string>('');
   const [filterEstado, setFilterEstado] = useState<'todos' | TrainingTemporalStatus>('todos');
-
-  const getSessionConvocatoria = (session: TrainingSession) =>
-    String(
-      (session as TrainingSession & { requisition_codigo?: string; convocatoria_origen?: string }).requisition_codigo ||
-      (session as TrainingSession & { requisition_codigo?: string; convocatoria_origen?: string }).convocatoria_origen ||
-      session.generation_code ||
-      session.nombre_generacion ||
-      session.id,
-    );
 
   const roleScopedSessions = useMemo(() => {
     if (currentUser.rol === 'Formador') {
@@ -106,9 +97,16 @@ export default function Dashboard({
     return sessions;
   }, [sessions, currentUser]);
 
+  const campaignScopedSessions = useMemo(
+    () => filterCampaña === 'todos'
+      ? roleScopedSessions
+      : roleScopedSessions.filter((session) => session.campaña === filterCampaña),
+    [roleScopedSessions, filterCampaña],
+  );
+
   const scopedTrainerIds = useMemo(
-    () => new Set(roleScopedSessions.flatMap(getSessionTrainerIds).filter(Boolean)),
-    [roleScopedSessions],
+    () => new Set(campaignScopedSessions.flatMap(getSessionTrainerIds).filter(Boolean)),
+    [campaignScopedSessions],
   );
 
   const visibleTrainers = useMemo(
@@ -118,20 +116,27 @@ export default function Dashboard({
 
   const filterOptions = useMemo(() => ({
     campañas: Array.from(new Set(roleScopedSessions.map((session) => session.campaña).filter(Boolean))).sort(),
-    convocatorias: Array.from(new Set(roleScopedSessions.map(getSessionConvocatoria).filter(Boolean))).sort(),
-    generaciones: Array.from(new Set(roleScopedSessions.map((session) => session.nombre_generacion).filter(Boolean))).sort(),
+    generaciones: Array.from(new Set(campaignScopedSessions.map((session) => session.generation_code || session.nombre_generacion).filter(Boolean))).sort(),
     meses: Array.from(new Set(
-      roleScopedSessions.flatMap(getSessionActivityMonths),
+      campaignScopedSessions.flatMap(getSessionActivityMonths),
     )).sort().reverse(),
-  }), [roleScopedSessions]);
+  }), [roleScopedSessions, campaignScopedSessions]);
+
+  const handleCampaignChange = (campaign: string) => {
+    setFilterCampaña(campaign);
+    setFilterFormador('todos');
+    setFilterGeneracion('todos');
+    setFilterMes('');
+    setFilterEstado('todos');
+  };
 
   // Reset Filters
   const handleResetFilters = () => {
     setFilterCampaña('todos');
     setFilterFormador('todos');
-    setFilterConvocatoria('todos');
     setFilterGeneracion('todos');
-    setFilterFecha('');
+    setFilterFechaInicio('');
+    setFilterFechaFin('');
     setFilterMes('');
     setFilterEstado('todos');
   };
@@ -141,14 +146,14 @@ export default function Dashboard({
     return roleScopedSessions.filter(s => {
       if (filterCampaña !== 'todos' && s.campaña !== filterCampaña) return false;
       if (filterFormador !== 'todos' && !getSessionTrainerIds(s).includes(filterFormador)) return false;
-      if (filterConvocatoria !== 'todos' && getSessionConvocatoria(s) !== filterConvocatoria) return false;
-      if (filterGeneracion !== 'todos' && s.nombre_generacion !== filterGeneracion) return false;
-      if (filterFecha && (filterFecha < s.fecha_inicio || filterFecha > s.fecha_fin)) return false;
+      if (filterGeneracion !== 'todos' && (s.generation_code || s.nombre_generacion) !== filterGeneracion) return false;
+      if (filterFechaInicio && (s.fecha_fin || s.fecha_inicio) < filterFechaInicio) return false;
+      if (filterFechaFin && s.fecha_inicio > filterFechaFin) return false;
       if (filterMes && !sessionHasActivityInMonth(s, filterMes)) return false;
       if (filterMes && filterEstado !== 'todos' && getTrainingTemporalStatus(s) !== filterEstado) return false;
       return true;
     });
-  }, [roleScopedSessions, filterCampaña, filterFormador, filterConvocatoria, filterGeneracion, filterFecha, filterMes, filterEstado]);
+  }, [roleScopedSessions, filterCampaña, filterFormador, filterGeneracion, filterFechaInicio, filterFechaFin, filterMes, filterEstado]);
 
   const filteredSessionIds = useMemo(() => new Set(filteredSessions.map(s => s.id)), [filteredSessions]);
   const filteredSessionById = useMemo(() => new Map(filteredSessions.map(s => [s.id, s])), [filteredSessions]);
@@ -288,7 +293,9 @@ export default function Dashboard({
     const total = metrics.totalCargados;
 
     // Calculate attendants per day
-    const dayAttendants = new Map(visibleAttendanceDays.map((day) => [day, new Set<string>()]));
+    const dayAttendants = new Map<number, Set<string>>(
+      visibleAttendanceDays.map((day): [number, Set<string>] => [day, new Set<string>()]),
+    );
     filteredAttendance.forEach(a => {
       if (isPresentAttendance(a.estado_asistencia)) {
         const session = filteredSessionById.get(a.training_session_id);
@@ -313,7 +320,7 @@ export default function Dashboard({
 
   // 2. Comparativo por Campaña
   const campañaData = useMemo(() => {
-    const campaigns = BPO_CAMPAIGNS;
+    const campaigns = filterCampaña === 'todos' ? BPO_CAMPAIGNS : [filterCampaña];
     return campaigns.map(camp => {
       const campSessions = filteredSessions.filter(s => s.campaña === camp);
       const campSessionIds = new Set(campSessions.map(s => s.id));
@@ -366,7 +373,7 @@ export default function Dashboard({
         'Conversión %': conversion
       };
     });
-  }, [filteredSessions, participants, attendance, validConfirmations]);
+  }, [filteredSessions, participants, attendance, validConfirmations, filterCampaña]);
 
   // 3. Comparativo por Formador
   const formadorData = useMemo(() => {
@@ -559,27 +566,12 @@ export default function Dashboard({
               <label className="block text-xs font-medium text-slate-500 mb-1">Campaña</label>
               <select
                 value={filterCampaña}
-                onChange={(e) => setFilterCampaña(e.target.value)}
+                onChange={(e) => handleCampaignChange(e.target.value)}
                 className="w-full text-xs glass-input text-slate-700 rounded-lg p-2 outline-hidden"
               >
                 <option value="todos">Todas las Campañas</option>
                 {filterOptions.campañas.map((campaña) => (
                   <option key={campaña} value={campaña}>{campaña}</option>
-                ))}
-              </select>
-            </div>
-
-            {/* Convocatoria */}
-            <div>
-              <label className="block text-xs font-medium text-slate-500 mb-1">Convocatoria</label>
-              <select
-                value={filterConvocatoria}
-                onChange={(e) => setFilterConvocatoria(e.target.value)}
-                className="w-full text-xs glass-input text-slate-700 rounded-lg p-2 outline-hidden"
-              >
-                <option value="todos">Todas las Convocatorias</option>
-                {filterOptions.convocatorias.map((convocatoria) => (
-                  <option key={convocatoria} value={convocatoria}>{convocatoria}</option>
                 ))}
               </select>
             </div>
@@ -614,13 +606,25 @@ export default function Dashboard({
               </select>
             </div>
 
-            {/* Fecha */}
+            {/* Rango de fechas */}
             <div>
-              <label className="block text-xs font-medium text-slate-500 mb-1">Fecha</label>
+              <label className="block text-xs font-medium text-slate-500 mb-1">Fecha de inicio</label>
               <input
                 type="date"
-                value={filterFecha}
-                onChange={(e) => setFilterFecha(e.target.value)}
+                value={filterFechaInicio}
+                max={filterFechaFin || undefined}
+                onChange={(e) => setFilterFechaInicio(e.target.value)}
+                className="w-full text-xs glass-input text-slate-700 rounded-lg p-2 outline-hidden"
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-medium text-slate-500 mb-1">Fecha de fin</label>
+              <input
+                type="date"
+                value={filterFechaFin}
+                min={filterFechaInicio || undefined}
+                onChange={(e) => setFilterFechaFin(e.target.value)}
                 className="w-full text-xs glass-input text-slate-700 rounded-lg p-2 outline-hidden"
               />
             </div>
