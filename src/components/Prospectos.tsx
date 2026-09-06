@@ -154,7 +154,8 @@ export default function Prospectos({ currentUser, users, sessions }: ProspectosP
   const [search, setSearch] = useState('');
   const [campaignFilter, setCampaignFilter] = useState('todas');
   const [trainerFilter, setTrainerFilter] = useState('todos');
-  const [dateFilter, setDateFilter] = useState('');
+  const [startDateFilter, setStartDateFilter] = useState('');
+  const [endDateFilter, setEndDateFilter] = useState('');
   const [sessionFilter, setSessionFilter] = useState('todas');
   const [showModal, setShowModal] = useState(false);
   const [editing, setEditing] = useState<Prospect | null>(null);
@@ -212,17 +213,27 @@ export default function Prospectos({ currentUser, users, sessions }: ProspectosP
   const sessionOptions = useMemo(() => sessions
     .filter((session) => {
       if (campaignFilter !== 'todas' && normalizedKey(session.campaña) !== normalizedKey(campaignFilter)) return false;
-      if (trainerFilter !== 'todos' && session.formador_id !== trainerFilter) return false;
+      if (trainerFilter !== 'todos' && !isSessionAssignedTrainer(session, trainerFilter)) return false;
       return true;
     })
     .sort((a, b) => b.fecha_inicio.localeCompare(a.fecha_inicio)), [sessions, campaignFilter, trainerFilter]);
 
+  const sessionCodeOptions = useMemo(() => {
+    const prospectCodes = prospects
+      .filter((prospect) => campaignFilter === 'todas' || normalizedKey(prospect.campana) === normalizedKey(campaignFilter))
+      .filter((prospect) => trainerFilter === 'todos' || prospect.formador_id === trainerFilter)
+      .map((prospect) => prospect.training_session_code)
+      .filter((code): code is string => Boolean(code));
+    return Array.from(new Set([...sessionOptions.map(getSessionCode), ...prospectCodes])).sort();
+  }, [sessionOptions, prospects, campaignFilter, trainerFilter]);
+
   const filteredProspects = useMemo(() => {
     const term = search.trim().toLocaleLowerCase('es');
     return prospects.filter((prospect) => {
-      if (campaignFilter !== 'todas' && prospect.campana !== campaignFilter) return false;
+      if (campaignFilter !== 'todas' && normalizedKey(prospect.campana) !== normalizedKey(campaignFilter)) return false;
       if (trainerFilter !== 'todos' && prospect.formador_id !== trainerFilter) return false;
-      if (dateFilter && prospect.fecha_registro !== dateFilter) return false;
+      if (startDateFilter && prospect.fecha_registro < startDateFilter) return false;
+      if (endDateFilter && prospect.fecha_registro > endDateFilter) return false;
       if (sessionFilter !== 'todas') {
         const resolvedSession = resolveProspectSession(prospect, sessions);
         const resolvedCode = prospect.training_session_code || (resolvedSession ? getSessionCode(resolvedSession) : '');
@@ -239,7 +250,7 @@ export default function Prospectos({ currentUser, users, sessions }: ProspectosP
         prospect.telefono,
       ].some((value) => String(value || '').toLocaleLowerCase('es').includes(term));
     });
-  }, [prospects, search, campaignFilter, trainerFilter, dateFilter, sessionFilter, sessions]);
+  }, [prospects, search, campaignFilter, trainerFilter, startDateFilter, endDateFilter, sessionFilter, sessions]);
 
   const lastFiveDays = useMemo(
     () => Array.from(new Set(filteredProspects.map((prospect) => prospect.fecha_registro).filter(Boolean)))
@@ -350,7 +361,8 @@ export default function Prospectos({ currentUser, users, sessions }: ProspectosP
   const clearFilters = () => {
     setCampaignFilter('todas');
     setTrainerFilter('todos');
-    setDateFilter('');
+    setStartDateFilter('');
+    setEndDateFilter('');
     setSessionFilter('todas');
     setSearch('');
   };
@@ -452,7 +464,7 @@ export default function Prospectos({ currentUser, users, sessions }: ProspectosP
             <RotateCcw className="h-3.5 w-3.5" /> Limpiar filtros
           </button>
         </div>
-        <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-5">
+        <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-6">
           <label className="space-y-1">
             <span className="flex items-center gap-1.5 text-[10px] font-black uppercase text-slate-500"><Search className="h-3.5 w-3.5" /> Buscar</span>
             <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Ejecutivo o prospecto" className="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-xs outline-none focus:border-indigo-400" />
@@ -466,12 +478,16 @@ export default function Prospectos({ currentUser, users, sessions }: ProspectosP
             <select value={trainerFilter} onChange={(event) => { setTrainerFilter(event.target.value); setSessionFilter('todas'); }} className="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-xs text-slate-700 outline-none focus:border-indigo-400"><option value="todos">Todos los formadores</option>{trainerOptions.map(([id, name]) => <option key={id} value={id}>{name}</option>)}</select>
           </label>
           <label className="space-y-1">
-            <span className="flex items-center gap-1.5 text-[10px] font-black uppercase text-slate-500"><CalendarDays className="h-3.5 w-3.5" /> Fecha</span>
-            <input type="date" value={dateFilter} onChange={(event) => setDateFilter(event.target.value)} className="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-xs text-slate-700 outline-none focus:border-indigo-400" />
+            <span className="flex items-center gap-1.5 text-[10px] font-black uppercase text-slate-500"><CalendarDays className="h-3.5 w-3.5" /> Fecha de inicio</span>
+            <input type="date" value={startDateFilter} max={endDateFilter || undefined} onChange={(event) => setStartDateFilter(event.target.value)} className="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-xs text-slate-700 outline-none focus:border-indigo-400" />
+          </label>
+          <label className="space-y-1">
+            <span className="flex items-center gap-1.5 text-[10px] font-black uppercase text-slate-500"><CalendarDays className="h-3.5 w-3.5" /> Fecha de fin</span>
+            <input type="date" value={endDateFilter} min={startDateFilter || undefined} onChange={(event) => setEndDateFilter(event.target.value)} className="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-xs text-slate-700 outline-none focus:border-indigo-400" />
           </label>
           <label className="space-y-1">
             <span className="text-[10px] font-black uppercase text-slate-500">Código de generación</span>
-            <select value={sessionFilter} onChange={(event) => setSessionFilter(event.target.value)} className="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-xs text-slate-700 outline-none focus:border-indigo-400"><option value="todas">Todos los códigos</option>{Array.from(new Set([...sessionOptions.map(getSessionCode), ...prospects.map((prospect) => prospect.training_session_code).filter(Boolean)])).sort().map((code) => <option key={code} value={code}>{code}</option>)}</select>
+            <select value={sessionFilter} onChange={(event) => setSessionFilter(event.target.value)} className="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-xs text-slate-700 outline-none focus:border-indigo-400"><option value="todas">Todos los códigos</option>{sessionCodeOptions.map((code) => <option key={code} value={code}>{code}</option>)}</select>
           </label>
         </div>
       </section>
