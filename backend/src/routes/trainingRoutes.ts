@@ -101,7 +101,46 @@ router.patch('/:sessionId', canPatchTraining, async (req: AuthenticatedRequest, 
       return;
     }
   }
-  await adminDb.collection('sessions').doc(req.params.sessionId).set(changes.data, { merge: true });
+
+  const requestedCode = String(changes.data.generation_code || changes.data.nombre_generacion || '').trim();
+  if (requestedCode && await hasDuplicateTrainingCode(requestedCode, req.params.sessionId)) {
+    res.status(409).json({ message: `Ya existe una capacitacion con el codigo ${requestedCode}.` });
+    return;
+  }
+
+  if (requestedCode) {
+    changes.data.generation_code = requestedCode;
+    changes.data.nombre_generacion = requestedCode;
+  }
+
+  const shouldSyncRelatedRecords = req.user!.rol === 'Administrador' && Boolean(
+    requestedCode || changes.data.campaña || changes.data.formador_id || changes.data.formador_nombre,
+  );
+  if (!shouldSyncRelatedRecords) {
+    await adminDb.collection('sessions').doc(req.params.sessionId).set(changes.data, { merge: true });
+    res.json({ ok: true });
+    return;
+  }
+
+  const surveysSnapshot = await adminDb.collection('surveys')
+    .where('training_session_id', '==', req.params.sessionId)
+    .get();
+  const responseSnapshots = await Promise.all(surveysSnapshot.docs.map((survey) =>
+    adminDb.collection('responses').where('training_survey_id', '==', survey.id).get(),
+  ));
+  const relatedChanges: Record<string, unknown> = {
+    ...(requestedCode ? { codigo_generacion: requestedCode } : {}),
+    ...(changes.data.campaña ? { campaña: changes.data.campaña } : {}),
+    ...(changes.data.formador_id ? { formador_id: changes.data.formador_id } : {}),
+    ...(changes.data.formador_nombre ? { formador_nombre: changes.data.formador_nombre } : {}),
+  };
+  const writer = adminDb.bulkWriter();
+  writer.set(adminDb.collection('sessions').doc(req.params.sessionId), changes.data, { merge: true });
+  surveysSnapshot.docs.forEach((survey) => writer.set(survey.ref, relatedChanges, { merge: true }));
+  responseSnapshots.forEach((snapshot) =>
+    snapshot.docs.forEach((response) => writer.set(response.ref, relatedChanges, { merge: true })),
+  );
+  await writer.close();
   res.json({ ok: true });
 });
 

@@ -1005,6 +1005,7 @@ export default function App() {
 
     if (Object.keys(syncedSurveyFields).length > 0) {
       const relatedSurveys = surveys.filter((survey) => survey.training_session_id === sessionId);
+      const relatedSurveyIds = new Set(relatedSurveys.map((survey) => survey.id));
       setSurveys(prev => prev.map((survey) => {
         if (survey.training_session_id !== sessionId) return survey;
         return {
@@ -1022,6 +1023,16 @@ export default function App() {
           alert(error instanceof Error ? error.message : 'No se pudo sincronizar la encuesta de la capacitación.');
         });
       });
+      setResponses(prev => prev.map((response) => {
+        if (!relatedSurveyIds.has(response.training_survey_id)) return response;
+        return {
+          ...response,
+          ...(syncedSurveyFields.campaña ? { campaña: syncedSurveyFields.campaña } : {}),
+          ...(syncedSurveyFields.codigo_generacion ? { codigo_generacion: syncedSurveyFields.codigo_generacion } : {}),
+          ...(syncedSurveyFields.formador_id ? { formador_id: syncedSurveyFields.formador_id } : {}),
+          ...(syncedSurveyFields.formador_nombre ? { formador_nombre: syncedSurveyFields.formador_nombre } : {}),
+        };
+      }));
     }
 
     setSessions(prev => prev.map(s => {

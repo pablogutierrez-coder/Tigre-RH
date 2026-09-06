@@ -587,6 +587,20 @@ export default function Capacitaciones({
     setEditManualGenerationCode(getTrainingIdentifier(s));
   };
 
+  const handleEditCampaignChange = (nextCampaign: string) => {
+    setEditCampaña(nextCampaign);
+    if (editingSession && currentUser.rol === 'Administrador') {
+      setEditManualGenerationCode(buildTrainingCode(nextCampaign, editFechaInicio, editingSession.id));
+    }
+  };
+
+  const handleEditStartDateChange = (nextStartDate: string) => {
+    setEditFechaInicio(nextStartDate);
+    if (editingSession && currentUser.rol === 'Administrador') {
+      setEditManualGenerationCode(buildTrainingCode(editCampaña, nextStartDate, editingSession.id));
+    }
+  };
+
   const handleSaveEdit = () => {
     if (!editingSession) return;
     const initialTrainers = trainers.filter((trainer) => editFormadorInicialIds.includes(trainer.id));
@@ -2206,7 +2220,7 @@ export default function Capacitaciones({
                   <label className="block text-xs font-semibold text-slate-600 mb-1">Campaña *</label>
                   <select
                     value={editCampaña}
-                    onChange={(e) => setEditCampaña(e.target.value)}
+                    onChange={(e) => handleEditCampaignChange(e.target.value)}
                     className="w-full text-sm bg-slate-50 text-slate-700 rounded-xl border border-slate-200 p-2.5 focus:ring-2 focus:ring-indigo-500 outline-hidden font-bold"
                   >
                     {BPO_CAMPAIGNS.map((item) => <option key={item} value={item}>{item}</option>)}
@@ -2244,7 +2258,7 @@ export default function Capacitaciones({
                   <input
                     type="date"
                     value={editFechaInicio}
-                    onChange={(e) => setEditFechaInicio(e.target.value)}
+                    onChange={(e) => handleEditStartDateChange(e.target.value)}
                     className="w-full text-sm bg-slate-50 text-slate-700 rounded-xl border border-slate-200 p-2.5 focus:ring-2 focus:ring-indigo-500 outline-hidden"
                   />
                 </div>
