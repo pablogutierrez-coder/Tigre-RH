@@ -27,6 +27,7 @@ export interface TrainingVariableSource {
   campana: string;
   fecha_inicio: string;
   fecha_fin: string;
+  formadores: Array<{ id: string; nombre: string }>;
 }
 
 export interface AutomaticTrainingVariableCalculation {
@@ -61,8 +62,8 @@ const request = async <T>(path: string, options: RequestInit = {}) => {
 export const listTrainingVariableEvaluations = () =>
   request<{ evaluations: TrainingVariableEvaluation[] }>('/api/formacion/variables');
 
-export const listTrainingVariableSources = (formadorId: string, anio: number, mes: number) => {
-  const query = new URLSearchParams({ formador_id: formadorId, anio: String(anio), mes: String(mes) });
+export const listTrainingVariableSources = (anio: number, mes: number) => {
+  const query = new URLSearchParams({ anio: String(anio), mes: String(mes) });
   return request<{ sources: TrainingVariableSource[] }>(`/api/formacion/variables/fuentes/codigos?${query}`);
 };
 

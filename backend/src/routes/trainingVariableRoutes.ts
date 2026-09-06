@@ -34,8 +34,8 @@ const inputSchema = z.object({
   porcentaje_satisfaccion: z.coerce.number().min(0).max(100),
   porcentaje_administrativo: z.coerce.number().min(0).max(100),
   observacion_administrativa: z.string().trim().optional().default(''),
-  generation_ids: z.array(z.string().trim().min(1)).max(100).optional().default([]),
-  codigos_generacion: z.array(z.string().trim().min(1)).max(100).optional().default([]),
+  generation_ids: z.array(z.string().trim().min(1)).length(1),
+  codigos_generacion: z.array(z.string().trim().min(1)).length(1),
   calculo_automatico: z.boolean().optional().default(false),
   calculo_detalle: z.object({
     participantes_dia_1: z.coerce.number().int().min(0),
@@ -47,13 +47,14 @@ const inputSchema = z.object({
 });
 
 const sourceQuerySchema = z.object({
-  formador_id: z.string().trim().min(1),
+  formador_id: z.string().trim().min(1).optional(),
   anio: z.coerce.number().int().min(2020).max(2100),
   mes: z.coerce.number().int().min(1).max(12),
 });
 
 const automaticCalculationSchema = sourceQuerySchema.extend({
-  generation_ids: z.array(z.string().trim().min(1)).min(1).max(100),
+  formador_id: z.string().trim().min(1),
+  generation_ids: z.array(z.string().trim().min(1)).length(1),
 });
 
 const asActor = (req: AuthenticatedRequest) => ({
@@ -89,7 +90,7 @@ router.get('/fuentes/codigos', requireAuth, requireRole(['Administrador']), asyn
   }
 
   try {
-    const sources = await listTrainingVariableSources(parsed.data.formador_id, parsed.data.anio, parsed.data.mes);
+    const sources = await listTrainingVariableSources(parsed.data.anio, parsed.data.mes, parsed.data.formador_id);
     res.json({ sources });
   } catch (error) {
     sendError(res, error);

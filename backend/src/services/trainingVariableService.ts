@@ -74,6 +74,37 @@ const assertPeriod = (input: TrainingVariableInput) => {
   if (!input.id_formador.trim() || !input.nombre_formador.trim()) {
     throw new Error('El formador es obligatorio.');
   }
+  if (input.generation_ids?.length !== 1) {
+    throw new Error('La evaluación debe corresponder a una sola capacitación.');
+  }
+};
+
+const normalizeIds = (value: unknown) => Array.isArray(value)
+  ? value.map((item) => String(item || '').trim()).filter(Boolean)
+  : [];
+
+const assertTrainingAssignment = async (input: TrainingVariableInput) => {
+  const trainingId = input.generation_ids![0];
+  const snapshot = await adminDb.collection('sessions').doc(trainingId).get();
+  if (!snapshot.exists) throw new Error('La capacitación seleccionada no existe.');
+
+  const session = snapshot.data() || {};
+  const assignedIds = new Set([
+    String(session.formador_id || '').trim(),
+    ...normalizeIds(session.formador_ids),
+    ...normalizeIds(session.formador_capacitacion_inicial_ids),
+    ...normalizeIds(session.formador_ojt_ids),
+  ].filter(Boolean));
+  if (!assignedIds.has(input.id_formador)) {
+    throw new Error('El formador seleccionado no está asociado a esta capacitación.');
+  }
+
+  const startDate = String(session.fecha_inicio || '');
+  if (Number(startDate.slice(0, 4)) !== input.anio || Number(startDate.slice(5, 7)) !== input.mes) {
+    throw new Error('La capacitación no corresponde al periodo seleccionado.');
+  }
+
+  input.codigos_generacion = [String(session.generation_code || session.nombre_generacion || trainingId).trim()];
 };
 
 const getEvaluation = async (id: string) => {
@@ -101,11 +132,15 @@ const assertNoDuplicate = async (input: TrainingVariableInput, currentId?: strin
   const duplicate = snapshot.docs.some((doc) => {
     if (doc.id === currentId) return false;
     const data = doc.data();
-    return data.anio === input.anio && data.mes === input.mes && ACTIVE_STATES.includes(data.estado);
+    const selectedTrainingId = input.generation_ids?.[0];
+    const sameTraining = selectedTrainingId
+      ? Array.isArray(data.generation_ids) && data.generation_ids.includes(selectedTrainingId)
+      : data.anio === input.anio && data.mes === input.mes;
+    return sameTraining && ACTIVE_STATES.includes(data.estado);
   });
 
   if (duplicate) {
-    throw new Error('Ya existe una evaluación activa para ese formador y periodo.');
+    throw new Error('Ya existe una evaluación activa para ese formador y capacitación.');
   }
 };
 
@@ -151,6 +186,7 @@ export const createTrainingVariableEvaluation = async (
 ) => {
   if (!canManage(actor)) throw new Error('No tienes permisos para crear evaluaciones.');
   assertPeriod(input);
+  await assertTrainingAssignment(input);
   await assertNoDuplicate(input);
 
   const id = `var-form-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
@@ -185,6 +221,7 @@ export const updateTrainingVariableEvaluation = async (
   if (current.estado === 'CERRADO') throw new Error('No se puede editar una evaluación cerrada.');
   if (current.estado === 'ANULADO') throw new Error('No se puede editar una evaluación anulada.');
   assertPeriod(input);
+  await assertTrainingAssignment(input);
   await assertNoDuplicate(input, id);
 
   const calculated = calculateTrainingVariableEvaluation(input);

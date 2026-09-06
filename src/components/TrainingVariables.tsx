@@ -134,6 +134,11 @@ export default function TrainingVariables({ currentUser, users }: TrainingVariab
   );
 
   const preview = useMemo(() => calculateTrainingVariablePreview(form), [form]);
+  const selectedSource = useMemo(
+    () => sourceOptions.find((source) => source.id === form.generation_ids?.[0]),
+    [sourceOptions, form.generation_ids],
+  );
+  const associatedTrainers = selectedSource?.formadores || [];
 
   const loadEvaluations = async () => {
     setLoading(true);
@@ -153,7 +158,7 @@ export default function TrainingVariables({ currentUser, users }: TrainingVariab
   }, []);
 
   useEffect(() => {
-    if (!modalMode || !form.id_formador) {
+    if (!modalMode) {
       setSourceOptions([]);
       setSourceError('');
       return;
@@ -162,7 +167,7 @@ export default function TrainingVariables({ currentUser, users }: TrainingVariab
     let active = true;
     setLoadingSources(true);
     setSourceError('');
-    void listTrainingVariableSources(form.id_formador, form.anio, form.mes)
+    void listTrainingVariableSources(form.anio, form.mes)
       .then((response) => {
         if (active) setSourceOptions(response.sources);
       })
@@ -179,7 +184,7 @@ export default function TrainingVariables({ currentUser, users }: TrainingVariab
     return () => {
       active = false;
     };
-  }, [form.anio, form.id_formador, form.mes, modalMode]);
+  }, [form.anio, form.mes, modalMode]);
 
   const filteredEvaluations = useMemo(() => {
     const normalizedSearch = searchTerm.trim().toLowerCase();
@@ -208,7 +213,7 @@ export default function TrainingVariables({ currentUser, users }: TrainingVariab
 
   const openCreate = () => {
     setEditing(null);
-    setForm(emptyForm(trainers[0], currentUser));
+    setForm(emptyForm(undefined, currentUser));
     setModalMode('create');
   };
 
@@ -244,13 +249,11 @@ export default function TrainingVariables({ currentUser, users }: TrainingVariab
   };
 
   const updateTrainer = (trainerId: string) => {
-    const trainer = trainers.find((item) => item.id === trainerId);
+    const trainer = associatedTrainers.find((item) => item.id === trainerId);
     setForm((prev) => ({
       ...prev,
       id_formador: trainer?.id || '',
       nombre_formador: trainer?.nombre || '',
-      generation_ids: [],
-      codigos_generacion: [],
       calculo_automatico: false,
       calculo_detalle: undefined,
     }));
@@ -260,6 +263,8 @@ export default function TrainingVariables({ currentUser, users }: TrainingVariab
     setForm((prev) => ({
       ...prev,
       [key]: value,
+      id_formador: '',
+      nombre_formador: '',
       generation_ids: [],
       codigos_generacion: [],
       calculo_automatico: false,
@@ -267,20 +272,19 @@ export default function TrainingVariables({ currentUser, users }: TrainingVariab
     }));
   };
 
-  const toggleSource = (source: TrainingVariableSource) => {
-    setForm((prev) => {
-      const selected = new Set(prev.generation_ids || []);
-      if (selected.has(source.id)) selected.delete(source.id);
-      else selected.add(source.id);
-      const selectedIds = Array.from(selected);
-      return {
-        ...prev,
-        generation_ids: selectedIds,
-        codigos_generacion: sourceOptions.filter((item) => selected.has(item.id)).map((item) => item.codigo),
-        calculo_automatico: false,
-        calculo_detalle: undefined,
-      };
-    });
+  const selectSource = (sourceId: string) => {
+    const source = sourceOptions.find((item) => item.id === sourceId);
+    const currentTrainer = source?.formadores.find((trainer) => trainer.id === form.id_formador);
+    const trainer = currentTrainer || source?.formadores[0];
+    setForm((prev) => ({
+      ...prev,
+      id_formador: trainer?.id || '',
+      nombre_formador: trainer?.nombre || '',
+      generation_ids: source ? [source.id] : [],
+      codigos_generacion: source ? [source.codigo] : [],
+      calculo_automatico: false,
+      calculo_detalle: undefined,
+    }));
   };
 
   const handleAutomaticCalculation = async () => {
@@ -288,8 +292,8 @@ export default function TrainingVariables({ currentUser, users }: TrainingVariab
       alert('Selecciona un formador.');
       return;
     }
-    if (!form.generation_ids?.length) {
-      alert('Selecciona al menos un código de generación.');
+    if (form.generation_ids?.length !== 1) {
+      alert('Selecciona una capacitación.');
       return;
     }
 
@@ -350,6 +354,7 @@ export default function TrainingVariables({ currentUser, users }: TrainingVariab
   };
 
   const validateForm = () => {
+    if (form.generation_ids?.length !== 1) return 'Selecciona una capacitación.';
     if (!form.id_formador) return 'Selecciona un formador.';
     if (form.porcentaje_retencion < 0 || form.porcentaje_retencion > 100) return 'La retención debe estar entre 0% y 100%.';
     if (form.porcentaje_produccion_individual < 0 || form.porcentaje_produccion_individual > 100) return 'La producción individual debe estar entre 0% y 100%.';
@@ -362,11 +367,10 @@ export default function TrainingVariables({ currentUser, users }: TrainingVariab
     const duplicate = evaluations.some((evaluation) =>
       evaluation.id !== editing?.id &&
       evaluation.id_formador === form.id_formador &&
-      evaluation.anio === form.anio &&
-      evaluation.mes === form.mes &&
+      evaluation.generation_ids?.includes(form.generation_ids[0]) &&
       evaluation.estado !== 'ANULADO',
     );
-    if (duplicate) return 'Ya existe una evaluación activa para ese formador y periodo.';
+    if (duplicate) return 'Ya existe una evaluación activa para ese formador y capacitación.';
     return '';
   };
 
@@ -451,7 +455,7 @@ export default function TrainingVariables({ currentUser, users }: TrainingVariab
             Módulo de Medición de Variables
           </h2>
           <p className="text-slate-500 mt-1">
-            Cálculo mensual manual o automático de KPI, ponderaciones y comisión por formador.
+            Cálculo manual o automático de KPI por capacitación y formador asociado.
           </p>
         </div>
         {canManage && (
@@ -590,9 +594,9 @@ export default function TrainingVariables({ currentUser, users }: TrainingVariab
               <div>
                 <h3 className="text-2xl font-black text-slate-950 flex items-center gap-2">
                   {isReadOnly ? <FileText className="w-6 h-6 text-indigo-600" /> : <Calculator className="w-6 h-6 text-fuchsia-600" />}
-                  {modalMode === 'create' ? 'Nueva evaluación mensual' : modalMode === 'detail' ? 'Detalle de evaluación' : 'Editar evaluación'}
+                  {modalMode === 'create' ? 'Nueva evaluación por capacitación' : modalMode === 'detail' ? 'Detalle de evaluación' : 'Editar evaluación'}
                 </h3>
-                <p className="text-sm text-slate-500">Calcula los KPI operativos por generación o conserva el registro manual.</p>
+                <p className="text-sm text-slate-500">Calcula los KPI operativos de una capacitación y asígnalos a uno de sus formadores.</p>
               </div>
               <button onClick={() => setModalMode(null)} className="rounded-xl p-2 text-slate-400 hover:bg-slate-100"><X className="w-5 h-5" /></button>
             </div>
@@ -601,7 +605,7 @@ export default function TrainingVariables({ currentUser, users }: TrainingVariab
               <div className="space-y-5">
                 <section className="rounded-2xl border border-slate-200 p-4">
                   <h4 className="font-black text-slate-900 mb-4">Datos generales</h4>
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <label className="space-y-1">
                       <span className={labelClass}>Año</span>
                       <select disabled={isReadOnly} value={form.anio} onChange={(event) => updatePeriod('anio', Number(event.target.value))} className={inputClass}>
@@ -614,14 +618,7 @@ export default function TrainingVariables({ currentUser, users }: TrainingVariab
                         {monthNames.map((month, index) => <option key={month} value={index + 1}>{month}</option>)}
                       </select>
                     </label>
-                    <label className="space-y-1">
-                      <span className={labelClass}>Formador</span>
-                      <select disabled={isReadOnly} value={form.id_formador} onChange={(event) => updateTrainer(event.target.value)} className={inputClass}>
-                        <option value="">Seleccionar formador</option>
-                        {trainers.map((trainer) => <option key={trainer.id} value={trainer.id}>{trainer.nombre}</option>)}
-                      </select>
-                    </label>
-                    <label className="md:col-span-3 space-y-1">
+                    <label className="md:col-span-2 space-y-1">
                       <span className={labelClass}>Observación general</span>
                       <textarea disabled={isReadOnly} value={form.observacion_general || ''} onChange={(event) => updateForm('observacion_general', event.target.value)} rows={3} className={inputClass} />
                     </label>
@@ -631,14 +628,14 @@ export default function TrainingVariables({ currentUser, users }: TrainingVariab
                 <section className="rounded-2xl border border-slate-200 p-4">
                   <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
                     <div>
-                      <h4 className="font-black text-slate-900">Códigos de generación</h4>
-                      <p className="mt-1 text-xs text-slate-500">Selecciona una o varias capacitaciones asignadas al formador durante el periodo.</p>
+                      <h4 className="font-black text-slate-900">Capacitación y formador</h4>
+                      <p className="mt-1 text-xs text-slate-500">Selecciona una capacitación y luego el formador asociado al que se asignará el cálculo.</p>
                     </div>
                     {!isReadOnly && (
                       <button
                         type="button"
                         onClick={() => void handleAutomaticCalculation()}
-                        disabled={calculating || !form.generation_ids?.length}
+                        disabled={calculating || form.generation_ids?.length !== 1 || !form.id_formador}
                         className="inline-flex items-center justify-center gap-2 rounded-xl bg-indigo-600 px-4 py-2.5 text-sm font-black text-white disabled:opacity-40"
                       >
                         <Sparkles className="h-4 w-4" />
@@ -647,32 +644,40 @@ export default function TrainingVariables({ currentUser, users }: TrainingVariab
                     )}
                   </div>
 
-                  <details className="mt-4 rounded-xl border border-slate-200 bg-slate-50">
-                    <summary className="cursor-pointer list-none px-4 py-3 text-sm font-black text-slate-700">
-                      {loadingSources
-                        ? 'Cargando códigos...'
-                        : `${form.generation_ids?.length || 0} código(s) seleccionado(s)`}
-                    </summary>
-                    <div className="grid max-h-64 grid-cols-1 gap-2 overflow-y-auto border-t border-slate-200 p-3 md:grid-cols-2">
-                      {sourceOptions.length === 0 && !loadingSources ? (
-                        <p className="col-span-full py-3 text-center text-sm text-slate-500">No hay códigos asignados al formador en este periodo.</p>
-                      ) : sourceOptions.map((source) => (
-                        <label key={source.id} className="flex items-start gap-3 rounded-xl border border-slate-200 bg-white p-3 text-sm">
-                          <input
-                            type="checkbox"
-                            disabled={isReadOnly}
-                            checked={Boolean(form.generation_ids?.includes(source.id))}
-                            onChange={() => toggleSource(source)}
-                            className="mt-0.5 h-4 w-4 accent-indigo-600"
-                          />
-                          <span>
-                            <span className="block font-black text-slate-900">{source.codigo}</span>
-                            <span className="block text-xs text-slate-500">{source.campana} · {source.fecha_inicio}</span>
-                          </span>
-                        </label>
-                      ))}
-                    </div>
-                  </details>
+                  <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2">
+                    <label className="space-y-1">
+                      <span className={labelClass}>Capacitación</span>
+                      <select
+                        disabled={isReadOnly || loadingSources}
+                        value={form.generation_ids?.[0] || ''}
+                        onChange={(event) => selectSource(event.target.value)}
+                        className={inputClass}
+                      >
+                        <option value="">{loadingSources ? 'Cargando capacitaciones...' : 'Seleccionar capacitación'}</option>
+                        {sourceOptions.map((source) => (
+                          <option key={source.id} value={source.id}>{source.codigo} · {source.campana}</option>
+                        ))}
+                      </select>
+                    </label>
+                    <label className="space-y-1">
+                      <span className={labelClass}>Formador asociado</span>
+                      <select
+                        disabled={isReadOnly || !selectedSource}
+                        value={form.id_formador}
+                        onChange={(event) => updateTrainer(event.target.value)}
+                        className={inputClass}
+                      >
+                        <option value="">Seleccionar formador</option>
+                        {associatedTrainers.map((trainer) => (
+                          <option key={trainer.id} value={trainer.id}>{trainer.nombre}</option>
+                        ))}
+                      </select>
+                    </label>
+                  </div>
+
+                  {!loadingSources && sourceOptions.length === 0 ? (
+                    <p className="mt-3 rounded-xl border border-slate-200 bg-slate-50 p-3 text-center text-sm text-slate-500">No hay capacitaciones con formadores asociados en este periodo.</p>
+                  ) : null}
 
                   {sourceError ? (
                     <p className="mt-3 rounded-xl border border-rose-200 bg-rose-50 p-3 text-sm font-semibold text-rose-700">{sourceError}</p>

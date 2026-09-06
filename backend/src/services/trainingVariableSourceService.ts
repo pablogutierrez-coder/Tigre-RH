@@ -8,6 +8,7 @@ export interface TrainingVariableSource {
   campana: string;
   fecha_inicio: string;
   fecha_fin: string;
+  formadores: Array<{ id: string; nombre: string }>;
 }
 
 export interface AutomaticTrainingVariableResult {
@@ -26,19 +27,30 @@ export interface AutomaticTrainingVariableResult {
   };
 }
 
-const ACTIVE_ATTENDANCE = new Set(['Asistió', 'Tardanza', 'Descanso médico', 'Feriado']);
+const ACTIVE_ATTENDANCE = new Set(['asistio', 'tardanza', 'descanso medico', 'feriado']);
 const roundPercent = (value: number) => Math.round(value * 100) / 100;
 const normalizeText = (value: unknown) => String(value || '').trim();
+const normalizeKey = (value: unknown) => normalizeText(value)
+  .normalize('NFD')
+  .replace(/[\u0300-\u036f]/g, '')
+  .toLowerCase();
+const normalizeCampaignKey = (value: unknown) => normalizeKey(value)
+  .replace(/\bempresas\b/g, '')
+  .replace(/[^a-z0-9]/g, '');
+const normalizeStatusKey = (value: unknown) => normalizeKey(value).replace(/[^a-z0-9]/g, '');
 const normalizeIds = (value: unknown) => Array.isArray(value)
   ? value.map(normalizeText).filter(Boolean)
   : [];
 
+const assignedTrainerIds = (session: StoredRecord) => Array.from(new Set([
+  normalizeText(session.formador_id),
+  ...normalizeIds(session.formador_ids),
+  ...normalizeIds(session.formador_capacitacion_inicial_ids),
+  ...normalizeIds(session.formador_ojt_ids),
+].filter(Boolean)));
+
 const isAssignedTrainer = (session: StoredRecord, trainerId: string) => {
-  const assignedIds = new Set([
-    normalizeText(session.formador_id),
-    ...normalizeIds(session.formador_ids),
-  ].filter(Boolean));
-  return assignedIds.has(trainerId);
+  return assignedTrainerIds(session).includes(trainerId);
 };
 
 const isInPeriod = (session: StoredRecord, year: number, month: number) => {
@@ -47,12 +59,19 @@ const isInPeriod = (session: StoredRecord, year: number, month: number) => {
   return Boolean(match && Number(match[1]) === year && Number(match[2]) === month);
 };
 
-const sourceFromSession = (session: StoredRecord): TrainingVariableSource => ({
+const sourceFromSession = (
+  session: StoredRecord,
+  trainerNames = new Map<string, string>(),
+): TrainingVariableSource => ({
   id: session.id,
   codigo: normalizeText(session.generation_code || session.nombre_generacion || session.id),
   campana: normalizeText(session.campana || session['campaña']),
   fecha_inicio: normalizeText(session.fecha_inicio),
   fecha_fin: normalizeText(session.fecha_fin),
+  formadores: assignedTrainerIds(session).map((id) => ({
+    id,
+    nombre: trainerNames.get(id) || id,
+  })),
 });
 
 const readCollection = async (name: string) => {
@@ -61,14 +80,17 @@ const readCollection = async (name: string) => {
 };
 
 export const listTrainingVariableSources = async (
-  trainerId: string,
   year: number,
   month: number,
+  trainerId?: string,
 ) => {
-  const sessions = await readCollection('sessions');
+  const [sessions, users] = await Promise.all([readCollection('sessions'), readCollection('users')]);
+  const trainerNames = new Map(users.map((user) => [user.id, normalizeText(user.nombre)]));
   return sessions
-    .filter((session) => isAssignedTrainer(session, trainerId) && isInPeriod(session, year, month))
-    .map(sourceFromSession)
+    .filter((session) => isInPeriod(session, year, month))
+    .filter((session) => !trainerId || isAssignedTrainer(session, trainerId))
+    .map((session) => sourceFromSession(session, trainerNames))
+    .filter((source) => source.formadores.length > 0)
     .sort((a, b) => a.fecha_inicio.localeCompare(b.fecha_inicio) || a.codigo.localeCompare(b.codigo));
 };
 
@@ -99,7 +121,7 @@ export const calculateTrainingVariableFromSources = async (
   month: number,
 ): Promise<AutomaticTrainingVariableResult> => {
   const selectedIds = Array.from(new Set(generationIds.map(normalizeText).filter(Boolean)));
-  if (!selectedIds.length) throw new Error('Selecciona al menos un código de generación.');
+  if (selectedIds.length !== 1) throw new Error('Selecciona una capacitación para calcular la variable.');
 
   const [sessions, participants, attendance, prospects, surveys, responses] = await Promise.all([
     readCollection('sessions'),
@@ -136,22 +158,38 @@ export const calculateTrainingVariableFromSources = async (
   selectedParticipants.forEach((participant) => {
     const session = sessionById.get(normalizeText(participant.training_session_id));
     const finalDay = Number(session?.training_days) === 10 ? 10 : 5;
-    const attendedDayOne = ACTIVE_ATTENDANCE.has(attendanceStatus(participant, recordsByParticipantAndDay, 1));
+    const attendedDayOne = ACTIVE_ATTENDANCE.has(normalizeKey(attendanceStatus(participant, recordsByParticipantAndDay, 1)));
     if (!attendedDayOne) return;
 
     dayOneCount += 1;
-    if (ACTIVE_ATTENDANCE.has(attendanceStatus(participant, recordsByParticipantAndDay, finalDay))) {
+    if (ACTIVE_ATTENDANCE.has(normalizeKey(attendanceStatus(participant, recordsByParticipantAndDay, finalDay)))) {
       finalDayCount += 1;
     }
   });
   const retention = dayOneCount > 0 ? (finalDayCount / dayOneCount) * 100 : 0;
 
+  const selectedSession = validSessions[0];
+  const selectedCampaign = normalizeCampaignKey(selectedSession.campana || selectedSession['campaña']);
+  const selectedTrainerIds = new Set(assignedTrainerIds(selectedSession));
+  const selectedStartDate = normalizeText(selectedSession.fecha_inicio);
+  const selectedEndDate = normalizeText(selectedSession.fecha_fin);
   const selectedProspects = prospects.filter((prospect) => {
     const sessionId = normalizeText(prospect.training_session_id);
     const sessionCode = normalizeText(prospect.training_session_code);
-    return selectedIdSet.has(sessionId) || selectedCodes.includes(sessionCode);
+    if (selectedIdSet.has(sessionId) || selectedCodes.includes(sessionCode)) return true;
+
+    const prospectDate = normalizeText(prospect.fecha_registro);
+    const sameCampaign = normalizeCampaignKey(prospect.campana || prospect['campaña']) === selectedCampaign;
+    const sameTrainer = selectedTrainerIds.has(normalizeText(prospect.formador_id));
+    const insideTrainingDates = Boolean(
+      prospectDate && selectedStartDate && selectedEndDate &&
+      prospectDate >= selectedStartDate && prospectDate <= selectedEndDate,
+    );
+    return !sessionId && !sessionCode && sameCampaign && sameTrainer && insideTrainingDates;
   });
-  const soldProspects = selectedProspects.filter((prospect) => normalizeText(prospect.estado) === 'Venta / Alta');
+  const soldProspects = selectedProspects.filter((prospect) =>
+    ['venta', 'alta', 'ventaalta'].includes(normalizeStatusKey(prospect.estado)),
+  );
   const production = selectedProspects.length > 0 ? (soldProspects.length / selectedProspects.length) * 100 : 0;
 
   const selectedSurveyIds = new Set(
@@ -182,7 +220,7 @@ export const calculateTrainingVariableFromSources = async (
       participantes_dia_final: finalDayCount,
       prospectos_generados: selectedProspects.length,
       prospectos_venta_alta: soldProspects.length,
-      respuestas_encuesta: satisfactionScores.length,
+      respuestas_encuesta: selectedResponses.length,
     },
   };
 };
