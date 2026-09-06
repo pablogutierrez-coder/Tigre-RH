@@ -28,6 +28,7 @@ export interface AutomaticTrainingVariableResult {
 }
 
 const ACTIVE_ATTENDANCE = new Set(['asistio', 'tardanza', 'descanso medico', 'feriado']);
+const INITIAL_TRAINING_FINAL_DAY = 5;
 const roundPercent = (value: number) => Math.round(value * 100) / 100;
 const normalizeText = (value: unknown) => String(value || '').trim();
 const normalizeKey = (value: unknown) => normalizeText(value)
@@ -156,13 +157,15 @@ export const calculateTrainingVariableFromSources = async (
   let dayOneCount = 0;
   let finalDayCount = 0;
   selectedParticipants.forEach((participant) => {
-    const session = sessionById.get(normalizeText(participant.training_session_id));
-    const finalDay = Number(session?.training_days) === 10 ? 10 : 5;
     const attendedDayOne = ACTIVE_ATTENDANCE.has(normalizeKey(attendanceStatus(participant, recordsByParticipantAndDay, 1)));
     if (!attendedDayOne) return;
 
     dayOneCount += 1;
-    if (ACTIVE_ATTENDANCE.has(normalizeKey(attendanceStatus(participant, recordsByParticipantAndDay, finalDay)))) {
+    if (ACTIVE_ATTENDANCE.has(normalizeKey(attendanceStatus(
+      participant,
+      recordsByParticipantAndDay,
+      INITIAL_TRAINING_FINAL_DAY,
+    )))) {
       finalDayCount += 1;
     }
   });
