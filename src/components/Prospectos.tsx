@@ -27,6 +27,7 @@ import {
   YAxis,
 } from 'recharts';
 import type { Prospect, ProspectStatus, TrainingSession, User } from '../types';
+import { BPO_CAMPAIGNS, normalizeCampaignName } from '../constants/campaigns';
 import {
   createProspect,
   deleteProspect,
@@ -41,7 +42,6 @@ interface ProspectosProps {
   sessions: TrainingSession[];
 }
 
-const PROSPECT_CAMPAIGNS = ['Entel RUC 10', 'Entel RUC 20', 'Culqi'] as const;
 const PROSPECT_STATUSES: ProspectStatus[] = [
   'Nuevo',
   'Contactado',
@@ -61,7 +61,7 @@ const peruDate = () => new Intl.DateTimeFormat('en-CA', {
 }).format(new Date());
 
 const emptyForm = (currentUser: User): ProspectForm => ({
-  campana: PROSPECT_CAMPAIGNS[0],
+  campana: BPO_CAMPAIGNS[0],
   fecha_registro: peruDate(),
   formador_id: currentUser.rol === 'Formador' ? currentUser.id : '',
   formador_nombre: currentUser.rol === 'Formador' ? currentUser.nombre : '',
@@ -169,9 +169,9 @@ export default function Prospectos({ currentUser, users, sessions }: ProspectosP
   );
 
   const formCampaignOptions = useMemo(() => {
-    if (currentUser.rol !== 'Formador') return [...PROSPECT_CAMPAIGNS];
-    const campaigns = activeSessionsForCurrentTrainer.map((session) => session.campaña);
-    if (editing?.campana) campaigns.push(editing.campana);
+    if (currentUser.rol !== 'Formador') return [...BPO_CAMPAIGNS];
+    const campaigns = activeSessionsForCurrentTrainer.map((session) => normalizeCampaignName(session.campaña));
+    if (editing?.campana) campaigns.push(normalizeCampaignName(editing.campana));
     return Array.from(new Set<string>(campaigns))
       .sort((a, b) => a.localeCompare(b, 'es'));
   }, [activeSessionsForCurrentTrainer, currentUser.rol, editing]);
@@ -180,7 +180,9 @@ export default function Prospectos({ currentUser, users, sessions }: ProspectosP
     if (showLoading) setLoading(true);
     try {
       const records = await listProspects();
-      setProspects(records.filter((record) => !deletedProspectIds.current.has(record.id)));
+      setProspects(records
+        .filter((record) => !deletedProspectIds.current.has(record.id))
+        .map((record) => ({ ...record, campana: normalizeCampaignName(record.campana) })));
       setError('');
     } catch (loadError) {
       setError(`No se pudieron cargar los prospectos: ${loadError instanceof Error ? loadError.message : 'Error desconocido'}`);
@@ -196,7 +198,7 @@ export default function Prospectos({ currentUser, users, sessions }: ProspectosP
   }, []);
 
   const campaignOptions = useMemo(
-    () => Array.from(new Set([...PROSPECT_CAMPAIGNS, ...prospects.map((prospect) => prospect.campana)])).sort((a, b) => a.localeCompare(b, 'es')),
+    () => Array.from(new Set([...BPO_CAMPAIGNS, ...prospects.map((prospect) => normalizeCampaignName(prospect.campana))])).sort((a, b) => a.localeCompare(b, 'es')),
     [prospects],
   );
   const trainerOptions = useMemo(() => {
@@ -296,7 +298,7 @@ export default function Prospectos({ currentUser, users, sessions }: ProspectosP
     setEditing(null);
     const nextForm = emptyForm(currentUser);
     if (currentUser.rol === 'Formador') {
-      nextForm.campana = Array.from(new Set<string>(activeSessionsForCurrentTrainer.map((session) => session.campaña)))
+      nextForm.campana = Array.from(new Set<string>(activeSessionsForCurrentTrainer.map((session) => normalizeCampaignName(session.campaña))))
         .sort((a, b) => a.localeCompare(b, 'es'))[0] || '';
     }
     setForm(nextForm);
@@ -305,8 +307,9 @@ export default function Prospectos({ currentUser, users, sessions }: ProspectosP
 
   const openEdit = (prospect: Prospect) => {
     const { id: _id, creado_por: _createdBy, creado_por_rol: _createdRole, created_at: _createdAt, updated_at: _updatedAt, ...editable } = prospect;
-    setEditing(prospect);
-    setForm(editable);
+    const canonicalCampaign = normalizeCampaignName(editable.campana);
+    setEditing({ ...prospect, campana: canonicalCampaign });
+    setForm({ ...editable, campana: canonicalCampaign });
     setShowModal(true);
   };
 

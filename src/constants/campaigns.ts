@@ -10,6 +10,8 @@ export const BPO_CAMPAIGNS = [
 
 export const LEGACY_CAMPAIGN_ALIASES: Record<string, string> = {
   'Entel Empresas': 'Entel Empresas RUC 10',
+  'Entel RUC 10': 'Entel Empresas RUC 10',
+  'Entel RUC 20': 'Entel Empresas RUC 20',
   Prosegur: 'Prosegur',
   Equifax: 'Equifax',
 };
