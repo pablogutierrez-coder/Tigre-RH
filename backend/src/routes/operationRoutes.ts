@@ -1,5 +1,6 @@
 import { raw, Router, type Response } from 'express';
 import { randomUUID } from 'node:crypto';
+import { FieldValue } from 'firebase-admin/firestore';
 import { z } from 'zod';
 import { adminDb, adminRealtimeDb, adminStorage } from '../firebaseAdmin.js';
 import {
@@ -101,6 +102,15 @@ const isOjtTrainer = (data: Record<string, unknown> | undefined, userId: string)
 const canTrainerEditAttendanceDay = (data: Record<string, unknown> | undefined, userId: string, day: number) =>
   (day <= 5 && isInitialTrainer(data, userId)) || (day >= 6 && isOjtTrainer(data, userId));
 
+const normalizeAttendanceStatus = (value: unknown) => String(value || '')
+  .normalize('NFD')
+  .replace(/[\u0300-\u036f]/g, '')
+  .trim()
+  .toLowerCase();
+
+const isDropoutAttendance = (value: unknown) =>
+  ['desistio', 'baja'].includes(normalizeAttendanceStatus(value));
+
 const ownsSession = async (req: AuthenticatedRequest, sessionId: string) => {
   const session = await adminDb.collection('sessions').doc(sessionId).get();
   if (!session.exists) return false;
@@ -139,7 +149,81 @@ router.put(
         return;
       }
     }
-    await adminDb.collection('attendance').doc(req.params.id).set(parsed.data, { merge: true });
+    const attendanceRef = adminDb.collection('attendance').doc(req.params.id);
+    const previousAttendance = await attendanceRef.get();
+    const previousData = previousAttendance.data();
+    const isDropoutCorrection =
+      isDropoutAttendance(previousData?.estado_asistencia) &&
+      !isDropoutAttendance(parsed.data.estado_asistencia);
+
+    if (!isDropoutCorrection) {
+      await attendanceRef.set(parsed.data, { merge: true });
+      res.json({ ok: true });
+      return;
+    }
+
+    const participantId = String(parsed.data.participant_id || previousData?.participant_id || '');
+    const correctedDay = Number(parsed.data.dia);
+    if (!participantId || !Number.isFinite(correctedDay)) {
+      res.status(400).json({ message: 'Datos de asistencia invalidos.' });
+      return;
+    }
+
+    const participantAttendanceSnapshot = await adminDb
+      .collection('attendance')
+      .where('participant_id', '==', participantId)
+      .get();
+    const sameSessionAttendance = participantAttendanceSnapshot.docs.filter(
+      (document) => String(document.data().training_session_id || '') === parsed.data.training_session_id,
+    );
+    const propagatedDropouts = sameSessionAttendance.filter((document) => {
+      const data = document.data();
+      return document.id !== req.params.id &&
+        Number(data.dia) > correctedDay &&
+        isDropoutAttendance(data.estado_asistencia);
+    });
+    const propagatedIds = new Set(propagatedDropouts.map((document) => document.id));
+    const hasRemainingDropout = sameSessionAttendance.some((document) =>
+      document.id !== req.params.id &&
+      !propagatedIds.has(document.id) &&
+      isDropoutAttendance(document.data().estado_asistencia),
+    );
+
+    const correctedAttendance: Record<string, unknown> = {
+      ...parsed.data,
+      motivo_desercion: FieldValue.delete(),
+    };
+    if (parsed.data.observacion === undefined) correctedAttendance.observacion = FieldValue.delete();
+    if (parsed.data.evidencia_nombre === undefined) correctedAttendance.evidencia_nombre = FieldValue.delete();
+    if (parsed.data.evidencia_imagen === undefined) correctedAttendance.evidencia_imagen = FieldValue.delete();
+
+    const participantRef = adminDb.collection('participants').doc(participantId);
+    const participantSnapshot = !hasRemainingDropout ? await participantRef.get() : null;
+    const shouldReactivateParticipant =
+      !hasRemainingDropout &&
+      isDropoutAttendance(participantSnapshot?.data()?.estado_final);
+
+    const writer = adminDb.bulkWriter();
+    writer.set(attendanceRef, correctedAttendance, { merge: true });
+    propagatedDropouts.forEach((document) => {
+      writer.set(document.ref, {
+        estado_asistencia: 'Seleccionar',
+        minutos_tardanza: FieldValue.delete(),
+        motivo_desercion: FieldValue.delete(),
+        observacion: FieldValue.delete(),
+        evidencia_nombre: FieldValue.delete(),
+        evidencia_imagen: FieldValue.delete(),
+        registrado_por: req.user!.uid,
+        fecha_registro: new Date().toISOString(),
+      }, { merge: true });
+    });
+    if (shouldReactivateParticipant) {
+      writer.set(participantRef, {
+        estado_final: 'En formación',
+        motivo_desercion: FieldValue.delete(),
+      }, { merge: true });
+    }
+    await writer.close();
     res.json({ ok: true });
   },
 );

@@ -1048,6 +1048,26 @@ export default function App() {
 
   const isDropoutAttendance = (status: AttendanceStatus) => isDropoutAttendanceStatus(status);
 
+  const clearDropoutAttendanceDetails = (
+    record: AttendanceRecord,
+    status: AttendanceStatus = 'Seleccionar',
+  ): AttendanceRecord => {
+    const {
+      motivo_desercion: _motivoDesercion,
+      observacion: _observacion,
+      evidencia_nombre: _evidenciaNombre,
+      evidencia_imagen: _evidenciaImagen,
+      minutos_tardanza: _minutosTardanza,
+      ...baseRecord
+    } = record;
+    return {
+      ...baseRecord,
+      estado_asistencia: status,
+      registrado_por: activeUser?.id || record.registrado_por,
+      fecha_registro: new Date().toISOString(),
+    };
+  };
+
   const getTrainingDayDate = (session: TrainingSession | undefined, day: number) => {
     if (!session?.fecha_inicio) return new Date().toISOString().split('T')[0];
     try {
@@ -1114,9 +1134,22 @@ export default function App() {
     if (existingIdx !== -1) {
       prevStatus = attendance[existingIdx].estado_asistencia;
       setAttendance(prev => {
-        const copy = [...prev];
-        copy[existingIdx] = updatedRec;
-        return copy;
+        const isDropoutCorrection =
+          isDropoutAttendanceStatus(prevStatus) &&
+          !isDropoutAttendance(rec.estado_asistencia);
+        return prev.map((record) => {
+          if (record.id === updatedRec.id) return updatedRec;
+          if (
+            isDropoutCorrection &&
+            record.training_session_id === rec.training_session_id &&
+            record.participant_id === pId &&
+            record.dia > rec.dia &&
+            isDropoutAttendanceStatus(record.estado_asistencia)
+          ) {
+            return clearDropoutAttendanceDetails(record);
+          }
+          return record;
+        });
       });
     } else {
       setAttendance(prev => [...prev, updatedRec]);
@@ -1154,6 +1187,21 @@ export default function App() {
         if (p.id === pId) return { ...p, estado_final: 'Desistió' };
         return p;
       }));
+    } else if (isDropoutAttendanceStatus(prevStatus)) {
+      const hasRemainingDropout = attendance.some((record) =>
+        record.training_session_id === rec.training_session_id &&
+        record.participant_id === pId &&
+        record.id !== updatedRec.id &&
+        record.dia < rec.dia &&
+        isDropoutAttendanceStatus(record.estado_asistencia),
+      );
+      if (!hasRemainingDropout) {
+        setParticipants(prev => prev.map(p => {
+          if (p.id !== pId || !isDropoutAttendanceStatus(p.estado_final)) return p;
+          const { motivo_desercion: _motivoDesercion, ...activeParticipant } = p;
+          return { ...activeParticipant, estado_final: 'En formación' };
+        }));
+      }
     }
 
     addAuditLog(
@@ -1183,6 +1231,19 @@ export default function App() {
   ) => {
     const sess = sessions.find(s => s.id === sId);
     const date = getTrainingDayDate(sess, dia);
+    const isDropoutStatus = isDropoutAttendance(status);
+    const reactivatedParticipantIds = new Set(
+      !isDropoutStatus
+        ? pIds.filter((pId) => {
+            const currentRecord = attendance.find((record) =>
+              record.training_session_id === sId &&
+              record.participant_id === pId &&
+              record.dia === dia,
+            );
+            return isDropoutAttendanceStatus(currentRecord?.estado_asistencia);
+          })
+        : [],
+    );
 
     const newRecords: AttendanceRecord[] = pIds.map(pId => {
       const existingIdx = attendance.findIndex(a => a.participant_id === pId && a.dia === dia);
@@ -1194,7 +1255,7 @@ export default function App() {
         fecha: date,
         estado_asistencia: status,
         minutos_tardanza: status === 'Tardanza' ? 10 : undefined,
-        motivo_desercion,
+        motivo_desercion: isDropoutStatus ? motivo_desercion : undefined,
         observacion: obs,
         evidencia_nombre,
         evidencia_imagen,
@@ -1220,6 +1281,14 @@ export default function App() {
       pIds,
     );
     const allRecords = [...newRecords, ...continuationRecords];
+    const reactivationRecords = attendance
+      .filter((record) =>
+        record.training_session_id === sId &&
+        reactivatedParticipantIds.has(record.participant_id) &&
+        record.dia > dia &&
+        isDropoutAttendanceStatus(record.estado_asistencia),
+      )
+      .map((record) => clearDropoutAttendanceDetails(record));
 
     allRecords.forEach((record) => {
       void persistAttendance(record).catch((error) => {
@@ -1230,9 +1299,13 @@ export default function App() {
     // Update attendance state
     setAttendance(prev => {
       // Filter out those being overwritten
-      const daysToOverwrite = [dia, ...continuationRecords.map(record => record.dia)];
+      const daysToOverwrite = [
+        dia,
+        ...continuationRecords.map(record => record.dia),
+        ...reactivationRecords.map(record => record.dia),
+      ];
       const filtered = prev.filter(a => !(a.training_session_id === sId && daysToOverwrite.includes(a.dia) && pIds.includes(a.participant_id)));
-      return [...filtered, ...allRecords];
+      return [...filtered, ...allRecords, ...reactivationRecords];
     });
 
     // Update participant final status
@@ -1247,6 +1320,22 @@ export default function App() {
       setParticipants(prev => prev.map(p => {
         if (pIds.includes(p.id)) return { ...p, estado_final: 'Desistió' };
         return p;
+      }));
+    } else if (reactivatedParticipantIds.size > 0) {
+      setParticipants(prev => prev.map((participant) => {
+        if (
+          !reactivatedParticipantIds.has(participant.id) ||
+          !isDropoutAttendanceStatus(participant.estado_final)
+        ) return participant;
+        const hasRemainingDropout = attendance.some((record) =>
+          record.training_session_id === sId &&
+          record.participant_id === participant.id &&
+          record.dia < dia &&
+          isDropoutAttendanceStatus(record.estado_asistencia),
+        );
+        if (hasRemainingDropout) return participant;
+        const { motivo_desercion: _motivoDesercion, ...activeParticipant } = participant;
+        return { ...activeParticipant, estado_final: 'En formación' };
       }));
     }
 
