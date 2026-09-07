@@ -153,7 +153,8 @@ router.put(
     const previousAttendance = await attendanceRef.get();
     const previousData = previousAttendance.data();
     const isDropoutCorrection =
-      isDropoutAttendance(previousData?.estado_asistencia) &&
+      (isDropoutAttendance(previousData?.estado_asistencia) ||
+        Boolean(String(previousData?.motivo_desercion || '').trim())) &&
       !isDropoutAttendance(parsed.data.estado_asistencia);
 
     if (!isDropoutCorrection) {
@@ -181,6 +182,12 @@ router.put(
       return document.id !== req.params.id &&
         Number(data.dia) > correctedDay &&
         isDropoutAttendance(data.estado_asistencia);
+    });
+    const staleDropoutMetadata = sameSessionAttendance.filter((document) => {
+      const data = document.data();
+      return document.id !== req.params.id &&
+        !isDropoutAttendance(data.estado_asistencia) &&
+        Boolean(String(data.motivo_desercion || '').trim());
     });
     const propagatedIds = new Set(propagatedDropouts.map((document) => document.id));
     const hasRemainingDropout = sameSessionAttendance.some((document) =>
@@ -215,6 +222,11 @@ router.put(
         evidencia_imagen: FieldValue.delete(),
         registrado_por: req.user!.uid,
         fecha_registro: new Date().toISOString(),
+      }, { merge: true });
+    });
+    staleDropoutMetadata.forEach((document) => {
+      writer.set(document.ref, {
+        motivo_desercion: FieldValue.delete(),
       }, { merge: true });
     });
     if (shouldReactivateParticipant) {

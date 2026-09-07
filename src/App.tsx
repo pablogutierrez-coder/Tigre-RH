@@ -1135,7 +1135,8 @@ export default function App() {
       prevStatus = attendance[existingIdx].estado_asistencia;
       setAttendance(prev => {
         const isDropoutCorrection =
-          isDropoutAttendanceStatus(prevStatus) &&
+          (isDropoutAttendanceStatus(prevStatus) ||
+            Boolean(String(attendance[existingIdx]?.motivo_desercion || '').trim())) &&
           !isDropoutAttendance(rec.estado_asistencia);
         return prev.map((record) => {
           if (record.id === updatedRec.id) return updatedRec;
@@ -1187,7 +1188,10 @@ export default function App() {
         if (p.id === pId) return { ...p, estado_final: 'Desistió' };
         return p;
       }));
-    } else if (isDropoutAttendanceStatus(prevStatus)) {
+    } else if (
+      isDropoutAttendanceStatus(prevStatus) ||
+      Boolean(String(attendance[existingIdx]?.motivo_desercion || '').trim())
+    ) {
       const hasRemainingDropout = attendance.some((record) =>
         record.training_session_id === rec.training_session_id &&
         record.participant_id === pId &&
@@ -1240,7 +1244,8 @@ export default function App() {
               record.participant_id === pId &&
               record.dia === dia,
             );
-            return isDropoutAttendanceStatus(currentRecord?.estado_asistencia);
+            return isDropoutAttendanceStatus(currentRecord?.estado_asistencia) ||
+              Boolean(String(currentRecord?.motivo_desercion || '').trim());
           })
         : [],
     );
