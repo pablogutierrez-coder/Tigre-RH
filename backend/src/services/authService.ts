@@ -89,35 +89,60 @@ export const loginWithUsername = async (username: string, password: string) => {
   }
 
   const credential = credentialDoc.data() || {};
-  const uid = String(credential.uid || credentialDoc.id);
   const passwordHash = credential.password_hash;
 
-  if (!uid || typeof passwordHash !== 'string') {
+  if (typeof passwordHash !== 'string') {
     throw genericCredentialsError();
-  }
-
-  const userDoc = await adminDb.collection('users').doc(uid).get();
-  if (!userDoc.exists) {
-    throw new AuthError('Perfil de usuario no encontrado.', 500);
-  }
-
-  const profile = userDoc.data() as UserProfile;
-  if (profile.estado !== 'Activo') {
-    throw new AuthError('Usuario inactivo.', 403);
-  }
-
-  if (!profile.usuario_normalizado) {
-    await userDoc.ref.set(
-      {
-        usuario_normalizado: usuarioNormalizado,
-      },
-      { merge: true },
-    );
   }
 
   const passwordOk = await bcrypt.compare(password, passwordHash);
   if (!passwordOk) {
     throw genericCredentialsError();
+  }
+
+  const storedUid = String(credential.uid || '').trim();
+  const candidateUids = Array.from(new Set([storedUid, credentialDoc.id]))
+    .filter((uid) => uid && !uid.includes('/'));
+  let userDoc = null;
+  for (const candidateUid of candidateUids) {
+    const candidate = await adminDb.collection('users').doc(candidateUid).get();
+    if (candidate.exists) {
+      userDoc = candidate;
+      break;
+    }
+  }
+
+  if (!userDoc) {
+    const profileSnapshot = await adminDb
+      .collection('users')
+      .where('usuario_normalizado', '==', usuarioNormalizado)
+      .limit(1)
+      .get();
+    userDoc = profileSnapshot.docs[0] || null;
+  }
+  if (!userDoc) {
+    throw new AuthError('Perfil de usuario no encontrado.', 500);
+  }
+
+  const uid = userDoc.id;
+  const profile = userDoc.data() as UserProfile;
+  if (profile.estado !== 'Activo') {
+    throw new AuthError('Usuario inactivo.', 403);
+  }
+
+  if (!profile.usuario_normalizado || storedUid !== uid) {
+    try {
+      await Promise.all([
+        userDoc.ref.set({ usuario_normalizado: usuarioNormalizado }, { merge: true }),
+        credentialDoc.ref.set({
+          uid,
+          usuario_normalizado: usuarioNormalizado,
+          updated_at: new Date().toISOString(),
+        }, { merge: true }),
+      ]);
+    } catch (error) {
+      console.warn('Login metadata repair failed:', error);
+    }
   }
 
   const customToken = await adminAuth.createCustomToken(uid, {
